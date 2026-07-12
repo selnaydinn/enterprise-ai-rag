@@ -1,4 +1,4 @@
-# 🚀 Enterprise RAG Pipeline (Production-Ready)
+# Enterprise AI
 
 This project is a **Retrieval-Augmented Generation (RAG)** system built with a modular microservices architecture.
 It enables scalable document ingestion, high-performance vector semantic search, and secure LLM orchestration wrapped in
@@ -28,8 +28,7 @@ Note: You can find all necessity technologies and libraries in requirements.txt 
 ## Running the Application
 * Clone the repository and configure your .env file with your LLM API keys.
 * Spin up the containers: docker-compose up --build
-* Spin up the backend: cd rag-frontend
-*                      npm run dev
+* Spin up the backend: 1. cd rag-frontend, 2. npm run dev
 
 * Frontend UI: http://localhost:3000
 
