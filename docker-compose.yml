@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  rag-backend:
+    build: .
+    container_name: meb_rag_backend
+    ports:
+      - "8000:8000"  # Next.js frontend uygulamasının bağlanacağı API portu
+    volumes:
+      - .:/app       # Kodda yapacağın değişikliklerin anında güncellenmesini sağlar
+      # PDF'LERİN UÇMASINI ENGELLEYEN KALICI VOLUME:
+      - ./uploaded_pdfs:/app/uploaded_pdfs
+    
+    #Proje klasöründeki .env dosyasını container içine yükler
+    env_file:
+      - .env
+
+    #Gemini API bağlantı sorunlarını ve retrying hatalarını çözen DNS ayarı
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+    
+    # Bilgisayarının kilitlenmesini engelleyen 3 GB RAM ve işlemci sınırı:
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'       # İşlemcinin (Ryzen) en fazla 2 çekirdeğini kullanabilir
+          memory: 3000M     # RAM kullanımı 3000 MB'ı (3 GB) kesinlikle geçemez

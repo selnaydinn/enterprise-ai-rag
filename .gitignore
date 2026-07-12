@@ -1,0 +1,25 @@
+# Python / Virtual Environment
+venv/
+.venv/
+env/
+__pycache__/
+chroma_db/
+uploaded_pdfs/
+*.pyc
+*.pyo
+*.pyd
+
+# Frontend (Alt klasör altındakileri de yakalar)
+**/node_modules/
+**/.next/
+**/out/
+**/build/
+
+# Environment & Credentials (Çok Kritik!)
+.env
+.env.*
+
+# IDEs
+.vscode/
+.idea/
+.DS_Store
