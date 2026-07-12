@@ -21,13 +21,13 @@ The system is split into decoupled layers to ensure strict separation of concern
 
 ## Prerequisites
 * Docker & Docker Compose installed.
-* Python 3.10+ (if running locally outside Docker). Note: Python dependencies can be found in `requirements.txt`.
-* Node.js 18+ (if running frontend locally). Note: Frontend dependencies can be found in `package.json`.
+* Python 3.10+. Note: Backend dependencies can be found in `requirements.txt`.
+* Node.js 18+. Note: Frontend dependencies can be found in `package.json`.
 
 ## Running the Application
 * Clone the repository and configure your `.env` file with your LLM API keys.
-* Spin up the containers (Full Ecosystem): `docker-compose up --build`
-* Spin up the frontend locally (Alternative): 
+* Spin up the backend: `docker-compose up --build`
+* Spin up the frontend: 
   ```bash
   cd rag-frontend
   npm run dev
