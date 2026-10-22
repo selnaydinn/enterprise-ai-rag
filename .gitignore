@@ -4,6 +4,7 @@ venv/
 env/
 __pycache__/
 chroma_db/
+chroma_db_normalization/
 uploaded_pdfs/
 *.pyc
 *.pyo
