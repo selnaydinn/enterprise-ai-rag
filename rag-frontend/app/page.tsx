@@ -23,6 +23,9 @@ interface DocumentItem {
   name: string;
 }
 
+//Backenddeki upload sınırıyla aynı (main.py MAX_UPLOAD_BYTES)
+const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
+
 export default function Home() {
 
   const [messages, setMessages] = useState<Message[]>([
@@ -63,13 +66,25 @@ export default function Home() {
 
   //Event listener kullanarak upload butonunu dinliyoruz, backendi tetikliyoruz
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files || !e.target.files[0]) return;
+    const fileInput = e.target;
+    const file = fileInput.files?.[0];
+    if (!file) return;
     console.log("PDF yükleme işlemi başladı...");
-    const file = e.target.files[0];
     console.log("Seçilen Dosya:", file);
 
-    if (!file.name.endsWith('.pdf')) {
+    //Seçicinin değerini sıfırlıyoruz; yoksa aynı dosya tekrar seçildiğinde onChange tetiklenmez
+    //(file değişkeni dosyayı zaten tuttuğu için yükleme etkilenmez)
+    fileInput.value = '';
+
+    //Backend ".PDF" uzantısını da kabul ediyor
+    if (!file.name.toLowerCase().endsWith('.pdf')) {
       alert("Lütfen sadece PDF dosyası yükleyin.");
+      return;
+    }
+
+    //Büyük dosyayı göndermeden önce reddediyoruz; asıl kontrol backendde
+    if (file.size > MAX_UPLOAD_BYTES) {
+      alert(`Dosya boyutu ${MAX_UPLOAD_BYTES / (1024 * 1024)} MB sınırını aşıyor.`);
       return;
     }
 
@@ -85,12 +100,30 @@ export default function Home() {
       console.log("PDF yüklendi ve frontende yanıtını döndü.");
       clearInterval(progressInterval);
 
+      //Backend nadiren 200 ile "Reddedildi"/"Hata" dönebiliyor (ör. aynı anda iki yükleme)
+      if (result?.status !== "Success") {
+        alert(result?.message || "Dosya işlenemedi.");
+      }
+
+      //Listeye kendimiz eklemek yerine backendten çekiyoruz; backend dosya adını değiştirebiliyor (".PDF" -> ".pdf")
+      const savedName = file.name.trim().replace(/\.pdf$/i, '.pdf');
+      let refreshedDocs: DocumentItem[] | null = null;
+      try {
+        refreshedDocs = await apiService.getExistingDocuments();
+      } catch (error) {
+        console.error("Yükleme sonrası döküman listesi yenilenemedi:", error);
+      }
+
       setUploadProgress(100);
       setTimeout(() => {
         setIsUploading(false);
         setUploadProgress(0);
-        setDocuments((prevDocs) => [...prevDocs, { name: file.name }]);
-        setSelectedDoc(file.name); 
+        if (refreshedDocs) {
+          setDocuments(refreshedDocs);
+          if (refreshedDocs.some((doc) => doc.name === savedName)) {
+            setSelectedDoc(savedName);
+          }
+        }
       }, 400);
 
     } catch (error: any) {
