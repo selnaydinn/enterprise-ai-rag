@@ -1,0 +1,112 @@
+{
+  "created_at": "2026-10-18T16:13:23+00:00",
+  "description": "PDFs re-ingested through services.ingestion.process_pdf with normalize_blank_lines; all other settings as baseline",
+  "reference": "chroma_db",
+  "target": "chroma_db_normalization",
+  "pdfs": [
+    "AcilSaglikHizmetleri.pdf",
+    "KanMerkezleriYonetmelik.pdf",
+    "Sozlesmeli_ogretmenlik.pdf",
+    "meb_yonetmelik.pdf"
+  ],
+  "model": "intfloat/multilingual-e5-base",
+  "collection": "langchain",
+  "control_reproduces_baseline": true,
+  "baseline_chunks": {
+    "count": 564,
+    "by_file": {
+      "AcilSaglikHizmetleri.pdf": 43,
+      "KanMerkezleriYonetmelik.pdf": 68,
+      "Sozlesmeli_ogretmenlik.pdf": 18,
+      "meb_yonetmelik.pdf": 435
+    },
+    "length": {
+      "min": 294,
+      "p10": 665,
+      "median": 1145.0,
+      "mean": 1055.5,
+      "p90": 1188,
+      "max": 1199,
+      "under_300": 1,
+      "under_600": 48
+    },
+    "starts_lowercase": 313,
+    "ends_with_sentence_punct": 179,
+    "split_at": {
+      "paragraf (boş satır)": 11,
+      "satır sonu": 418,
+      "boşluk/kelime": 0,
+      "sayfa sonu": 135,
+      "bulunamadı": 0
+    }
+  },
+  "normalized_chunks": {
+    "count": 598,
+    "by_file": {
+      "AcilSaglikHizmetleri.pdf": 48,
+      "KanMerkezleriYonetmelik.pdf": 72,
+      "Sozlesmeli_ogretmenlik.pdf": 19,
+      "meb_yonetmelik.pdf": 459
+    },
+    "length": {
+      "min": 25,
+      "p10": 455,
+      "median": 1081.5,
+      "mean": 930.5,
+      "p90": 1179,
+      "max": 1199,
+      "under_300": 24,
+      "under_600": 104
+    },
+    "starts_lowercase": 221,
+    "ends_with_sentence_punct": 281,
+    "split_at": {
+      "paragraf (boş satır)": 194,
+      "satır sonu": 269,
+      "boşluk/kelime": 0,
+      "sayfa sonu": 135,
+      "bulunamadı": 0
+    }
+  },
+  "chunk_ids_kept": 119,
+  "chunk_texts_kept": 194,
+  "verification": {
+    "count": 598,
+    "ids_match": true,
+    "documents_match": true,
+    "page_and_source_match": true,
+    "hnsw_match_reference": true,
+    "configuration": {
+      "hnsw": {
+        "space": "l2",
+        "ef_construction": 100,
+        "ef_search": 100,
+        "max_neighbors": 16,
+        "resize_factor": 1.2,
+        "sync_threshold": 1000
+      },
+      "spann": null,
+      "embedding_function": null
+    },
+    "reference_configuration": {
+      "hnsw": {
+        "space": "l2",
+        "ef_construction": 100,
+        "ef_search": 100,
+        "max_neighbors": 16,
+        "resize_factor": 1.2,
+        "sync_threshold": 1000
+      },
+      "spann": null,
+      "embedding_function": null
+    },
+    "consistency_min_cosine_no_prefix": 1.0,
+    "searchable": 598
+  },
+  "embedding_seconds": 484.6,
+  "reference_unchanged": true,
+  "passage_db_unchanged": true,
+  "total_seconds": 560.8,
+  "chromadb_version": "1.5.9",
+  "sentence_transformers_version": "5.6.0"
+}

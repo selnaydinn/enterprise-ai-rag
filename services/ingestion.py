@@ -1,4 +1,5 @@
 import os
+import re
 import hashlib
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -10,6 +11,11 @@ def hash_pdf(pdf_path):
         file_bytes = f.read()
         return hashlib.md5(file_bytes).hexdigest()[:8]
     
+#pypdf boş satırları "\n \n" gibi boşluklu üretiyor; splitter'ın "\n\n" ayracı bunları tanıyabilsin diye
+#yalnızca boşluktan oluşan satırları boş satıra çeviriyoruz (diğer satır sonlarına dokunmuyoruz)
+def normalize_blank_lines(text):
+    return re.sub(r"\n[^\S\n]+(?=\n)", "\n", text)
+
 #Aynı pdf kontrolü
 def is_file_already_processed(file_hash):
     existing_docs = db.get(where={"pdf_hash": file_hash}, limit=1)
@@ -41,6 +47,8 @@ def process_pdf(pdf_path):
     #PDFi sayfa sayfa döküman objesi yaptık
     loader = PyPDFLoader(pdf_path)
     pages = loader.load()
+    for page in pages:
+        page.page_content = normalize_blank_lines(page.page_content)
 
     #Sayfaları chunklara böldük
     splitter = RecursiveCharacterTextSplitter(

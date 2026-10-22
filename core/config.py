@@ -11,7 +11,7 @@ print("Key etkinleştirildi.")
 
 
 #DB path
-chroma_dir = "/app/chroma_db"
+chroma_dir = "/app/chroma_db_normalization"
 os.makedirs(chroma_dir, exist_ok=True)
 
 #Embedding modeli
