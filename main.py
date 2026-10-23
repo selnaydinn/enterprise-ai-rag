@@ -30,12 +30,16 @@ app.mount("/static-pdfs", StaticFiles(directory=UPLOAD_DIR), name="pdfs")
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("EnterpriseAI")
 
+#Frontend adresleri .env'den okunur; tanımlı değilse localhost:3000 varsayılır
+CORS_ORIGINS = [o.strip() for o in os.getenv("CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000").split(",") if o.strip()]
+
+#Frontend cookie kullanmıyor, credentials kapalı
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=CORS_ORIGINS,
+    allow_credentials=False,
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type"],
 )
 
 #Pydantic modeli - Frontendden gelen jsonı karşıladı

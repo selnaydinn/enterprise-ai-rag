@@ -19,6 +19,7 @@ uploaded_pdfs/
 # Environment & Credentials (Çok Kritik!)
 .env
 .env.*
+!.env.example
 
 # IDEs
 .vscode/

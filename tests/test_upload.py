@@ -175,5 +175,30 @@ class UploadEndpointTests(unittest.TestCase):
         self.assertEqual(self.files(), [])
 
 
+class CorsTests(unittest.TestCase):
+
+    def setUp(self):
+        self.main = import_main()
+        self.client = TestClient(self.main.app)
+
+    def preflight(self, origin):
+        return self.client.options("/query/", headers={
+            "Origin": origin,
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "Content-Type",
+        })
+
+    def test_allowed_origin_gets_cors_header(self):
+        #.env'de CORS_ORIGINS tanımlıysa onu kullanıyoruz; varsayılana bağımlı kalmasın
+        origin = self.main.CORS_ORIGINS[0]
+        response = self.preflight(origin)
+        self.assertEqual(response.headers.get("access-control-allow-origin"), origin)
+        self.assertNotIn("access-control-allow-credentials", response.headers)
+
+    def test_unknown_origin_gets_no_cors_header(self):
+        response = self.preflight("http://kotu-site.example")
+        self.assertNotIn("access-control-allow-origin", response.headers)
+
+
 if __name__ == "__main__":
     unittest.main()
