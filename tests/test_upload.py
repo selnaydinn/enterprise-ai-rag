@@ -174,6 +174,43 @@ class UploadEndpointTests(unittest.TestCase):
         self.assertEqual(response.status_code, 500)
         self.assertEqual(self.files(), [])
 
+    def test_failed_processing_hides_internal_error(self):
+        self.process.side_effect = RuntimeError("C:\\gizli\\yol embedding hatası")
+        with self.assertLogs("EnterpriseAI", level="ERROR") as logs:
+            response = self.upload("rapor.pdf")
+        self.assertEqual(response.status_code, 500)
+        self.assertEqual(response.json()["detail"], "Dosya işlenirken beklenmeyen bir hata oluştu.")
+        #Detay kullanıcıya gitmiyor ama logda kalıyor
+        self.assertIn("C:\\gizli\\yol embedding hatası", "\n".join(logs.output))
+
+
+class InternalErrorTests(unittest.TestCase):
+
+    SECRET = "C:\\gizli\\yol iç hata"
+
+    def setUp(self):
+        self.main = import_main()
+        self.client = TestClient(self.main.app)
+
+    def assert_hidden(self, response, logs, message):
+        self.assertEqual(response.status_code, 500)
+        self.assertEqual(response.json()["detail"], message)
+        self.assertNotIn(self.SECRET, response.text)
+        self.assertIn(self.SECRET, "\n".join(logs.output))
+
+    def test_query_error_is_hidden(self):
+        with mock.patch.object(self.main, "TOTAL_TOKEN_USAGE", 0), \
+             mock.patch.object(self.main, "prepare_chunks_with_metadata", side_effect=RuntimeError(self.SECRET)), \
+             self.assertLogs("EnterpriseAI", level="ERROR") as logs:
+            response = self.client.post("/query/", json={"question": "soru"})
+        self.assert_hidden(response, logs, "Sorunuz yanıtlanırken beklenmeyen bir hata oluştu.")
+
+    def test_documents_error_is_hidden(self):
+        with mock.patch.object(self.main.os, "listdir", side_effect=OSError(self.SECRET)), \
+             self.assertLogs("EnterpriseAI", level="ERROR") as logs:
+            response = self.client.get("/documents/")
+        self.assert_hidden(response, logs, "Doküman listesi alınırken bir hata oluştu.")
+
 
 class CorsTests(unittest.TestCase):
 

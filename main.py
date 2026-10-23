@@ -59,9 +59,10 @@ def list_documents():
             # Frontendin beklediği [{name: "..."}] formatına çeviriyoruz
             return [{"name": f} for f in pdf_files]
         return []
-    except Exception as e:
-        logger.error(f"Dosya listeleme hatası: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception:
+        #Hata detayı (dosya yolları vb.) sadece loga yazılıyor; kullanıcıya genel mesaj dönüyor
+        logger.exception("Dosya listeleme hatası")
+        raise HTTPException(status_code=500, detail="Doküman listesi alınırken bir hata oluştu.")
     
 
 #Dosya adındaki klasör kısmını atıyoruz (path traversal: "../x.pdf", "..\x.pdf"); güvenli değilse None
@@ -112,12 +113,12 @@ async def upload_pdf(file: UploadFile = File(...)):
         logger.info("Pdf dosyası DB'ye başarıyla kaydedildi!!!")
         return result
 
-    except Exception as e:
+    except Exception:
         #İşlem yarıda kaldıysa dosyayı diskte bırakmıyoruz; yoksa /documents/ listesinde hayalet doküman görünür
         if os.path.exists(target_file_path):
             os.remove(target_file_path)
-        logger.error(f"Upload hatası: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("Upload hatası")
+        raise HTTPException(status_code=500, detail="Dosya işlenirken beklenmeyen bir hata oluştu.")
 
 
 @app.post("/query/")
@@ -153,6 +154,6 @@ async def query(request: QueryRequest):
         logger.info(f"AI başarıyla yanıtını döndü!!! Güncel Kümülatif Token: {TOTAL_TOKEN_USAGE}")
         return response
 
-    except Exception as e:
-        logger.error(f"Query hatası: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception:
+        logger.exception("Query hatası")
+        raise HTTPException(status_code=500, detail="Sorunuz yanıtlanırken beklenmeyen bir hata oluştu.")
