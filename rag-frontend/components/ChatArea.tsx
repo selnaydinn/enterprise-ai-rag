@@ -15,6 +15,9 @@ interface Message {
   total_token_usage?: number;
 }
 
+//Backenddeki soru sınırıyla aynı (main.py MAX_QUESTION_LENGTH)
+const MAX_QUESTION_LENGTH = 500;
+
 //Props type safety
 interface ChatAreaProps {
   messages: Message[];
@@ -52,6 +55,16 @@ export default function ChatArea({
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isLoading]); // isLoading değiştiğinde de aşağı kaysın
 
+  //Soru kutusu yazdıkça büyüsün; üst sınırı max-h-36 belirliyor, sonrasında içeride kayar
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${el.scrollHeight}px`;
+  }, [input]); // gönderimden sonra input boşalınca tek satıra döner
+
   const lastAssistantMessage = [...messages].reverse().find(msg => msg.role === 'assistant');
   const currentTokenUsage = lastAssistantMessage?.total_token_usage || 0;
 
@@ -68,7 +81,7 @@ export default function ChatArea({
       )}
 
       {/* TOKEN USAGE */}
-      <div className="absolute top-5 right-6 z-30 text-[10px] text-slate-400 font-semibold tracking-wide">
+      <div className="absolute top-5 right-6 z-30 text-[10px] text-black font-semibold tracking-wide">
         Token Usage: {currentTokenUsage.toLocaleString()} / 10K
       </div>
       
@@ -87,7 +100,7 @@ export default function ChatArea({
                 className={`max-w-[80%] w-max rounded-2xl px-4 py-3 text-xs leading-relaxed font-medium shadow-sm ${
                   msg.role === 'user' 
                     ? 'bg-indigo-600 text-white rounded-br-none' 
-                    : 'bg-white text-slate-800 border border-slate-200/60 rounded-bl-none'
+                    : 'bg-white text-black border border-slate-200/60 rounded-bl-none'
                 }`}
               >
                 {msg.text}
@@ -96,7 +109,7 @@ export default function ChatArea({
               {/* KULLANILAN KAYNAKLAR*/}
               {msg.role === 'assistant' && msg.resources && msg.resources.length > 0 && (
                 <div className="mt-2 flex flex-wrap gap-2 max-w-[80%] animate-in fade-in slide-in-from-bottom-1 duration-200">
-                  <span className="text-[10px] text-slate-400 font-semibold block w-full pl-1">
+                  <span className="text-[10px] text-black font-semibold block w-full pl-1">
                     Kullanılan Kaynaklar:
                   </span>
                   {msg.resources.map((res, i) => (
@@ -124,7 +137,7 @@ export default function ChatArea({
           {/* LLM YANIT YÜKLENİYOR ANIMASYONU */}
           {isLoading && (
             <div className="flex flex-col items-start animate-in fade-in duration-200">
-              <div className="max-w-[80%] w-max rounded-2xl px-4 py-3 text-xs font-medium bg-white/80 text-slate-500 border border-slate-200/60 rounded-bl-none shadow-sm flex items-center gap-2">
+              <div className="max-w-[80%] w-max rounded-2xl px-4 py-3 text-xs font-medium bg-white/80 text-black border border-slate-200/60 rounded-bl-none shadow-sm flex items-center gap-2">
                 <Loader2 className="h-3.5 w-3.5 animate-spin text-indigo-500" />
                 <span>Yanıt üretiliyor...</span>
               </div>
@@ -141,7 +154,7 @@ export default function ChatArea({
         {/*İlerleme Çubuğu */}
         {isUploading && (
           <div className="max-w-3xl mx-auto bg-white border border-slate-200 p-3.5 rounded-xl flex flex-col gap-2 shadow-sm">
-            <div className="flex items-center justify-between text-xs text-slate-600 font-medium">
+            <div className="flex items-center justify-between text-xs text-black font-medium">
               <div className="flex items-center gap-2">
                 <Loader2 className="h-3.5 w-3.5 animate-spin text-indigo-500" />
                 <span>Dosya işleniyor...</span>
@@ -159,27 +172,36 @@ export default function ChatArea({
 
         {/* INPUT KUTUSU */}
         <div className="max-w-3xl mx-auto">
-          <div className="flex-1 flex items-center bg-white border border-slate-200 rounded-xl px-3 relative h-14 shadow-sm focus-within:ring-2 focus-within:ring-indigo-500/10 focus-within:border-indigo-500 transition-all">
+          <div className="flex-1 flex items-end bg-white border border-slate-200 rounded-xl px-3 py-2.5 relative min-h-14 shadow-sm focus-within:ring-2 focus-within:ring-indigo-500/10 focus-within:border-indigo-500 transition-all">
             
             <label className="flex h-9 w-9 items-center justify-center text-slate-400 hover:text-slate-600 cursor-pointer shrink-0 transition-colors">
               <input type="file" accept=".pdf" className="hidden" onChange={onFileUpload} disabled={isUploading} />
               <Paperclip className="w-5 h-5" />
             </label>
             
-            <input 
-              type="text" 
-              value={input} 
-              onChange={(e) => setInput(e.target.value)} 
-              onKeyDown={(e) => e.key === 'Enter' && onSend()} 
-              placeholder="Ask a question..." 
-              className="flex-1 bg-transparent border-0 pl-2 pr-12 py-4 text-xs font-medium text-slate-700 placeholder-slate-400 focus:outline-none h-full" 
+            {/* Enter gönderir, Shift+Enter yeni satır ekler; IME ile harf birleştirilirken basılan Enter göndermez */}
+            <textarea
+              ref={textareaRef}
+              rows={1}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+                  e.preventDefault();
+                  onSend();
+                }
+              }}
+              maxLength={MAX_QUESTION_LENGTH}
+              placeholder="Ask a question..."
+              className="flex-1 resize-none bg-transparent border-0 pl-2 pr-12 py-2.5 text-xs font-medium text-black placeholder-slate-400 focus:outline-none max-h-36 overflow-y-auto"
             />
 
-            <div className="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center">
+            <div className="absolute right-2 bottom-2 w-10 h-10 flex items-center justify-center">
               {input.length > 0 && (
-                <button 
-                  onClick={onSend} 
-                  className="rounded-lg bg-white hover:bg-slate-200 text-slate-900 p-2.5 h-10 w-10 flex items-center justify-center transition-all shadow-md shadow-indigo-100 animate-in fade-in zoom-in-95 duration-150"
+                <button
+                  onClick={onSend}
+                  disabled={isLoading}
+                  className="rounded-lg bg-white hover:bg-slate-200 text-slate-900 p-2.5 h-10 w-10 flex items-center justify-center transition-all shadow-md shadow-indigo-100 animate-in fade-in zoom-in-95 duration-150 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white"
                 >
                   <ArrowUp className="w-4 h-4 shrink-0" />
                 </button>
@@ -187,6 +209,19 @@ export default function ChatArea({
             </div>
 
           </div>
+
+          {/* KARAKTER SAYACI: yazmaya başlayınca görünür, sınıra yaklaşınca renk değiştirir */}
+          {input.length > 0 && (
+            <div className={`mt-1.5 pr-1 text-right text-[10px] font-semibold ${
+              input.length >= MAX_QUESTION_LENGTH
+                ? 'text-red-500'
+                : input.length >= MAX_QUESTION_LENGTH * 0.9
+                  ? 'text-amber-500'
+                  : 'text-black'
+            }`}>
+              {input.length}/{MAX_QUESTION_LENGTH}
+            </div>
+          )}
         </div>
       </div>
     </section>

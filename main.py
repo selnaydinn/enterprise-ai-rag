@@ -1,9 +1,10 @@
 import os
 import re
 import logging
+from typing import Annotated
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, StringConstraints
 from services.ingestion import process_pdf, hash_bytes, hash_pdf, is_file_already_processed
 from core.config import db
 from services.query import prepare_chunks_with_metadata
@@ -24,23 +25,31 @@ MAX_UPLOAD_BYTES = 20 * 1024 * 1024
 #Harf (Türkçe dahil), rakam, boşluk ve _ - . ( ) dışındaki karakterleri kabul etmiyoruz
 SAFE_FILENAME = re.compile(r"[\w\- .()]+\.pdf", re.IGNORECASE)
 
+#Soru sınırı; frontenddeki MAX_QUESTION_LENGTH ile aynı olmalı (ChatArea.tsx)
+MAX_QUESTION_LENGTH = 500
+
 #Frontendin PDF'leri okuyabilmesi için statik yönlendirme
 app.mount("/static-pdfs", StaticFiles(directory=UPLOAD_DIR), name="pdfs")
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("EnterpriseAI")
 
+#Frontend adresleri .env'den okunur; tanımlı değilse localhost:3000 varsayılır
+CORS_ORIGINS = [o.strip() for o in os.getenv("CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000").split(",") if o.strip()]
+
+#Frontend cookie kullanmıyor, credentials kapalı
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=CORS_ORIGINS,
+    allow_credentials=False,
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type"],
 )
 
 #Pydantic modeli - Frontendden gelen jsonı karşıladı
+#Boş, sadece boşluk veya sınırdan uzun sorular endpoint çalışmadan 422 alır; LLM çağrılmaz, token harcanmaz
 class QueryRequest(BaseModel):
-    question: str
+    question: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=MAX_QUESTION_LENGTH)]
 
 @app.get("/")
 def read_root():
@@ -55,9 +64,10 @@ def list_documents():
             # Frontendin beklediği [{name: "..."}] formatına çeviriyoruz
             return [{"name": f} for f in pdf_files]
         return []
-    except Exception as e:
-        logger.error(f"Dosya listeleme hatası: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception:
+        #Hata detayı (dosya yolları vb.) sadece loga yazılıyor; kullanıcıya genel mesaj dönüyor
+        logger.exception("Dosya listeleme hatası")
+        raise HTTPException(status_code=500, detail="Doküman listesi alınırken bir hata oluştu.")
     
 
 #Dosya adındaki klasör kısmını atıyoruz (path traversal: "../x.pdf", "..\x.pdf"); güvenli değilse None
@@ -108,23 +118,24 @@ async def upload_pdf(file: UploadFile = File(...)):
         logger.info("Pdf dosyası DB'ye başarıyla kaydedildi!!!")
         return result
 
-    except Exception as e:
+    except Exception:
         #İşlem yarıda kaldıysa dosyayı diskte bırakmıyoruz; yoksa /documents/ listesinde hayalet doküman görünür
         if os.path.exists(target_file_path):
             os.remove(target_file_path)
-        logger.error(f"Upload hatası: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("Upload hatası")
+        raise HTTPException(status_code=500, detail="Dosya işlenirken beklenmeyen bir hata oluştu.")
 
 
 @app.post("/query/")
 async def query(request: QueryRequest):
     global TOTAL_TOKEN_USAGE
 
-    #Token sınırı aşım kontrolü
+    #Token sınırı aşım kontrolü; istek hatalı değil, kota dolu olduğu için 429
+    #Otomatik sıfırlama henüz yok, bu yüzden metinde süre vaat edilmiyor
     if TOTAL_TOKEN_USAGE >= TOKEN_LIMIT:
        raise HTTPException(
-           status_code=400,
-           detail="Token sınırı aşıldı. 24 saat sonra sıfırlanacaktır."
+           status_code=429,
+           detail="Token kullanım sınırına ulaşıldı. Lütfen sistem yöneticinize başvurun."
        )
     
     try:
@@ -149,6 +160,6 @@ async def query(request: QueryRequest):
         logger.info(f"AI başarıyla yanıtını döndü!!! Güncel Kümülatif Token: {TOTAL_TOKEN_USAGE}")
         return response
 
-    except Exception as e:
-        logger.error(f"Query hatası: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception:
+        logger.exception("Query hatası")
+        raise HTTPException(status_code=500, detail="Sorunuz yanıtlanırken beklenmeyen bir hata oluştu.")

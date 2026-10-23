@@ -6,7 +6,10 @@ from dotenv import load_dotenv
 
 #API key
 load_dotenv()
-api_key = os.getenv("GEMINI_API_KEY")
+api_key = os.getenv("GEMINI_API_KEY", "").strip()
+#Key yoksa ilk sorguda değil, başlangıçta hata veriyoruz
+if not api_key:
+    raise RuntimeError("GEMINI_API_KEY tanımlı değil. .env.example dosyasına bakın.")
 print("Key etkinleştirildi.")
 
 

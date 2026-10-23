@@ -174,6 +174,113 @@ class UploadEndpointTests(unittest.TestCase):
         self.assertEqual(response.status_code, 500)
         self.assertEqual(self.files(), [])
 
+    def test_failed_processing_hides_internal_error(self):
+        self.process.side_effect = RuntimeError("C:\\gizli\\yol embedding hatası")
+        with self.assertLogs("EnterpriseAI", level="ERROR") as logs:
+            response = self.upload("rapor.pdf")
+        self.assertEqual(response.status_code, 500)
+        self.assertEqual(response.json()["detail"], "Dosya işlenirken beklenmeyen bir hata oluştu.")
+        #Detay kullanıcıya gitmiyor ama logda kalıyor
+        self.assertIn("C:\\gizli\\yol embedding hatası", "\n".join(logs.output))
+
+
+class InternalErrorTests(unittest.TestCase):
+
+    SECRET = "C:\\gizli\\yol iç hata"
+
+    def setUp(self):
+        self.main = import_main()
+        self.client = TestClient(self.main.app)
+
+    def assert_hidden(self, response, logs, message):
+        self.assertEqual(response.status_code, 500)
+        self.assertEqual(response.json()["detail"], message)
+        self.assertNotIn(self.SECRET, response.text)
+        self.assertIn(self.SECRET, "\n".join(logs.output))
+
+    def test_query_error_is_hidden(self):
+        with mock.patch.object(self.main, "TOTAL_TOKEN_USAGE", 0), \
+             mock.patch.object(self.main, "prepare_chunks_with_metadata", side_effect=RuntimeError(self.SECRET)), \
+             self.assertLogs("EnterpriseAI", level="ERROR") as logs:
+            response = self.client.post("/query/", json={"question": "soru"})
+        self.assert_hidden(response, logs, "Sorunuz yanıtlanırken beklenmeyen bir hata oluştu.")
+
+    def test_documents_error_is_hidden(self):
+        with mock.patch.object(self.main.os, "listdir", side_effect=OSError(self.SECRET)), \
+             self.assertLogs("EnterpriseAI", level="ERROR") as logs:
+            response = self.client.get("/documents/")
+        self.assert_hidden(response, logs, "Doküman listesi alınırken bir hata oluştu.")
+
+
+class QueryValidationTests(unittest.TestCase):
+
+    def setUp(self):
+        self.main = import_main()
+        self.client = TestClient(self.main.app)
+        patches = [
+            mock.patch.object(self.main, "TOTAL_TOKEN_USAGE", 0),
+            mock.patch.object(self.main, "prepare_chunks_with_metadata", return_value={"status": "Success", "token_usage": 0}),
+        ]
+        patches[0].start()
+        self.prepare = patches[1].start()
+        for p in patches:
+            self.addCleanup(p.stop)
+
+    def ask(self, question):
+        return self.client.post("/query/", json={"question": question})
+
+    def test_question_at_limit_is_accepted(self):
+        question = "a" * self.main.MAX_QUESTION_LENGTH
+        self.assertEqual(self.ask(question).status_code, 200)
+        self.prepare.assert_called_once_with(question)
+
+    def test_question_over_limit_is_rejected(self):
+        response = self.ask("a" * (self.main.MAX_QUESTION_LENGTH + 1))
+        self.assertEqual(response.status_code, 422)
+        self.prepare.assert_not_called()
+
+    def test_empty_or_blank_question_is_rejected(self):
+        for question in ["", "   ", "\n\t"]:
+            with self.subTest(question=question):
+                self.assertEqual(self.ask(question).status_code, 422)
+        self.prepare.assert_not_called()
+
+    def test_question_is_stripped(self):
+        self.assertEqual(self.ask("  soru  ").status_code, 200)
+        self.prepare.assert_called_once_with("soru")
+
+    def test_token_limit_returns_429(self):
+        with mock.patch.object(self.main, "TOTAL_TOKEN_USAGE", self.main.TOKEN_LIMIT):
+            response = self.ask("soru")
+        self.assertEqual(response.status_code, 429)
+        self.assertEqual(response.json()["detail"], "Token kullanım sınırına ulaşıldı. Lütfen sistem yöneticinize başvurun.")
+        self.prepare.assert_not_called()
+
+
+class CorsTests(unittest.TestCase):
+
+    def setUp(self):
+        self.main = import_main()
+        self.client = TestClient(self.main.app)
+
+    def preflight(self, origin):
+        return self.client.options("/query/", headers={
+            "Origin": origin,
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "Content-Type",
+        })
+
+    def test_allowed_origin_gets_cors_header(self):
+        #.env'de CORS_ORIGINS tanımlıysa onu kullanıyoruz; varsayılana bağımlı kalmasın
+        origin = self.main.CORS_ORIGINS[0]
+        response = self.preflight(origin)
+        self.assertEqual(response.headers.get("access-control-allow-origin"), origin)
+        self.assertNotIn("access-control-allow-credentials", response.headers)
+
+    def test_unknown_origin_gets_no_cors_header(self):
+        response = self.preflight("http://kotu-site.example")
+        self.assertNotIn("access-control-allow-origin", response.headers)
+
 
 if __name__ == "__main__":
     unittest.main()

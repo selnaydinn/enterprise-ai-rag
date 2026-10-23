@@ -66,7 +66,7 @@ def prepare_chunks_with_metadata(user_input):
         return {
             "status": "Warning",
             "message": "Soru için 0 adet alakalı doküman parçası bulundu.",
-            "data": "Lütfen dökümanlarımda olan bir soru girin. Aksi halde 3 alakasız girişimde 24 saat süreyle kullanımınız kısıtlanacaktır.",
+            "data": "Sorunuzla ilgili yüklü dokümanlarda yeterli bilgi bulunamadı. Lütfen sorunuzu dokümanların kapsamına göre yeniden yazın.",
             "resource" : [] ,
             "token_usage" : 0
         }
