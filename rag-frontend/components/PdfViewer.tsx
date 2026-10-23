@@ -25,7 +25,7 @@ export default function PdfViewer({ selectedDoc, setSelectedDoc }: PdfViewerProp
           <>
             {/* ÜST HEADER ALANI*/}
             <div className="flex items-center justify-between p-4 border-b border-slate-200 bg-white">
-              <span className="text-xs text-slate-700 truncate font-semibold max-w-[85%]">
+              <span className="text-xs text-black truncate font-semibold max-w-[85%]">
                 {getFileName(selectedDoc)}
               </span>
               <button 
@@ -46,7 +46,7 @@ export default function PdfViewer({ selectedDoc, setSelectedDoc }: PdfViewerProp
             </div>
 
             {/* KÜÇÜK BİLGİLENDİRME FOOTER'I */}
-            <div className="p-3 border-t border-slate-200 bg-white flex items-center gap-2 justify-center select-none text-[11px] text-slate-400 font-medium">
+            <div className="p-3 border-t border-slate-200 bg-white flex items-center gap-2 justify-center select-none text-[11px] text-black font-medium">
               <FileText className="h-3.5 w-3.5 text-indigo-500/70" />
               <span>Doküman Önizleme Modu</span>
             </div>

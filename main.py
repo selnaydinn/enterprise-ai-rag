@@ -1,9 +1,10 @@
 import os
 import re
 import logging
+from typing import Annotated
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, StringConstraints
 from services.ingestion import process_pdf, hash_bytes, hash_pdf, is_file_already_processed
 from core.config import db
 from services.query import prepare_chunks_with_metadata
@@ -24,6 +25,9 @@ MAX_UPLOAD_BYTES = 20 * 1024 * 1024
 #Harf (Türkçe dahil), rakam, boşluk ve _ - . ( ) dışındaki karakterleri kabul etmiyoruz
 SAFE_FILENAME = re.compile(r"[\w\- .()]+\.pdf", re.IGNORECASE)
 
+#Soru sınırı; frontenddeki MAX_QUESTION_LENGTH ile aynı olmalı (ChatArea.tsx)
+MAX_QUESTION_LENGTH = 500
+
 #Frontendin PDF'leri okuyabilmesi için statik yönlendirme
 app.mount("/static-pdfs", StaticFiles(directory=UPLOAD_DIR), name="pdfs")
 
@@ -43,8 +47,9 @@ app.add_middleware(
 )
 
 #Pydantic modeli - Frontendden gelen jsonı karşıladı
+#Boş, sadece boşluk veya sınırdan uzun sorular endpoint çalışmadan 422 alır; LLM çağrılmaz, token harcanmaz
 class QueryRequest(BaseModel):
-    question: str
+    question: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=MAX_QUESTION_LENGTH)]
 
 @app.get("/")
 def read_root():
@@ -125,11 +130,12 @@ async def upload_pdf(file: UploadFile = File(...)):
 async def query(request: QueryRequest):
     global TOTAL_TOKEN_USAGE
 
-    #Token sınırı aşım kontrolü
+    #Token sınırı aşım kontrolü; istek hatalı değil, kota dolu olduğu için 429
+    #Otomatik sıfırlama henüz yok, bu yüzden metinde süre vaat edilmiyor
     if TOTAL_TOKEN_USAGE >= TOKEN_LIMIT:
        raise HTTPException(
-           status_code=400,
-           detail="Token sınırı aşıldı. 24 saat sonra sıfırlanacaktır."
+           status_code=429,
+           detail="Token kullanım sınırına ulaşıldı. Lütfen sistem yöneticinize başvurun."
        )
     
     try:

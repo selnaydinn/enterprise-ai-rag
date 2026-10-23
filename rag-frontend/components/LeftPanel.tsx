@@ -30,7 +30,7 @@ export default function LeftPanel({
   return (
     <aside className={`bg-slate-50 flex flex-col justify-between h-full transition-all duration-300 ease-in-out overflow-hidden shrink-0 ${
       isSidebarOpen 
-        ? 'w-80 p-6' 
+        ? 'w-64 p-6'
         : 'w-0 p-0 invisible'
     }`}>
       
@@ -55,10 +55,10 @@ export default function LeftPanel({
 
             {/* BAŞLIK VE METİNLER */}
             <div className="flex flex-col">
-              <h1 className="text-lg font-bold text-slate-900 tracking-tight leading-none">
+              <h1 className="text-lg font-bold text-black tracking-tight leading-none">
                 Enterprise AI
               </h1>
-              <span className="text-[10px] text-slate-400 font-medium mt-1">
+              <span className="text-[10px] text-black font-medium mt-1">
                 Search Among Company Files
               </span>
             </div>
@@ -82,7 +82,7 @@ export default function LeftPanel({
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             placeholder="Search documents..."
-            className="w-full bg-transparent border-0 p-0 text-xs text-slate-700 placeholder-slate-400 focus:outline-none"
+            className="w-full bg-transparent border-0 p-0 text-xs text-black placeholder-slate-400 focus:outline-none"
           />
         </div>
 
@@ -98,8 +98,8 @@ export default function LeftPanel({
                     onClick={() => setSelectedDoc(doc.name)} 
                     className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium cursor-pointer transition-all ${
                       isSelected 
-                        ? 'bg-slate-200/60 text-slate-900 font-semibold shadow-sm' 
-                        : 'text-slate-500 hover:text-slate-800 hover:bg-slate-200/30'
+                        ? 'bg-slate-200/60 text-black font-semibold shadow-sm'
+                        : 'text-black hover:bg-slate-200/30'
                     }`}
                   >
                     <FileText className={`h-3.5 w-3.5 shrink-0 ${isSelected ? 'text-slate-700' : 'text-slate-400'}`} />
@@ -108,7 +108,7 @@ export default function LeftPanel({
                 );
               })
             ) : (
-              <p className="text-center text-xs text-slate-400 py-6 font-medium">No documents found.</p>
+              <p className="text-center text-xs text-black py-6 font-medium">No documents found.</p>
             )}
           </div>
         </div>
@@ -116,12 +116,12 @@ export default function LeftPanel({
         {/* KULLANICI PROFİL VE ÇIKIŞ ALANI */}
         <div className="pt-4 border-t border-slate-200 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="h-8 w-8 rounded-full bg-slate-200 text-slate-600 flex items-center justify-center font-bold text-xs shrink-0">
+            <div className="h-8 w-8 rounded-full bg-slate-200 text-black flex items-center justify-center font-bold text-xs shrink-0">
               SA
             </div>
             <div className="flex flex-col min-w-0">
-              <span className="text-xs font-semibold text-slate-700 truncate">Selin Aydın</span>
-              <span className="text-[10px] text-slate-400 font-medium truncate">selin@company.com</span>
+              <span className="text-xs font-semibold text-black truncate">Selin Aydın</span>
+              <span className="text-[10px] text-black font-medium truncate">selin@company.com</span>
             </div>
           </div>
           

@@ -46,9 +46,15 @@ export const apiService = {
       body: JSON.stringify({ question }), 
     });
 
+    //422'de detail metin değil liste dönüyor (Pydantic doğrulaması); ekranda [object Object] görünmesin
+    if (response.status === 422) {
+      throw new Error("Sorunuz geçerli şartları karşılamamaktadır.");
+    }
+
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.detail || "Sorgu işlenirken backend hatası oluştu.");
+      const detail = typeof errorData.detail === "string" ? errorData.detail : null;
+      throw new Error(detail || "Sorgu işlenirken backend hatası oluştu.");
     }
 
     return await response.json();

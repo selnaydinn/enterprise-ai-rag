@@ -212,6 +212,51 @@ class InternalErrorTests(unittest.TestCase):
         self.assert_hidden(response, logs, "Doküman listesi alınırken bir hata oluştu.")
 
 
+class QueryValidationTests(unittest.TestCase):
+
+    def setUp(self):
+        self.main = import_main()
+        self.client = TestClient(self.main.app)
+        patches = [
+            mock.patch.object(self.main, "TOTAL_TOKEN_USAGE", 0),
+            mock.patch.object(self.main, "prepare_chunks_with_metadata", return_value={"status": "Success", "token_usage": 0}),
+        ]
+        patches[0].start()
+        self.prepare = patches[1].start()
+        for p in patches:
+            self.addCleanup(p.stop)
+
+    def ask(self, question):
+        return self.client.post("/query/", json={"question": question})
+
+    def test_question_at_limit_is_accepted(self):
+        question = "a" * self.main.MAX_QUESTION_LENGTH
+        self.assertEqual(self.ask(question).status_code, 200)
+        self.prepare.assert_called_once_with(question)
+
+    def test_question_over_limit_is_rejected(self):
+        response = self.ask("a" * (self.main.MAX_QUESTION_LENGTH + 1))
+        self.assertEqual(response.status_code, 422)
+        self.prepare.assert_not_called()
+
+    def test_empty_or_blank_question_is_rejected(self):
+        for question in ["", "   ", "\n\t"]:
+            with self.subTest(question=question):
+                self.assertEqual(self.ask(question).status_code, 422)
+        self.prepare.assert_not_called()
+
+    def test_question_is_stripped(self):
+        self.assertEqual(self.ask("  soru  ").status_code, 200)
+        self.prepare.assert_called_once_with("soru")
+
+    def test_token_limit_returns_429(self):
+        with mock.patch.object(self.main, "TOTAL_TOKEN_USAGE", self.main.TOKEN_LIMIT):
+            response = self.ask("soru")
+        self.assertEqual(response.status_code, 429)
+        self.assertEqual(response.json()["detail"], "Token kullanım sınırına ulaşıldı. Lütfen sistem yöneticinize başvurun.")
+        self.prepare.assert_not_called()
+
+
 class CorsTests(unittest.TestCase):
 
     def setUp(self):

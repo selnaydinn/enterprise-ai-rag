@@ -137,7 +137,8 @@ export default function Home() {
 
   //Mesaj gönderme
   const handleSend = async () => {
-    if (!input.trim()) return;
+    //Cevap beklenirken ikinci istek gitmesin; yazılan soru kutuda kalır, cevap gelince gönderilebilir
+    if (!input.trim() || isLoading) return;
 
     const userMessage: Message = { role: 'user', text: input };
     setMessages((prev) => [...prev, userMessage]);
@@ -194,7 +195,7 @@ export default function Home() {
   };
 
   return (
-    <main className="flex h-screen w-screen bg-slate-50 text-slate-800 font-sans overflow-hidden">
+    <main className="flex h-screen w-screen bg-slate-50 text-black font-sans overflow-hidden">
       
       {/* 1. BÖLÜM: SOL PANEL */}
       <LeftPanel
