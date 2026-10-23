@@ -1,0 +1,33 @@
+# Environment & Credentials (API key image'a girmesin)
+.env
+.env.*
+
+# Python / Virtual Environment
+venv/
+.venv/
+env/
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/*.pyd
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Frontend ayrı çalışıyor
+rag-frontend/
+
+# Veri: image'a gömülmez, volume/bind mount ile verilir
+chroma_db*/
+uploaded_pdfs/
+
+# Değerlendirme çıktıları ve notlar
+eval/results/
+notes.md
+
+# IDEs
+.vscode/
+.idea/
+.DS_Store

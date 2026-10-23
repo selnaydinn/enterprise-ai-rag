@@ -6,10 +6,14 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from core.config import db
 
 #PDFleri hashledik aynı pdf yüklenmesin diye
+#Format (md5'in ilk 8 karakteri) DB'deki pdf_hash değerleriyle aynı kalmalı
+def hash_bytes(data):
+    return hashlib.md5(data).hexdigest()[:8]
+
+#Diskteki PDF'in hashi; upload'da dosya yazılmadan önce hash_bytes doğrudan kullanılabilir
 def hash_pdf(pdf_path):
     with open(pdf_path, "rb") as f:
-        file_bytes = f.read()
-        return hashlib.md5(file_bytes).hexdigest()[:8]
+        return hash_bytes(f.read())
     
 #pypdf boş satırları "\n \n" gibi boşluklu üretiyor; splitter'ın "\n\n" ayracı bunları tanıyabilsin diye
 #yalnızca boşluktan oluşan satırları boş satıra çeviriyoruz (diğer satır sonlarına dokunmuyoruz)

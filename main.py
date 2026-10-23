@@ -1,9 +1,10 @@
 import os
+import re
 import logging
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from services.ingestion import process_pdf
+from services.ingestion import process_pdf, hash_bytes, hash_pdf, is_file_already_processed
 from core.config import db
 from services.query import prepare_chunks_with_metadata
 from fastapi.staticfiles import StaticFiles
@@ -17,6 +18,11 @@ TOKEN_LIMIT = 10000
 #PDF'lerin kaydedileceği ana klasör yolu
 UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "uploaded_pdfs")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+#Upload sınırları
+MAX_UPLOAD_BYTES = 20 * 1024 * 1024
+#Harf (Türkçe dahil), rakam, boşluk ve _ - . ( ) dışındaki karakterleri kabul etmiyoruz
+SAFE_FILENAME = re.compile(r"[\w\- .()]+\.pdf", re.IGNORECASE)
 
 #Frontendin PDF'leri okuyabilmesi için statik yönlendirme
 app.mount("/static-pdfs", StaticFiles(directory=UPLOAD_DIR), name="pdfs")
@@ -54,29 +60,58 @@ def list_documents():
         raise HTTPException(status_code=500, detail=str(e))
     
 
+#Dosya adındaki klasör kısmını atıyoruz (path traversal: "../x.pdf", "..\x.pdf"); güvenli değilse None
+#Uzantıyı ".pdf"e çeviriyoruz ki /documents/ listesi ".PDF" ile yüklenenleri de göstersin
+def clean_filename(filename):
+    name = re.split(r"[\\/]", filename or "")[-1].strip()
+    if name.startswith(".") or not SAFE_FILENAME.fullmatch(name):
+        return None
+    return name[:-4] + ".pdf"
+
 @app.post("/upload-pdf/")
 async def upload_pdf(file: UploadFile = File(...)):
-    if not file.filename.endswith('.pdf'):
-        raise HTTPException(status_code=400, detail="Sadece pdf dosyası yüklenebilir.")
+    filename = clean_filename(file.filename)
+    if filename is None:
+        raise HTTPException(status_code=400, detail="Geçersiz dosya adı. Ad .pdf ile bitmeli; yalnızca harf, rakam, boşluk ve _ - . ( ) içerebilir.")
+
+    #Sınırın 1 bayt fazlasını okuyoruz; o kadar gelirse dosya sınırı aşıyor demektir
+    content = await file.read(MAX_UPLOAD_BYTES + 1)
+    if len(content) > MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail=f"Dosya boyutu {MAX_UPLOAD_BYTES // (1024 * 1024)} MB sınırını aşıyor.")
+
+    #Uzantıya değil içeriğe bakıyoruz: PDF dosyaları "%PDF-" ile başlar
+    if not content.startswith(b"%PDF-"):
+        raise HTTPException(status_code=400, detail="Dosya geçerli bir PDF değil.")
+
+    #Duplikasyon kontrolünü diske yazmadan önce yapıyoruz; reddedilen dosya diskte kalmasın
+    pdf_hash = hash_bytes(content)
+    if is_file_already_processed(pdf_hash):
+        raise HTTPException(status_code=409, detail=f"{filename} zaten veritabanında mevcut.")
+
+    #Kaydedilecek dosyanın tam yolunu oluşturuyoruz
+    target_file_path = os.path.join(UPLOAD_DIR, filename)
+
+    #Aynı adla farklı içerik gelirse eski PDF'in üzerine yazmıyoruz (eski chunk'lar DB'de bu adla duruyor)
+    if os.path.exists(target_file_path) and hash_pdf(target_file_path) != pdf_hash:
+        raise HTTPException(status_code=409, detail=f"{filename} adında farklı içerikli bir dosya zaten var. Dosyayı yeniden adlandırıp yükleyin.")
 
     try:
-        #Kaydedilecek dosyanın tam yolunu oluşturuyoruz
-        target_file_path = os.path.join(UPLOAD_DIR, file.filename)
-
         #Gelen dosyayı kalıcı klasöre yazıyoruz
         with open(target_file_path, "wb") as f:
-            content = await file.read()
             f.write(content)
 
         logger.info(f"Dosya kalıcı olarak kaydedildi: {target_file_path}")
 
         #PDFi vektörize eden fonksiyonu çağırdık
-        result = process_pdf(target_file_path) 
-        
+        result = process_pdf(target_file_path)
+
         logger.info("Pdf dosyası DB'ye başarıyla kaydedildi!!!")
         return result
-        
+
     except Exception as e:
+        #İşlem yarıda kaldıysa dosyayı diskte bırakmıyoruz; yoksa /documents/ listesinde hayalet doküman görünür
+        if os.path.exists(target_file_path):
+            os.remove(target_file_path)
         logger.error(f"Upload hatası: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
