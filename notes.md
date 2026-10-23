@@ -4,8 +4,17 @@
 > Bu inceleme sırasında projede hiçbir dosya değiştirilmedi; yalnızca bu not dosyası eklendi.
 
 GUNCEL: madde 11 incelendi, passage ön eki anlamlı bir retriaval kalitesi sağlamadı.
-        madde 14 teki 10 soruluk golden set 25 soruya çıkartıldı.
-        Chunking kalitesini iyileştirmek için pdflere boşluk karakteri eklendi. Bu işlem ormalization olarak adlandırıldı.Db bu işlemle tekrar oluşturuldu.
+        madde 14 teki 10 soruluk golden set 25 soruya çıkartıldı.  (tamamı meb_yonetmelik.pdf)(negatif soru yok)
+        Chunking kalitesini iyileştirmek için pdflere boşluk karakteri eklendi. Bu işlem ormalization olarak adlandırıldı.Db bu işlemle tekrar oluşturuldu. Hit@3 23/25'ten 24/25'e çıktı. Buna karşılık evidence MRR 0.787'den 0.766'ya, evidence@1 de 17'den 16'ya hafifçe düştü. 
+
+GUNCEL: 1,2,3,7,15 ve 17. maddeler yapıldı. 
+        Artık path treversal önlemek için pdf isminde geçerli olanları alıyoruz.
+        Farklı adla aynı pdf yüklerse 409 veriyor. 
+        Aynı adla farklı pdf yüklerse yine 409 veriyor. 
+        Gitignore'a "lf" formatı kondu. (daha git commite girmedi)
+        20mb dosya boyut limiti var.
+        Frontend artık `status`'a bakmadan dokümanı listeye eklemiyor.
+        `<input type="file">`'ın değeri her yükleme sonrasında sıfırlanıyor. Hatalı yükleme olsa bile.
 ---
 
 ## 1. Genel Bakış
