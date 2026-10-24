@@ -3,18 +3,26 @@
 > İnceleme tarihi: 2026-10-18 · Branch: `extra-features` · Kapsam: backend (FastAPI), frontend (Next.js), Docker, `eval/`, `tests/`
 > Bu inceleme sırasında projede hiçbir dosya değiştirilmedi; yalnızca bu not dosyası eklendi.
 
-GUNCEL: madde 11 incelendi, passage ön eki anlamlı bir retriaval kalitesi sağlamadı.
-        madde 14 teki 10 soruluk golden set 25 soruya çıkartıldı.  (tamamı meb_yonetmelik.pdf)(negatif soru yok)
-        Chunking kalitesini iyileştirmek için pdflere boşluk karakteri eklendi. Bu işlem ormalization olarak adlandırıldı.Db bu işlemle tekrar oluşturuldu. Hit@3 23/25'ten 24/25'e çıktı. Buna karşılık evidence MRR 0.787'den 0.766'ya, evidence@1 de 17'den 16'ya hafifçe düştü. 
+GUNCEL: Madde 11 ve 14 yapıldı.
+        Madde 11 incelendi, passage ön eki anlamlı bir retriaval kalitesi sağlamadı.
+        Madde 14 teki 10 soruluk golden set 25 soruya çıkartıldı.  (tamamı meb_yonetmelik.pdf)(negatif soru yok)
+        Chunking kalitesini iyileştirmek için pdflere boşluk karakteri eklendi. Bu işlem Normalization olarak adlandırıldı. Db bu işlemle tekrar oluşturuldu. Hit@3 23/25'ten 24/25'e çıktı. Buna karşılık evidence MRR 0.787'den 0.766'ya, evidence@1 de 17'den 16'ya hafifçe düştü. 
 
 GUNCEL: 1,2,3,7,15 ve 17. maddeler yapıldı. 
-        Artık path treversal önlemek için pdf isminde geçerli olanları alıyoruz.
-        Farklı adla aynı pdf yüklerse 409 veriyor. 
+        Artık path traversal önlemek için pdf ismi geçerli olanları alıyoruz.
+        Farklı adla aynı pdf yüklerse 409(conflict) veriyor. 
         Aynı adla farklı pdf yüklerse yine 409 veriyor. 
         Gitignore'a "lf" formatı kondu. (daha git commite girmedi)
         20mb dosya boyut limiti var.
         Frontend artık `status`'a bakmadan dokümanı listeye eklemiyor.
         `<input type="file">`'ın değeri her yükleme sonrasında sıfırlanıyor. Hatalı yükleme olsa bile.
+
+GUNCEL: Madde 5,6 ve 16 yapıldı.
+        Madde 5 CORS ayarları güncellendi.
+        Madde 6 `HTTPException(detail=str(e)) silindi. Mesajlar istemciye sızmıyor.
+        Input alanında shift+enter ve alt satıra doğru genişleme aktif.
+        500 character sınırı kondu.
+        Madde 16, artık soru yanıtlanırken başka soru sorulamıyor.
 ---
 
 ## 1. Genel Bakış

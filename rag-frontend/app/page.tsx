@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import ChatArea from "@/components/ChatArea";
 import PdfViewer from "@/components/PdfViewer";
 import LeftPanel from "@/components/LeftPanel";
-import { apiService } from "@/services/api";
+import { apiService, BACKEND_URL } from "@/services/api";
 
 //Message Prop
 interface Message {
@@ -226,7 +226,7 @@ export default function Home() {
 
       {/* 3. BÖLÜM: SAĞ PDF ÖNİZLEME ALANI */}
       <PdfViewer 
-        selectedDoc={selectedDoc ? `http://localhost:8000/static-pdfs/${selectedDoc}` : null} 
+        selectedDoc={selectedDoc ? `${BACKEND_URL}/static-pdfs/${encodeURIComponent(selectedDoc)}` : null} 
         setSelectedDoc={handleSetSelectedDoc} 
       />
 
