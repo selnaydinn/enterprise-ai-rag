@@ -1,9 +1,9 @@
 'use client';
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import ChatArea from "@/components/ChatArea";
 import PdfViewer from "@/components/PdfViewer";
 import LeftPanel from "@/components/LeftPanel";
-import { apiService, BACKEND_URL } from "@/services/api";
+import { apiService, BACKEND_URL, TokenLimitError, type Usage } from "@/services/api";
 
 //Message Prop
 interface Message {
@@ -15,7 +15,6 @@ interface Message {
     score: number;
     raw_text: string;
   }>;
-  total_token_usage?: number;
 }
 
 //Document Prop
@@ -45,6 +44,9 @@ export default function Home() {
 
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
 
+  //Token kullanımı mesajlardan ayrı tutuluyor; hata mesajından sonra sayaç sıfıra düşmesin
+  const [usage, setUsage] = useState<Usage | null>(null);
+
   const filteredDocuments = documents.filter(doc => 
     doc.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -62,7 +64,31 @@ export default function Home() {
     };
 
     fetchExistingDocuments();
-  }, []); 
+  }, []);
+
+  //Token kullanımını backendten çekiyoruz; kilit durumu sayfa yenilense de backendten geliyor
+  const refreshUsage = useCallback(async () => {
+    try {
+      setUsage(await apiService.getUsage());
+    } catch (error) {
+      console.error("Token kullanım bilgisi çekilirken bir hata oluştu:", error);
+    }
+  }, []);
+
+  //Sayfa açılışında sayacı yükledik
+  useEffect(() => {
+    refreshUsage();
+  }, [refreshUsage]);
+
+  //Sınır doluyken sıfırlanma anına kadar bekleyip kullanımı yeniden çekiyoruz, kilit böyle açılıyor
+  //Bilgisayarın saati sunucudan farklıysa ve sınır hâlâ doluysa 30 sn sonra tekrar deniyoruz
+  useEffect(() => {
+    if (!usage?.limited) return;
+    const untilReset = new Date(usage.resets_at).getTime() - Date.now();
+    const wait = untilReset > 0 ? untilReset + 1000 : 30000;
+    const timer = setTimeout(refreshUsage, wait);
+    return () => clearTimeout(timer);
+  }, [usage, refreshUsage]);
 
   //Event listener kullanarak upload butonunu dinliyoruz, backendi tetikliyoruz
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -138,7 +164,8 @@ export default function Home() {
   //Mesaj gönderme
   const handleSend = async () => {
     //Cevap beklenirken ikinci istek gitmesin; yazılan soru kutuda kalır, cevap gelince gönderilebilir
-    if (!input.trim() || isLoading) return;
+    //Token sınırı doluyken istek gönderilmiyor (asıl kontrol backendde)
+    if (!input.trim() || isLoading || usage?.limited) return;
 
     const userMessage: Message = { role: 'user', text: input };
     setMessages((prev) => [...prev, userMessage]);
@@ -152,22 +179,24 @@ export default function Home() {
       const result = await apiService.askQuestion(userQuery);
       console.log("LLM frontende yanıtını döndü.", result);
 
-     
-      const tokenData = result?.total_token_usage;
-      const currentTotal = tokenData?.total_tokens || 0;
+      //Son istek sınırı aşarsa usage.limited true gelir ve input hemen kilitlenir
+      if (result?.usage) {
+        setUsage(result.usage);
+      }
 
-      
-      
-      const botMessage: Message = { 
-        role: 'assistant', 
+      const botMessage: Message = {
+        role: 'assistant',
         text: result?.data || "Cevap üretilemedi.",
-        resources: result?.resource || [], 
-        total_token_usage: currentTotal 
+        resources: result?.resource || []
       };
       setMessages((prev) => [...prev, botMessage]);
 
     } catch (error: any) {
       console.error("Query Error:", error);
+      //Sınır başka bir sekmeden dolmuş olabilir; kilidi göstermek için kullanımı yeniden çekiyoruz
+      if (error instanceof TokenLimitError) {
+        refreshUsage();
+      }
       const errorMessage: Message = {
         role: 'assistant',
         text: error.message || "Üzgünüm, sorunuza yanıt üretilirken bir hata meydana geldi."
@@ -221,7 +250,7 @@ export default function Home() {
         uploadProgress={uploadProgress}
         setSelectedDoc={handleSetSelectedDoc} 
         isLoading={isLoading}
-       
+        usage={usage}
       />
 
       {/* 3. BÖLÜM: SAĞ PDF ÖNİZLEME ALANI */}

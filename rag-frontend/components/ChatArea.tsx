@@ -1,6 +1,7 @@
 'use client';
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Menu, ArrowUp, Paperclip, Loader2 } from "lucide-react";
+import type { Usage } from "@/services/api";
 
 //Type safety
 interface Message {
@@ -12,11 +13,39 @@ interface Message {
     score: number;
     raw_text: string;
   }>;
-  total_token_usage?: number;
 }
 
 //Backenddeki soru sınırıyla aynı (main.py MAX_QUESTION_LENGTH)
 const MAX_QUESTION_LENGTH = 500;
+
+//Kalan süreyi saat gibi yazar: 02:14:35
+function formatCountdown(ms: number) {
+  const total = Math.max(Math.ceil(ms / 1000), 0);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${pad(Math.floor(total / 3600))}:${pad(Math.floor((total % 3600) / 60))}:${pad(total % 60)}`;
+}
+
+//Sınır doluyken input'un üstünde görünür; geri sayım saniyede bir güncellenir
+//Kilidin açılması page.tsx'te: sıfırlanma anında kullanım yeniden çekiliyor
+function TokenLimitNotice({ resetsAt }: { resetsAt: string }) {
+  const [now, setNow] = useState(Date.now);
+
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const resetDate = new Date(resetsAt);
+  //Sınır Türkiye saatiyle sıfırlanıyor; saati de Türkiye saatiyle gösteriyoruz
+  const resetClock = resetDate.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Istanbul" });
+
+  return (
+    <div className="max-w-3xl mx-auto bg-amber-50 border border-amber-200 p-3.5 rounded-xl flex items-center justify-between gap-3 text-xs font-medium text-amber-800 shadow-sm">
+      <span>Token kullanım sınırına ulaşıldı. Sıfırlanma saati: {resetClock}</span>
+      <span className="font-bold tabular-nums">{formatCountdown(resetDate.getTime() - now)}</span>
+    </div>
+  );
+}
 
 //Props type safety
 interface ChatAreaProps {
@@ -31,6 +60,7 @@ interface ChatAreaProps {
   uploadProgress: number;
   setSelectedDoc?: (doc: string | null) => void;
   isLoading: boolean;
+  usage: Usage | null;
 }
 
 //Props
@@ -45,7 +75,8 @@ export default function ChatArea({
   isUploading,
   uploadProgress,
   setSelectedDoc,
-  isLoading // <-- Parametre olarak buraya ekledik
+  isLoading, // <-- Parametre olarak buraya ekledik
+  usage
 }: ChatAreaProps) {
   
   //Chat area scroll
@@ -65,8 +96,8 @@ export default function ChatArea({
     el.style.height = `${el.scrollHeight}px`;
   }, [input]); // gönderimden sonra input boşalınca tek satıra döner
 
-  const lastAssistantMessage = [...messages].reverse().find(msg => msg.role === 'assistant');
-  const currentTokenUsage = lastAssistantMessage?.total_token_usage || 0;
+  //Token sınırı doluyken soru kutusu ve gönder butonu kapalı
+  const isLimited = usage?.limited ?? false;
 
   return (
     
@@ -82,7 +113,7 @@ export default function ChatArea({
 
       {/* TOKEN USAGE */}
       <div className="absolute top-5 right-6 z-30 text-[10px] text-black font-semibold tracking-wide">
-        Token Usage: {currentTokenUsage.toLocaleString()} / 10K
+        Token Usage: {usage ? `${usage.used.toLocaleString()} / ${usage.limit.toLocaleString()}` : '-'}
       </div>
       
       {/* MESAJ ALANI */}
@@ -170,6 +201,9 @@ export default function ChatArea({
           </div>
         )}
 
+        {/* TOKEN SINIRI UYARISI */}
+        {isLimited && usage && <TokenLimitNotice resetsAt={usage.resets_at} />}
+
         {/* INPUT KUTUSU */}
         <div className="max-w-3xl mx-auto">
           <div className="flex-1 flex items-end bg-white border border-slate-200 rounded-xl px-3 py-2.5 relative min-h-14 shadow-sm focus-within:ring-2 focus-within:ring-indigo-500/10 focus-within:border-indigo-500 transition-all">
@@ -192,15 +226,16 @@ export default function ChatArea({
                 }
               }}
               maxLength={MAX_QUESTION_LENGTH}
-              placeholder="Ask a question..."
-              className="flex-1 resize-none bg-transparent border-0 pl-2 pr-12 py-2.5 text-xs font-medium text-black placeholder-slate-400 focus:outline-none max-h-36 overflow-y-auto"
+              disabled={isLimited}
+              placeholder={isLimited ? "Token limiti doldu" : "Ask a question..."}
+              className="flex-1 resize-none bg-transparent border-0 pl-2 pr-12 py-2.5 text-xs font-medium text-black placeholder-slate-400 focus:outline-none max-h-36 overflow-y-auto disabled:cursor-not-allowed"
             />
 
             <div className="absolute right-2 bottom-2 w-10 h-10 flex items-center justify-center">
               {input.length > 0 && (
                 <button
                   onClick={onSend}
-                  disabled={isLoading}
+                  disabled={isLoading || isLimited}
                   className="rounded-lg bg-white hover:bg-slate-200 text-slate-900 p-2.5 h-10 w-10 flex items-center justify-center transition-all shadow-md shadow-indigo-100 animate-in fade-in zoom-in-95 duration-150 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white"
                 >
                   <ArrowUp className="w-4 h-4 shrink-0" />

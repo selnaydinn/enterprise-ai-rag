@@ -23,6 +23,14 @@ GUNCEL: Madde 5,6 ve 16 yapıldı.
         Input alanında shift+enter ve alt satıra doğru genişleme aktif.
         500 character sınırı kondu.
         Madde 16, artık soru yanıtlanırken başka soru sorulamıyor.
+
+
+GUNCEL: Madde 8,9,10 ve 19 yapıldı.
+        Token limiti artık 6 saatlik aralıklarla sıfırlanıyor.
+        Token sayımı tahminş değil gerçek usage ile yapılıyor.
+        Yeni bir /usage endpointi var. Uygulamanın başında ve her token kullanımında + sıfırlanmada çalıştırılıyor.
+        API'ın donmaması için dosya yüklemesi ayrı bir threadde yapılıyor. Dosya yüklenirken baska bir dosya yüklenemiyor.
+        Sabit yollar artık ortam değişkeninden okunuyor.
 ---
 
 ## 1. Genel Bakış

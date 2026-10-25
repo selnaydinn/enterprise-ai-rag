@@ -6,6 +6,7 @@ __pycache__/
 chroma_db/
 chroma_db_normalization/
 uploaded_pdfs/
+usage.db
 *.pyc
 *.pyo
 *.pyd
