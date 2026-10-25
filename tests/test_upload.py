@@ -3,6 +3,8 @@ import importlib
 import shutil
 import sys
 import tempfile
+import threading
+import time
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
@@ -11,6 +13,9 @@ from unittest import mock
 from fastapi.testclient import TestClient
 
 PDF = b"%PDF-1.4\n" + b"0" * 100
+
+#Sorgu testleri gerçek usage.db'ye yazmasın; sınır testleri tests/test_usage.py'de
+OPEN_USAGE = {"used": 0, "limit": 10000, "resets_at": "2026-10-24T18:00:00+03:00", "limited": False}
 
 
 _main = None
@@ -199,7 +204,7 @@ class InternalErrorTests(unittest.TestCase):
         self.assertIn(self.SECRET, "\n".join(logs.output))
 
     def test_query_error_is_hidden(self):
-        with mock.patch.object(self.main, "TOTAL_TOKEN_USAGE", 0), \
+        with mock.patch.object(self.main, "get_status", return_value=OPEN_USAGE), \
              mock.patch.object(self.main, "prepare_chunks_with_metadata", side_effect=RuntimeError(self.SECRET)), \
              self.assertLogs("EnterpriseAI", level="ERROR") as logs:
             response = self.client.post("/query/", json={"question": "soru"})
@@ -218,11 +223,13 @@ class QueryValidationTests(unittest.TestCase):
         self.main = import_main()
         self.client = TestClient(self.main.app)
         patches = [
-            mock.patch.object(self.main, "TOTAL_TOKEN_USAGE", 0),
+            mock.patch.object(self.main, "get_status", return_value=OPEN_USAGE),
+            mock.patch.object(self.main, "record_usage"),
             mock.patch.object(self.main, "prepare_chunks_with_metadata", return_value={"status": "Success", "token_usage": 0}),
         ]
         patches[0].start()
-        self.prepare = patches[1].start()
+        patches[1].start()
+        self.prepare = patches[2].start()
         for p in patches:
             self.addCleanup(p.stop)
 
@@ -249,13 +256,6 @@ class QueryValidationTests(unittest.TestCase):
         self.assertEqual(self.ask("  soru  ").status_code, 200)
         self.prepare.assert_called_once_with("soru")
 
-    def test_token_limit_returns_429(self):
-        with mock.patch.object(self.main, "TOTAL_TOKEN_USAGE", self.main.TOKEN_LIMIT):
-            response = self.ask("soru")
-        self.assertEqual(response.status_code, 429)
-        self.assertEqual(response.json()["detail"], "Token kullanım sınırına ulaşıldı. Lütfen sistem yöneticinize başvurun.")
-        self.prepare.assert_not_called()
-
 
 class CorsTests(unittest.TestCase):
 
@@ -280,6 +280,71 @@ class CorsTests(unittest.TestCase):
     def test_unknown_origin_gets_no_cors_header(self):
         response = self.preflight("http://kotu-site.example")
         self.assertNotIn("access-control-allow-origin", response.headers)
+
+
+class ConcurrencyTests(unittest.TestCase):
+
+    #TestClient "with" ile açılıyor: eş istekler aynı event loop'ta çalışsın (UPLOAD_LOCK tek bir loop'a bağlanır)
+    def setUp(self):
+        self.main = import_main()
+        self.client = TestClient(self.main.app)
+        self.client.__enter__()
+        self.addCleanup(self.client.__exit__, None, None, None)
+        self.upload_dir = Path(tempfile.mkdtemp(prefix="upload_test_"))
+        self.addCleanup(shutil.rmtree, self.upload_dir, True)
+        patch = mock.patch.object(self.main, "UPLOAD_DIR", str(self.upload_dir))
+        patch.start()
+        self.addCleanup(patch.stop)
+
+    def upload(self, name):
+        return self.client.post("/upload-pdf/", files={"file": (name, PDF, "application/pdf")})
+
+    def test_upload_does_not_block_other_requests(self):
+        started, release, listed = threading.Event(), threading.Event(), threading.Event()
+        #Test başarısız olsa da yükleme thread'i takılı kalmasın
+        self.addCleanup(release.set)
+
+        def slow_process(path):
+            started.set()
+            release.wait(5)
+            return {"status": "Success"}
+
+        def list_documents():
+            if self.client.get("/documents/").status_code == 200:
+                listed.set()
+
+        with mock.patch.object(self.main, "is_file_already_processed", return_value=False), \
+             mock.patch.object(self.main, "process_pdf", side_effect=slow_process):
+            uploader = threading.Thread(target=self.upload, args=("rapor.pdf",))
+            uploader.start()
+            self.assertTrue(started.wait(5))
+            #Embedding sürerken liste isteği yanıt vermeli
+            threading.Thread(target=list_documents).start()
+            self.assertTrue(listed.wait(2), "Upload sürerken /documents/ yanıt vermedi")
+            release.set()
+            uploader.join(5)
+
+    def test_concurrent_same_pdf_is_processed_once(self):
+        #DB sahte: process_pdf bitince hash "kayıtlı" sayılıyor
+        processed = set()
+
+        def slow_process(path):
+            time.sleep(0.5)
+            processed.add(self.main.hash_bytes(PDF))
+            return {"status": "Success"}
+
+        codes = []
+        with mock.patch.object(self.main, "is_file_already_processed", side_effect=lambda h: h in processed), \
+             mock.patch.object(self.main, "process_pdf", side_effect=slow_process) as process:
+            #Farklı adlar: aynı ad kontrolüne değil, DB duplikasyon kontrolüne takılsın
+            threads = [threading.Thread(target=lambda n=name: codes.append(self.upload(n).status_code))
+                       for name in ("a.pdf", "b.pdf")]
+            for t in threads:
+                t.start()
+            for t in threads:
+                t.join(10)
+        self.assertEqual(sorted(codes), [200, 409])
+        process.assert_called_once()
 
 
 if __name__ == "__main__":

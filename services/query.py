@@ -1,8 +1,10 @@
 import os
+import logging
 from langchain_ollama import ChatOllama
 from langchain_core.prompts import PromptTemplate
-from langchain_core.output_parsers import StrOutputParser
-from core.config import db , llm 
+from core.config import db , llm
+
+logger = logging.getLogger("EnterpriseAI")
 
 # PROMPTING CHATBOT
 prompt_template = """Sen sadece sana verilen döküman parçasına sadık kalarak cevap veren kurumsal bir asistansın.
@@ -20,8 +22,18 @@ KULLANICI SORUSU:
 YAPAY ZEKA CEVABI:"""
 
 #Chain yapısı oluşturduk
+#StrOutputParser kullanmıyoruz; dönen AIMessage'daki usage_metadata'dan gerçek token sayısını okuyoruz
 prompt = PromptTemplate(template=prompt_template, input_variables=["single_context", "question"])
-qa_chain = prompt | llm | StrOutputParser()
+qa_chain = prompt | llm
+
+#Gerçek token sayısı (Gemini'nin thinking token'ları dahil)
+#usage_metadata gelmezse kota 0 sayılmasın diye karakter sayısından tahmin ediyoruz
+def count_tokens(llm_message, prompt_text):
+    usage = llm_message.usage_metadata
+    if usage and usage.get("total_tokens"):
+        return usage["total_tokens"]
+    logger.warning("usage_metadata gelmedi, token sayısı tahmin ediliyor.")
+    return (len(prompt_text) + len(llm_message.text)) // 4
 
 # VECTOR SEARCH in DB
 def search_in_db(user_query):
@@ -57,7 +69,7 @@ def prepare_chunks_with_metadata(user_input):
         valid_chunks.append({
             "source_name": source_name,
             "page": page,
-            "score": score,
+            "score": round(score, 2),
             "raw_text": doc.page_content
         })
 
@@ -75,31 +87,20 @@ def prepare_chunks_with_metadata(user_input):
     print("Gemini API tetikleniyor, tüm döküman tek seferde analiz ediliyor...")
     
     #LLM tetiklendi
-    final_llm_response = qa_chain.invoke({
-        "single_context": context_text, 
+    chain_input = {
+        "single_context": context_text,
         "question": user_input
-    }).strip()
+    }
+    llm_message = qa_chain.invoke(chain_input)
 
-    #Token miktarı tahmini hesaplandı çünkü langchain üzerinden erişince bu bilgi siliniyormuş
-    estimated_input_tokens = len(prompt_template + context_text ) // 4
-    estimated_output_tokens = len(final_llm_response) // 4
-    estimated_tokens = estimated_input_tokens + estimated_output_tokens
+    #.text, content liste halinde gelse de düz metni verir (StrOutputParser'ın yaptığı gibi)
+    final_llm_response = llm_message.text.strip()
+    token_usage = count_tokens(llm_message, prompt.format(**chain_input))
 
-    #Tresholdu geçen chunkları birleştirdik
-    final_paragraphs = []
-    for chunk in valid_chunks:
-        paragraph = {
-            "source_name": chunk['source_name'],
-            "page": chunk['page'],
-            "score": round(chunk['score'], 2),
-            "raw_text": chunk['raw_text']
-        }
-        final_paragraphs.append(paragraph)
-    
     return {
         "status": "Success",
-        "message": f"Soru için {len(final_paragraphs)} adet döküman kaynağı incelendi ve bütünsel cevap üretildi.",
+        "message": f"Soru için {len(valid_chunks)} adet döküman kaynağı incelendi ve bütünsel cevap üretildi.",
         "data": final_llm_response,
-        "resource": final_paragraphs,
-        "token_usage" : estimated_tokens
+        "resource": valid_chunks,
+        "token_usage" : token_usage
     }

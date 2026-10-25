@@ -1,20 +1,20 @@
 import os
 import re
+import asyncio
 import logging
+from datetime import datetime
 from typing import Annotated
 from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, StringConstraints
 from services.ingestion import process_pdf, hash_bytes, hash_pdf, is_file_already_processed
 from core.config import db
 from services.query import prepare_chunks_with_metadata
+from services.usage import get_status, record_usage
 from fastapi.staticfiles import StaticFiles
 
 app = FastAPI(title="Enterprise AI RAG")
-
-#TOKEN 
-TOTAL_TOKEN_USAGE = 0
-TOKEN_LIMIT = 10000
 
 #PDF'lerin kaydedileceği ana klasör yolu
 UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "uploaded_pdfs")
@@ -24,6 +24,9 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 MAX_UPLOAD_BYTES = 20 * 1024 * 1024
 #Harf (Türkçe dahil), rakam, boşluk ve _ - . ( ) dışındaki karakterleri kabul etmiyoruz
 SAFE_FILENAME = re.compile(r"[\w\- .()]+\.pdf", re.IGNORECASE)
+#Aynı PDF iki sekmeden aynı anda yüklenirse ikisi de duplikasyon kontrolünü geçmesin diye yüklemeleri sıraya alıyoruz
+#Sorgular bu kilidi beklemiyor
+UPLOAD_LOCK = asyncio.Lock()
 
 #Soru sınırı; frontenddeki MAX_QUESTION_LENGTH ile aynı olmalı (ChatArea.tsx)
 MAX_QUESTION_LENGTH = 500
@@ -68,7 +71,12 @@ def list_documents():
         #Hata detayı (dosya yolları vb.) sadece loga yazılıyor; kullanıcıya genel mesaj dönüyor
         logger.exception("Dosya listeleme hatası")
         raise HTTPException(status_code=500, detail="Doküman listesi alınırken bir hata oluştu.")
-    
+
+#Frontend sayfa açılışında token sayacını ve kilit durumunu buradan okur
+@app.get("/usage/")
+def read_usage():
+    return get_status()
+
 
 #Dosya adındaki klasör kısmını atıyoruz (path traversal: "../x.pdf", "..\x.pdf"); güvenli değilse None
 #Uzantıyı ".pdf"e çeviriyoruz ki /documents/ listesi ".PDF" ile yüklenenleri de göstersin
@@ -95,69 +103,70 @@ async def upload_pdf(file: UploadFile = File(...)):
 
     #Duplikasyon kontrolünü diske yazmadan önce yapıyoruz; reddedilen dosya diskte kalmasın
     pdf_hash = hash_bytes(content)
-    if is_file_already_processed(pdf_hash):
-        raise HTTPException(status_code=409, detail=f"{filename} zaten veritabanında mevcut.")
 
-    #Kaydedilecek dosyanın tam yolunu oluşturuyoruz
-    target_file_path = os.path.join(UPLOAD_DIR, filename)
+    #Kontrolden DB'ye kayda kadar tek yükleme çalışıyor; yoksa iki eş yükleme kontrolü birlikte geçip chunk'ları iki kez ekler
+    async with UPLOAD_LOCK:
+        if is_file_already_processed(pdf_hash):
+            raise HTTPException(status_code=409, detail=f"{filename} zaten veritabanında mevcut.")
 
-    #Aynı adla farklı içerik gelirse eski PDF'in üzerine yazmıyoruz (eski chunk'lar DB'de bu adla duruyor)
-    if os.path.exists(target_file_path) and hash_pdf(target_file_path) != pdf_hash:
-        raise HTTPException(status_code=409, detail=f"{filename} adında farklı içerikli bir dosya zaten var. Dosyayı yeniden adlandırıp yükleyin.")
+        #Kaydedilecek dosyanın tam yolunu oluşturuyoruz
+        target_file_path = os.path.join(UPLOAD_DIR, filename)
 
-    try:
-        #Gelen dosyayı kalıcı klasöre yazıyoruz
-        with open(target_file_path, "wb") as f:
-            f.write(content)
+        #Aynı adla farklı içerik gelirse eski PDF'in üzerine yazmıyoruz (eski chunk'lar DB'de bu adla duruyor)
+        if os.path.exists(target_file_path) and hash_pdf(target_file_path) != pdf_hash:
+            raise HTTPException(status_code=409, detail=f"{filename} adında farklı içerikli bir dosya zaten var. Dosyayı yeniden adlandırıp yükleyin.")
 
-        logger.info(f"Dosya kalıcı olarak kaydedildi: {target_file_path}")
+        try:
+            #Gelen dosyayı kalıcı klasöre yazıyoruz
+            with open(target_file_path, "wb") as f:
+                f.write(content)
 
-        #PDFi vektörize eden fonksiyonu çağırdık
-        result = process_pdf(target_file_path)
+            logger.info(f"Dosya kalıcı olarak kaydedildi: {target_file_path}")
 
-        logger.info("Pdf dosyası DB'ye başarıyla kaydedildi!!!")
-        return result
+            #PDFi vektörize eden fonksiyonu çağırdık
+            #Embedding CPU yoğun; thread'de çalışınca diğer istekler (sorgu, liste) beklemiyor
+            result = await run_in_threadpool(process_pdf, target_file_path)
 
-    except Exception:
-        #İşlem yarıda kaldıysa dosyayı diskte bırakmıyoruz; yoksa /documents/ listesinde hayalet doküman görünür
-        if os.path.exists(target_file_path):
-            os.remove(target_file_path)
-        logger.exception("Upload hatası")
-        raise HTTPException(status_code=500, detail="Dosya işlenirken beklenmeyen bir hata oluştu.")
+            logger.info("Pdf dosyası DB'ye başarıyla kaydedildi!!!")
+            return result
+
+        except Exception:
+            #İşlem yarıda kaldıysa dosyayı diskte bırakmıyoruz; yoksa /documents/ listesinde hayalet doküman görünür
+            if os.path.exists(target_file_path):
+                os.remove(target_file_path)
+            logger.exception("Upload hatası")
+            raise HTTPException(status_code=500, detail="Dosya işlenirken beklenmeyen bir hata oluştu.")
 
 
+#async değil: FastAPI def endpoint'leri thread'de çalıştırıyor, Gemini çağrısı sürerken diğer istekler donmuyor
 @app.post("/query/")
-async def query(request: QueryRequest):
-    global TOTAL_TOKEN_USAGE
-
+def query(request: QueryRequest):
     #Token sınırı aşım kontrolü; istek hatalı değil, kota dolu olduğu için 429
-    #Otomatik sıfırlama henüz yok, bu yüzden metinde süre vaat edilmiyor
-    if TOTAL_TOKEN_USAGE >= TOKEN_LIMIT:
+    #Sınır saate bağlı pencerelerle (Türkiye saati) sıfırlanıyor, kullanıcıya sıfırlanma saatini gösteriyoruz
+    usage = get_status()
+    if usage["limited"]:
+       reset_time = datetime.fromisoformat(usage["resets_at"]).strftime("%H:%M")
        raise HTTPException(
            status_code=429,
-           detail="Token kullanım sınırına ulaşıldı. Lütfen sistem yöneticinize başvurun."
+           detail=f"Token kullanım sınırına ulaşıldı. Sınırın sıfırlanma saati: {reset_time}."
        )
-    
+
     try:
         #İlgili dökümanları bulup LLM'den cevap dönen fonksiyonu çağırdık
         response = prepare_chunks_with_metadata(request.question)
 
         #O anki isteğin token miktarı
         current_token = response.get("token_usage", 0)
-        logger.info(f"Token usage alındı: {current_token}")   
-        
-        #Kümülatif toplamı güncelliyoruz
-        TOTAL_TOKEN_USAGE += current_token
+        logger.info(f"Token usage alındı: {current_token}")
 
-        if TOTAL_TOKEN_USAGE > TOKEN_LIMIT:
-            TOTAL_TOKEN_USAGE = TOKEN_LIMIT
+        #Gerçek tüketimi kaydediyoruz; kırpma yok, son istek sınırı biraz aşabilir
+        record_usage(current_token)
+        usage = get_status()
 
-        #Kümülatif toplamı frontend okuyabilsin diye objeye ekliyoruz
-        response["total_token_usage"] = {
-            "total_tokens": TOTAL_TOKEN_USAGE
-        }
+        #Frontend sayaç ve kilit için kullanımı okuyabilsin diye objeye ekliyoruz
+        response["usage"] = usage
 
-        logger.info(f"AI başarıyla yanıtını döndü!!! Güncel Kümülatif Token: {TOTAL_TOKEN_USAGE}")
+        logger.info(f"AI başarıyla yanıtını döndü!!! Güncel Kümülatif Token: {usage['used']}")
         return response
 
     except Exception:

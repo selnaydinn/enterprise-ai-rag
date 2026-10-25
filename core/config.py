@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores import Chroma
 from langchain_google_genai import ChatGoogleGenerativeAI
@@ -14,8 +15,15 @@ print("Key etkinleştirildi.")
 
 
 #DB path
-chroma_dir = "/app/chroma_db_normalization"
-os.makedirs(chroma_dir, exist_ok=True)
+#Yol .env'deki CHROMA_DIR'den gelir; göreli yol proje köküne göre çözülür (Docker'da /app, Windows'ta proje klasörü)
+chroma_setting = os.getenv("CHROMA_DIR", "").strip()
+if not chroma_setting:
+    raise RuntimeError("CHROMA_DIR tanımlı değil. .env.example dosyasına bakın.")
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+chroma_dir = PROJECT_ROOT / chroma_setting
+#Uygulama DB oluşturmaz; DB yoksa boş bir DB açmak yerine başlangıçta hata veriyoruz
+if not (chroma_dir / "chroma.sqlite3").is_file():
+    raise RuntimeError(f"Chroma DB bulunamadı: {chroma_dir}. CHROMA_DIR'i kontrol edin.")
 
 #Embedding modeli
 print("Embedding modeli yükleniyor (multilingual-e5-base)...")
@@ -28,7 +36,7 @@ print("Embedding modeli yüklendi.")
 #DB bağlantısı
 print("Veritabanına bağlanılıyor...")
 db = Chroma(
-    persist_directory=chroma_dir, 
+    persist_directory=str(chroma_dir),
     embedding_function=embeddings
 )
 print("Veritabanına bağlanıldı.")
