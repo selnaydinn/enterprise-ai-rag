@@ -244,8 +244,8 @@ def main():
         run_process_pdf(ingestion, planned, pdf_paths, normalize=True)
         log("2/4 kontrol", f"Normalizasyon açık process_pdf: {len(planned.ids)} chunk üretecek (baseline {len(control.ids)})")
 
-        from langchain_community.embeddings import HuggingFaceEmbeddings
-        from langchain_community.vectorstores import Chroma
+        from langchain_huggingface import HuggingFaceEmbeddings
+        from langchain_chroma import Chroma
         log("3/4 embedding", f"{MODEL_NAME} yükleniyor (CPU)...")
         base_emb = HuggingFaceEmbeddings(model_name=MODEL_NAME, model_kwargs={"device": "cpu"})
         progress = ProgressEmbeddings(base_emb, len(planned.ids))

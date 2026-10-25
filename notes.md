@@ -34,12 +34,12 @@
 | 15 | Tekrar yüklenen dosya listede | ✅ | |
 | 16 | Çift gönderim koruması | ✅ | IME kontrolü de var |
 | 17 | Aynı dosya tekrar seçilince upload | ✅ | |
-| 18 | `core/config.py` refactor | ❌ | Sprint B |
+| 18 | `core/config.py` refactor | ✅ | Sprint B |
 | 19 | Sabit yollar ve URL'ler | ✅ | `CHROMA_DIR`, `NEXT_PUBLIC_API_URL`, `encodeURIComponent` |
 | 20 | API key doğrulama | ✅ | Fail-fast, `.env.example`, `.env` biçimi düzgün; "Key etkinleştirildi" print'i bilerek bırakıldı |
 | 21 | `print` / `logging` | ❌ | Sprint B |
 | 22 | Deprecated LangChain importları | ❌ | Sprint B |
-| 23 | Bağımlılıklar | ❌ | Sprint B (önce madde 38) |
+| 23 | Bağımlılıklar | ✅ | Sprint B (önce madde 38) |
 | 24 | Kullanılmayan kod | ◐ | Kopyalama döngüsü kaldırıldı; `os`, `ChatOllama`, `api.ts` boş satırları duruyor |
 | 25 | Docker yapılandırması | ❌ | |
 | 26 | API tasarımı | ◐ | Soru uzunluk sınırı, düz `usage` objesi; response modelleri, silme endpoint'i yok |
@@ -54,8 +54,8 @@
 | 35 | `key={index}` | ❌ | |
 | 36 | Erişilebilirlik | ❌ | |
 | 37 | Gönder butonunun kaybolması | ❌ | |
-| 38 | Python sürüm farkı | ❌ | Sprint B |
-| 39 | `process_pdf`'teki gereksiz kontrol | ❌ | Sprint B |
+| 38 | Python sürüm farkı | ✅ | Sprint B |
+| 39 | `process_pdf`'teki gereksiz kontrol | ✅ | Sprint B |
 | 40 | DB kurulum script'i | ❌ | Sprint B |
 | 41 | `notes.md`'deki eski bilgiler | ✅ | Bu düzenlemeyle |
 
@@ -91,6 +91,9 @@ GUNCEL: Madde 8,9,10 ve 19 yapıldı.
         Yeni bir /usage endpointi var. Uygulamanın başında ve her token kullanımında + sıfırlanmada çalıştırılıyor.
         API'ın donmaması için dosya yüklemesi ayrı bir threadde yapılıyor. Dosya yüklenirken baska bir dosya yüklenemiyor.
         Sabit yollar artık ortam değişkeninden okunuyor.
+
+GUNCEL: 18, 38,23, 39 yapıldı.
+        Sürüm farkları ve gereksiz importlar gitti.
 ---
 
 ## 1. Genel Bakış

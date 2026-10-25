@@ -126,8 +126,8 @@ def evaluate_question(db, item: dict, k: int) -> dict:
 def run_evaluation(copy_dir: Path, questions: list, k: int) -> dict:
     import chromadb
     import sentence_transformers
-    from langchain_community.embeddings import HuggingFaceEmbeddings
-    from langchain_community.vectorstores import Chroma
+    from langchain_huggingface import HuggingFaceEmbeddings
+    from langchain_chroma import Chroma
 
     embeddings = HuggingFaceEmbeddings(model_name=MODEL_NAME, model_kwargs={"device": "cpu"})
     db = None

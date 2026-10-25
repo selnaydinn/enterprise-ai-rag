@@ -1,0 +1,1280 @@
+{
+  "meta": {
+    "created_at": "2026-10-25T17:06:34+00:00",
+    "description": "Baseline: chunks embedded without 'passage: ', queries with 'query: ' (current production)",
+    "model": "intfloat/multilingual-e5-base",
+    "collection": "langchain",
+    "chunk_count": 598,
+    "indexed_count": 598,
+    "query_prefix": "query: ",
+    "score_threshold": 0.72,
+    "k": 5,
+    "consistency_min_cosine": 1.0,
+    "chromadb_version": "1.5.9",
+    "sentence_transformers_version": "5.6.0",
+    "original_chroma_unchanged": true,
+    "golden_set": "eval\\golden_set.jsonl"
+  },
+  "summary": {
+    "questions": 25,
+    "hit_at_3": 24,
+    "hit_at_3_rate": 0.96,
+    "hit_at_5": 25,
+    "hit_at_5_rate": 1.0,
+    "reaches_llm_in_production": 24
+  },
+  "per_question": [
+    {
+      "id": "q01",
+      "question": "Özürsüz devamsızlık sınırı kaç gündür ve bu sınır aşılırsa ne olur?",
+      "expected_file": "meb_yonetmelik.pdf",
+      "expected_pages": [
+        22
+      ],
+      "hit_at_3": true,
+      "hit_at_5": true,
+      "first_hit_rank": 2,
+      "first_hit_score": 0.8169,
+      "reaches_llm_in_production": true,
+      "retrieved": [
+        {
+          "rank": 1,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 23,
+          "score": 0.8355,
+          "is_hit": false
+        },
+        {
+          "rank": 2,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 22,
+          "score": 0.8169,
+          "is_hit": true
+        },
+        {
+          "rank": 3,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 22,
+          "score": 0.8051,
+          "is_hit": true
+        },
+        {
+          "rank": 4,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 22,
+          "score": 0.8011,
+          "is_hit": true
+        },
+        {
+          "rank": 5,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 22,
+          "score": 0.7922,
+          "is_hit": true
+        }
+      ]
+    },
+    {
+      "id": "q02",
+      "question": "Devamsızlık için özür belgesi okula kaç gün içinde teslim edilmelidir?",
+      "expected_file": "meb_yonetmelik.pdf",
+      "expected_pages": [
+        23
+      ],
+      "hit_at_3": true,
+      "hit_at_5": true,
+      "first_hit_rank": 1,
+      "first_hit_score": 0.8708,
+      "reaches_llm_in_production": true,
+      "retrieved": [
+        {
+          "rank": 1,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 23,
+          "score": 0.8708,
+          "is_hit": true
+        },
+        {
+          "rank": 2,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 22,
+          "score": 0.8346,
+          "is_hit": false
+        },
+        {
+          "rank": 3,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 90,
+          "score": 0.8147,
+          "is_hit": false
+        },
+        {
+          "rank": 4,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 22,
+          "score": 0.8132,
+          "is_hit": false
+        },
+        {
+          "rank": 5,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 22,
+          "score": 0.8108,
+          "is_hit": false
+        }
+      ]
+    },
+    {
+      "id": "q03",
+      "question": "Bir dersten ders yılı sonunda başarılı sayılmak için hangi puan şartı gerekir?",
+      "expected_file": "meb_yonetmelik.pdf",
+      "expected_pages": [
+        35
+      ],
+      "hit_at_3": true,
+      "hit_at_5": true,
+      "first_hit_rank": 1,
+      "first_hit_score": 0.8376,
+      "reaches_llm_in_production": true,
+      "retrieved": [
+        {
+          "rank": 1,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 35,
+          "score": 0.8376,
+          "is_hit": true
+        },
+        {
+          "rank": 2,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 28,
+          "score": 0.8085,
+          "is_hit": false
+        },
+        {
+          "rank": 3,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 78,
+          "score": 0.8077,
+          "is_hit": false
+        },
+        {
+          "rank": 4,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 35,
+          "score": 0.8075,
+          "is_hit": true
+        },
+        {
+          "rank": 5,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 33,
+          "score": 0.7977,
+          "is_hit": false
+        }
+      ]
+    },
+    {
+      "id": "q04",
+      "question": "En fazla kaç başarısız dersle sorumlu olarak sınıf geçilebilir?",
+      "expected_file": "meb_yonetmelik.pdf",
+      "expected_pages": [
+        36
+      ],
+      "hit_at_3": true,
+      "hit_at_5": true,
+      "first_hit_rank": 1,
+      "first_hit_score": 0.7998,
+      "reaches_llm_in_production": true,
+      "retrieved": [
+        {
+          "rank": 1,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 36,
+          "score": 0.7998,
+          "is_hit": true
+        },
+        {
+          "rank": 2,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 36,
+          "score": 0.7909,
+          "is_hit": true
+        },
+        {
+          "rank": 3,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 36,
+          "score": 0.7895,
+          "is_hit": true
+        },
+        {
+          "rank": 4,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 35,
+          "score": 0.7828,
+          "is_hit": false
+        },
+        {
+          "rank": 5,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 28,
+          "score": 0.7746,
+          "is_hit": false
+        }
+      ]
+    },
+    {
+      "id": "q05",
+      "question": "Lise öğrenimi boyunca en fazla kaç kez sınıf tekrarı yapılabilir?",
+      "expected_file": "meb_yonetmelik.pdf",
+      "expected_pages": [
+        36
+      ],
+      "hit_at_3": true,
+      "hit_at_5": true,
+      "first_hit_rank": 1,
+      "first_hit_score": 0.8268,
+      "reaches_llm_in_production": true,
+      "retrieved": [
+        {
+          "rank": 1,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 36,
+          "score": 0.8268,
+          "is_hit": true
+        },
+        {
+          "rank": 2,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 36,
+          "score": 0.8017,
+          "is_hit": true
+        },
+        {
+          "rank": 3,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 37,
+          "score": 0.7932,
+          "is_hit": false
+        },
+        {
+          "rank": 4,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 111,
+          "score": 0.7678,
+          "is_hit": false
+        },
+        {
+          "rank": 5,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 36,
+          "score": 0.7601,
+          "is_hit": true
+        }
+      ]
+    },
+    {
+      "id": "q06",
+      "question": "Bir sınıfta aynı gün en fazla kaç yazılı veya uygulamalı sınav yapılabilir?",
+      "expected_file": "meb_yonetmelik.pdf",
+      "expected_pages": [
+        30
+      ],
+      "hit_at_3": true,
+      "hit_at_5": true,
+      "first_hit_rank": 2,
+      "first_hit_score": 0.8039,
+      "reaches_llm_in_production": true,
+      "retrieved": [
+        {
+          "rank": 1,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 29,
+          "score": 0.8046,
+          "is_hit": false
+        },
+        {
+          "rank": 2,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 30,
+          "score": 0.8039,
+          "is_hit": true
+        },
+        {
+          "rank": 3,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 30,
+          "score": 0.7996,
+          "is_hit": true
+        },
+        {
+          "rank": 4,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 36,
+          "score": 0.7745,
+          "is_hit": false
+        },
+        {
+          "rank": 5,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 36,
+          "score": 0.7635,
+          "is_hit": false
+        }
+      ]
+    },
+    {
+      "id": "q07",
+      "question": "Geçerli özrü olmadan sınava girmeyen öğrencinin puan hanesine ne yazılır?",
+      "expected_file": "meb_yonetmelik.pdf",
+      "expected_pages": [
+        31
+      ],
+      "hit_at_3": true,
+      "hit_at_5": true,
+      "first_hit_rank": 1,
+      "first_hit_score": 0.8356,
+      "reaches_llm_in_production": true,
+      "retrieved": [
+        {
+          "rank": 1,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 31,
+          "score": 0.8356,
+          "is_hit": true
+        },
+        {
+          "rank": 2,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 31,
+          "score": 0.779,
+          "is_hit": true
+        },
+        {
+          "rank": 3,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 34,
+          "score": 0.7711,
+          "is_hit": false
+        },
+        {
+          "rank": 4,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 78,
+          "score": 0.7708,
+          "is_hit": false
+        },
+        {
+          "rank": 5,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 33,
+          "score": 0.7682,
+          "is_hit": false
+        }
+      ]
+    },
+    {
+      "id": "q08",
+      "question": "Okullar arası nakil başvuruları hangi dönemlerde haftalık olarak yapılır?",
+      "expected_file": "meb_yonetmelik.pdf",
+      "expected_pages": [
+        25
+      ],
+      "hit_at_3": true,
+      "hit_at_5": true,
+      "first_hit_rank": 2,
+      "first_hit_score": 0.8506,
+      "reaches_llm_in_production": true,
+      "retrieved": [
+        {
+          "rank": 1,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 26,
+          "score": 0.8608,
+          "is_hit": false
+        },
+        {
+          "rank": 2,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 25,
+          "score": 0.8506,
+          "is_hit": true
+        },
+        {
+          "rank": 3,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 26,
+          "score": 0.8382,
+          "is_hit": false
+        },
+        {
+          "rank": 4,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 25,
+          "score": 0.8344,
+          "is_hit": true
+        },
+        {
+          "rank": 5,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 25,
+          "score": 0.8336,
+          "is_hit": true
+        }
+      ]
+    },
+    {
+      "id": "q09",
+      "question": "Okul değiştirme cezası hangi kurulun onayından sonra uygulanır?",
+      "expected_file": "meb_yonetmelik.pdf",
+      "expected_pages": [
+        91,
+        96
+      ],
+      "hit_at_3": true,
+      "hit_at_5": true,
+      "first_hit_rank": 1,
+      "first_hit_score": 0.8127,
+      "reaches_llm_in_production": true,
+      "retrieved": [
+        {
+          "rank": 1,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 96,
+          "score": 0.8127,
+          "is_hit": true
+        },
+        {
+          "rank": 2,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 97,
+          "score": 0.8049,
+          "is_hit": false
+        },
+        {
+          "rank": 3,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 96,
+          "score": 0.8027,
+          "is_hit": true
+        },
+        {
+          "rank": 4,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 95,
+          "score": 0.8022,
+          "is_hit": false
+        },
+        {
+          "rank": 5,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 98,
+          "score": 0.8018,
+          "is_hit": false
+        }
+      ]
+    },
+    {
+      "id": "q10",
+      "question": "Kınama cezası alan öğrencinin davranış puanından kaç puan düşülür?",
+      "expected_file": "meb_yonetmelik.pdf",
+      "expected_pages": [
+        97
+      ],
+      "hit_at_3": true,
+      "hit_at_5": true,
+      "first_hit_rank": 1,
+      "first_hit_score": 0.8478,
+      "reaches_llm_in_production": true,
+      "retrieved": [
+        {
+          "rank": 1,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 97,
+          "score": 0.8478,
+          "is_hit": true
+        },
+        {
+          "rank": 2,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 91,
+          "score": 0.8151,
+          "is_hit": false
+        },
+        {
+          "rank": 3,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 91,
+          "score": 0.8112,
+          "is_hit": false
+        },
+        {
+          "rank": 4,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 97,
+          "score": 0.8111,
+          "is_hit": true
+        },
+        {
+          "rank": 5,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 95,
+          "score": 0.7845,
+          "is_hit": false
+        }
+      ]
+    },
+    {
+      "id": "q11",
+      "question": "Ortaöğretim kurumlarında bir ders saati kaç dakikadır ve dersler arasındaki dinlenme süresi en az ne kadar olmalıdır?",
+      "expected_file": "meb_yonetmelik.pdf",
+      "expected_pages": [
+        7
+      ],
+      "hit_at_3": true,
+      "hit_at_5": true,
+      "first_hit_rank": 1,
+      "first_hit_score": 0.8697,
+      "reaches_llm_in_production": true,
+      "retrieved": [
+        {
+          "rank": 1,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 7,
+          "score": 0.8697,
+          "is_hit": true
+        },
+        {
+          "rank": 2,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 39,
+          "score": 0.7943,
+          "is_hit": false
+        },
+        {
+          "rank": 3,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 10,
+          "score": 0.7864,
+          "is_hit": false
+        },
+        {
+          "rank": 4,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 39,
+          "score": 0.782,
+          "is_hit": false
+        },
+        {
+          "rank": 5,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 88,
+          "score": 0.7785,
+          "is_hit": false
+        }
+      ]
+    },
+    {
+      "id": "q12",
+      "question": "Bir ders yılı en az kaç iş günü olmalıdır?",
+      "expected_file": "meb_yonetmelik.pdf",
+      "expected_pages": [
+        10
+      ],
+      "hit_at_3": true,
+      "hit_at_5": true,
+      "first_hit_rank": 1,
+      "first_hit_score": 0.8178,
+      "reaches_llm_in_production": true,
+      "retrieved": [
+        {
+          "rank": 1,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 10,
+          "score": 0.8178,
+          "is_hit": true
+        },
+        {
+          "rank": 2,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 7,
+          "score": 0.7898,
+          "is_hit": false
+        },
+        {
+          "rank": 3,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 10,
+          "score": 0.7867,
+          "is_hit": true
+        },
+        {
+          "rank": 4,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 39,
+          "score": 0.786,
+          "is_hit": false
+        },
+        {
+          "rank": 5,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 7,
+          "score": 0.7855,
+          "is_hit": false
+        }
+      ]
+    },
+    {
+      "id": "q13",
+      "question": "Ortaöğretim kurumlarına kayıt için hangi yaş şartı aranır?",
+      "expected_file": "meb_yonetmelik.pdf",
+      "expected_pages": [
+        12
+      ],
+      "hit_at_3": true,
+      "hit_at_5": true,
+      "first_hit_rank": 1,
+      "first_hit_score": 0.8664,
+      "reaches_llm_in_production": true,
+      "retrieved": [
+        {
+          "rank": 1,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 12,
+          "score": 0.8664,
+          "is_hit": true
+        },
+        {
+          "rank": 2,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 14,
+          "score": 0.8032,
+          "is_hit": false
+        },
+        {
+          "rank": 3,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 5,
+          "score": 0.7934,
+          "is_hit": false
+        },
+        {
+          "rank": 4,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 5,
+          "score": 0.7871,
+          "is_hit": false
+        },
+        {
+          "rank": 5,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 12,
+          "score": 0.7869,
+          "is_hit": true
+        }
+      ]
+    },
+    {
+      "id": "q14",
+      "question": "Fen liselerinde bir şubeye kaç öğrenci alınır?",
+      "expected_file": "meb_yonetmelik.pdf",
+      "expected_pages": [
+        16
+      ],
+      "hit_at_3": true,
+      "hit_at_5": true,
+      "first_hit_rank": 2,
+      "first_hit_score": 0.7875,
+      "reaches_llm_in_production": true,
+      "retrieved": [
+        {
+          "rank": 1,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 17,
+          "score": 0.8146,
+          "is_hit": false
+        },
+        {
+          "rank": 2,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 16,
+          "score": 0.7875,
+          "is_hit": true
+        },
+        {
+          "rank": 3,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 25,
+          "score": 0.7864,
+          "is_hit": false
+        },
+        {
+          "rank": 4,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 110,
+          "score": 0.7621,
+          "is_hit": false
+        },
+        {
+          "rank": 5,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 17,
+          "score": 0.7579,
+          "is_hit": false
+        }
+      ]
+    },
+    {
+      "id": "q15",
+      "question": "Sınıf başkanlığına aday olacak öğrencilerde hangi şartlar aranır?",
+      "expected_file": "meb_yonetmelik.pdf",
+      "expected_pages": [
+        20
+      ],
+      "hit_at_3": true,
+      "hit_at_5": true,
+      "first_hit_rank": 1,
+      "first_hit_score": 0.855,
+      "reaches_llm_in_production": true,
+      "retrieved": [
+        {
+          "rank": 1,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 20,
+          "score": 0.855,
+          "is_hit": true
+        },
+        {
+          "rank": 2,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 26,
+          "score": 0.7813,
+          "is_hit": false
+        },
+        {
+          "rank": 3,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 100,
+          "score": 0.7804,
+          "is_hit": false
+        },
+        {
+          "rank": 4,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 87,
+          "score": 0.7802,
+          "is_hit": false
+        },
+        {
+          "rank": 5,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 37,
+          "score": 0.7796,
+          "is_hit": false
+        }
+      ]
+    },
+    {
+      "id": "q16",
+      "question": "Ölçme ve değerlendirmede \"Orta\" derecesi hangi puan aralığına karşılık gelir?",
+      "expected_file": "meb_yonetmelik.pdf",
+      "expected_pages": [
+        29
+      ],
+      "hit_at_3": true,
+      "hit_at_5": true,
+      "first_hit_rank": 1,
+      "first_hit_score": 0.7683,
+      "reaches_llm_in_production": true,
+      "retrieved": [
+        {
+          "rank": 1,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 29,
+          "score": 0.7683,
+          "is_hit": true
+        },
+        {
+          "rank": 2,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 41,
+          "score": 0.7636,
+          "is_hit": false
+        },
+        {
+          "rank": 3,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 33,
+          "score": 0.7604,
+          "is_hit": false
+        },
+        {
+          "rank": 4,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 26,
+          "score": 0.7563,
+          "is_hit": false
+        },
+        {
+          "rank": 5,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 34,
+          "score": 0.7491,
+          "is_hit": false
+        }
+      ]
+    },
+    {
+      "id": "q17",
+      "question": "Veli, sınav sonuçlarına kaç iş günü içinde itiraz edebilir?",
+      "expected_file": "meb_yonetmelik.pdf",
+      "expected_pages": [
+        32
+      ],
+      "hit_at_3": true,
+      "hit_at_5": true,
+      "first_hit_rank": 1,
+      "first_hit_score": 0.8173,
+      "reaches_llm_in_production": true,
+      "retrieved": [
+        {
+          "rank": 1,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 32,
+          "score": 0.8173,
+          "is_hit": true
+        },
+        {
+          "rank": 2,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 32,
+          "score": 0.7981,
+          "is_hit": true
+        },
+        {
+          "rank": 3,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 23,
+          "score": 0.7904,
+          "is_hit": false
+        },
+        {
+          "rank": 4,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 31,
+          "score": 0.7777,
+          "is_hit": false
+        },
+        {
+          "rank": 5,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 96,
+          "score": 0.775,
+          "is_hit": false
+        }
+      ]
+    },
+    {
+      "id": "q18",
+      "question": "Hazırlık sınıfını okumadan doğrudan 9. sınıfa geçmek isteyen öğrencinin yeterlilik sınavında hangi puanı alması gerekir?",
+      "expected_file": "meb_yonetmelik.pdf",
+      "expected_pages": [
+        37
+      ],
+      "hit_at_3": true,
+      "hit_at_5": true,
+      "first_hit_rank": 1,
+      "first_hit_score": 0.8548,
+      "reaches_llm_in_production": true,
+      "retrieved": [
+        {
+          "rank": 1,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 37,
+          "score": 0.8548,
+          "is_hit": true
+        },
+        {
+          "rank": 2,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 37,
+          "score": 0.8493,
+          "is_hit": true
+        },
+        {
+          "rank": 3,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 3,
+          "score": 0.811,
+          "is_hit": false
+        },
+        {
+          "rank": 4,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 34,
+          "score": 0.809,
+          "is_hit": false
+        },
+        {
+          "rank": 5,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 25,
+          "score": 0.8067,
+          "is_hit": false
+        }
+      ]
+    },
+    {
+      "id": "q19",
+      "question": "Mezuniyet puanı nasıl hesaplanır?",
+      "expected_file": "meb_yonetmelik.pdf",
+      "expected_pages": [
+        41
+      ],
+      "hit_at_3": true,
+      "hit_at_5": true,
+      "first_hit_rank": 1,
+      "first_hit_score": 0.8434,
+      "reaches_llm_in_production": true,
+      "retrieved": [
+        {
+          "rank": 1,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 41,
+          "score": 0.8434,
+          "is_hit": true
+        },
+        {
+          "rank": 2,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 41,
+          "score": 0.7866,
+          "is_hit": true
+        },
+        {
+          "rank": 3,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 35,
+          "score": 0.7854,
+          "is_hit": false
+        },
+        {
+          "rank": 4,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 33,
+          "score": 0.7796,
+          "is_hit": false
+        },
+        {
+          "rank": 5,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 33,
+          "score": 0.7731,
+          "is_hit": false
+        }
+      ]
+    },
+    {
+      "id": "q20",
+      "question": "Diplomasını kaybeden öğrenciye ne verilir?",
+      "expected_file": "meb_yonetmelik.pdf",
+      "expected_pages": [
+        42,
+        44
+      ],
+      "hit_at_3": true,
+      "hit_at_5": true,
+      "first_hit_rank": 1,
+      "first_hit_score": 0.7775,
+      "reaches_llm_in_production": true,
+      "retrieved": [
+        {
+          "rank": 1,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 42,
+          "score": 0.7775,
+          "is_hit": true
+        },
+        {
+          "rank": 2,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 42,
+          "score": 0.7755,
+          "is_hit": true
+        },
+        {
+          "rank": 3,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 18,
+          "score": 0.7738,
+          "is_hit": false
+        },
+        {
+          "rank": 4,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 44,
+          "score": 0.765,
+          "is_hit": true
+        },
+        {
+          "rank": 5,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 42,
+          "score": 0.7649,
+          "is_hit": true
+        }
+      ]
+    },
+    {
+      "id": "q21",
+      "question": "Üstün başarı belgesi almak için hangi şart aranır?",
+      "expected_file": "meb_yonetmelik.pdf",
+      "expected_pages": [
+        90
+      ],
+      "hit_at_3": true,
+      "hit_at_5": true,
+      "first_hit_rank": 2,
+      "first_hit_score": 0.7719,
+      "reaches_llm_in_production": true,
+      "retrieved": [
+        {
+          "rank": 1,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 26,
+          "score": 0.7724,
+          "is_hit": false
+        },
+        {
+          "rank": 2,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 90,
+          "score": 0.7719,
+          "is_hit": true
+        },
+        {
+          "rank": 3,
+          "source_file": "KanMerkezleriYonetmelik.pdf",
+          "page": 3,
+          "score": 0.7543,
+          "is_hit": false
+        },
+        {
+          "rank": 4,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 2,
+          "score": 0.753,
+          "is_hit": false
+        },
+        {
+          "rank": 5,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 26,
+          "score": 0.7508,
+          "is_hit": false
+        }
+      ]
+    },
+    {
+      "id": "q22",
+      "question": "Onur kurulu ne sıklıkla toplanır?",
+      "expected_file": "meb_yonetmelik.pdf",
+      "expected_pages": [
+        100
+      ],
+      "hit_at_3": true,
+      "hit_at_5": true,
+      "first_hit_rank": 1,
+      "first_hit_score": 0.8074,
+      "reaches_llm_in_production": true,
+      "retrieved": [
+        {
+          "rank": 1,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 100,
+          "score": 0.8074,
+          "is_hit": true
+        },
+        {
+          "rank": 2,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 99,
+          "score": 0.7892,
+          "is_hit": false
+        },
+        {
+          "rank": 3,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 100,
+          "score": 0.7847,
+          "is_hit": true
+        },
+        {
+          "rank": 4,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 100,
+          "score": 0.7727,
+          "is_hit": true
+        },
+        {
+          "rank": 5,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 100,
+          "score": 0.7653,
+          "is_hit": true
+        }
+      ]
+    },
+    {
+      "id": "q23",
+      "question": "Okul öğrenci ödül ve disiplin kurulu bir disiplin olayını en geç kaç gün içinde karara bağlar?",
+      "expected_file": "meb_yonetmelik.pdf",
+      "expected_pages": [
+        102
+      ],
+      "hit_at_3": false,
+      "hit_at_5": true,
+      "first_hit_rank": 5,
+      "first_hit_score": 0.8256,
+      "reaches_llm_in_production": false,
+      "retrieved": [
+        {
+          "rank": 1,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 103,
+          "score": 0.8441,
+          "is_hit": false
+        },
+        {
+          "rank": 2,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 98,
+          "score": 0.8418,
+          "is_hit": false
+        },
+        {
+          "rank": 3,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 95,
+          "score": 0.8272,
+          "is_hit": false
+        },
+        {
+          "rank": 4,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 96,
+          "score": 0.8262,
+          "is_hit": false
+        },
+        {
+          "rank": 5,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 102,
+          "score": 0.8256,
+          "is_hit": true
+        }
+      ]
+    },
+    {
+      "id": "q24",
+      "question": "İşletmelerde mesleki eğitim gören öğrenciler haftanın kaç günü işletmede, kaç günü okulda eğitim alır?",
+      "expected_file": "meb_yonetmelik.pdf",
+      "expected_pages": [
+        79
+      ],
+      "hit_at_3": true,
+      "hit_at_5": true,
+      "first_hit_rank": 3,
+      "first_hit_score": 0.8334,
+      "reaches_llm_in_production": true,
+      "retrieved": [
+        {
+          "rank": 1,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 7,
+          "score": 0.8419,
+          "is_hit": false
+        },
+        {
+          "rank": 2,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 80,
+          "score": 0.8351,
+          "is_hit": false
+        },
+        {
+          "rank": 3,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 79,
+          "score": 0.8334,
+          "is_hit": true
+        },
+        {
+          "rank": 4,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 10,
+          "score": 0.8234,
+          "is_hit": false
+        },
+        {
+          "rank": 5,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 74,
+          "score": 0.8223,
+          "is_hit": false
+        }
+      ]
+    },
+    {
+      "id": "q25",
+      "question": "Kültürlerarası öğrenci değişim programıyla yurtdışına giden öğrencinin okuldaki kaydına ne olur?",
+      "expected_file": "meb_yonetmelik.pdf",
+      "expected_pages": [
+        18
+      ],
+      "hit_at_3": true,
+      "hit_at_5": true,
+      "first_hit_rank": 1,
+      "first_hit_score": 0.8509,
+      "reaches_llm_in_production": true,
+      "retrieved": [
+        {
+          "rank": 1,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 18,
+          "score": 0.8509,
+          "is_hit": true
+        },
+        {
+          "rank": 2,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 45,
+          "score": 0.826,
+          "is_hit": false
+        },
+        {
+          "rank": 3,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 19,
+          "score": 0.819,
+          "is_hit": false
+        },
+        {
+          "rank": 4,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 19,
+          "score": 0.7999,
+          "is_hit": false
+        },
+        {
+          "rank": 5,
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 23,
+          "score": 0.7987,
+          "is_hit": false
+        }
+      ]
+    }
+  ]
+}
