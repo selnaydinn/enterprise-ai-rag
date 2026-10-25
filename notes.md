@@ -1,11 +1,71 @@
 # Enterprise AI — Kod İnceleme Notları
 
-> İnceleme tarihi: 2026-10-18 · Branch: `extra-features` · Kapsam: backend (FastAPI), frontend (Next.js), Docker, `eval/`, `tests/`
-> Bu inceleme sırasında projede hiçbir dosya değiştirilmedi; yalnızca bu not dosyası eklendi.
+> İlk inceleme: 2026-10-18 · Son güncelleme: 2026-10-25 (Sprint A sonu) · Branch: `main`
+> Kapsam: backend (FastAPI), frontend (Next.js), Docker, `eval/`, `tests/`
+
+**Bu dosya nasıl okunur?**
+- **Durum Özeti:** Tüm maddelerin güncel durumu tek tabloda.
+- **İlerleme Notları (GUNCEL):** Yapılan işlerin kayıtları.
+- **Bölüm 1–5:** İlk incelemenin bulguları ve yol haritası. Madde metinleri ilk incelemedeki haliyle duruyor (satır numaraları o tarihe ait); güncel durum için tabloya bakın.
+- **GUNCEL PROBLEMLER:** Sonradan ortaya çıkan maddeler (38+).
+
+---
+
+## Durum Özeti
+
+✅ Yapıldı · ◐ Kısmen · ❌ Yapılmadı
+
+| # | Konu | Durum | Not |
+|---|---|---|---|
+| 1 | Upload'da path traversal | ✅ | Geçerli dosya adları kabul ediliyor |
+| 2 | Duplikasyon kontrolü yazmadan önce | ✅ | Aynı içerik / aynı ad → 409 |
+| 3 | `.dockerignore` | ✅ | |
+| 4 | Kimlik doğrulama | ❌ | Ürünleşme adımında |
+| 5 | CORS | ✅ | Origin listesi `.env`'den |
+| 6 | Hata detaylarının sızması | ✅ | |
+| 7 | Upload boyut limiti | ✅ | 20 MB + `%PDF` içerik kontrolü; sayfa sayısı sınırı yok |
+| 8 | Token limiti mantığı | ✅ | SQLite, 6 saatlik pencere (Türkiye saati); şimdilik global |
+| 9 | Token sayımı | ✅ | Gerçek `usage_metadata` |
+| 10 | Event loop bloklanması | ✅ | Threadpool + upload kilidi; arka plan görevi yok |
+| 11 | E5 ön ekleri | ✅ | Denendi, kaliteyi artırmadı, uygulanmadı |
+| 12 | Skor barajı kalibrasyonu | ❌ | Negatif sorular gerekiyor |
+| 13 | Retrieval kalitesi | ◐ | Normalization yapıldı; `k`, reranker, madde bazlı chunking yok |
+| 14 | Golden set | ◐ | 25 soru; hepsi `meb_yonetmelik.pdf`, negatif soru yok |
+| 15 | Tekrar yüklenen dosya listede | ✅ | |
+| 16 | Çift gönderim koruması | ✅ | IME kontrolü de var |
+| 17 | Aynı dosya tekrar seçilince upload | ✅ | |
+| 18 | `core/config.py` refactor | ❌ | Sprint B |
+| 19 | Sabit yollar ve URL'ler | ✅ | `CHROMA_DIR`, `NEXT_PUBLIC_API_URL`, `encodeURIComponent` |
+| 20 | API key doğrulama | ✅ | Fail-fast, `.env.example`, `.env` biçimi düzgün; "Key etkinleştirildi" print'i bilerek bırakıldı |
+| 21 | `print` / `logging` | ❌ | Sprint B |
+| 22 | Deprecated LangChain importları | ❌ | Sprint B |
+| 23 | Bağımlılıklar | ❌ | Sprint B (önce madde 38) |
+| 24 | Kullanılmayan kod | ◐ | Kopyalama döngüsü kaldırıldı; `os`, `ChatOllama`, `api.ts` boş satırları duruyor |
+| 25 | Docker yapılandırması | ❌ | |
+| 26 | API tasarımı | ◐ | Soru uzunluk sınırı, düz `usage` objesi; response modelleri, silme endpoint'i yok |
+| 27 | Prompt / LLM katmanı | ❌ | |
+| 28 | Tekrarlanan frontend tipleri | ❌ | |
+| 29 | `catch (error: any)` | ❌ | |
+| 30 | Sahte upload progress bar | ❌ | |
+| 31 | Kaynakta sayfaya atlama | ❌ | |
+| 32 | Markdown render | ❌ | |
+| 33 | Token göstergesi | ✅ | Ayrı state + `/usage/`; limit dolunca kilit ve geri sayım |
+| 34 | Dil tutarsızlığı | ❌ | |
+| 35 | `key={index}` | ❌ | |
+| 36 | Erişilebilirlik | ❌ | |
+| 37 | Gönder butonunun kaybolması | ❌ | |
+| 38 | Python sürüm farkı | ❌ | Sprint B |
+| 39 | `process_pdf`'teki gereksiz kontrol | ❌ | Sprint B |
+| 40 | DB kurulum script'i | ❌ | Sprint B |
+| 41 | `notes.md`'deki eski bilgiler | ✅ | Bu düzenlemeyle |
+
+---
+
+## İlerleme Notları (GUNCEL)
 
 GUNCEL: Madde 11 ve 14 yapıldı.
         Madde 11 incelendi, passage ön eki anlamlı bir retriaval kalitesi sağlamadı.
-        Madde 14 teki 10 soruluk golden set 25 soruya çıkartıldı.  (tamamı meb_yonetmelik.pdf)(negatif soru yok)
+        Madde 14 teki 10 soruluk golden st 25 soruya çıkartıldı.  (tamamı meb_yonetmelik.pdf)(negatif soru yok)
         Chunking kalitesini iyileştirmek için pdflere boşluk karakteri eklendi. Bu işlem Normalization olarak adlandırıldı. Db bu işlemle tekrar oluşturuldu. Hit@3 23/25'ten 24/25'e çıktı. Buna karşılık evidence MRR 0.787'den 0.766'ya, evidence@1 de 17'den 16'ya hafifçe düştü. 
 
 GUNCEL: 1,2,3,7,15 ve 17. maddeler yapıldı. 
@@ -39,21 +99,25 @@ PDF yönetmelikleri üzerinde soru-cevap yapan bir RAG uygulaması:
 
 - **Ingestion** (`services/ingestion.py`): PDF → `PyPDFLoader` → sayfa bazlı `RecursiveCharacterTextSplitter` (1200/300 karakter) → `multilingual-e5-base` embedding → ChromaDB.
 - **Query** (`services/query.py`): `query: ` ön ekli similarity search (k=3) → 0.72 skor barajı → tüm geçen parçalar tek prompt'ta Gemini 2.5 Flash'a.
-- **API** (`main.py`): `/upload-pdf/`, `/query/`, `/documents/`, `/static-pdfs` (PDF'leri statik servis eder).
-- **Frontend** (`rag-frontend/`): Üç panelli arayüz (doküman listesi, sohbet, PDF önizleme).
-- **Eval** (`eval/`, henüz commit edilmemiş): 10 soruluk golden set ile salt-okunur retrieval ölçümü. Baseline: Hit@3 = 9/10, Hit@5 = 10/10.
+- **API** (`main.py`): `/upload-pdf/`, `/query/`, `/documents/`, `/usage/` (token kullanımı), `/static-pdfs` (PDF'leri statik servis eder).
+- **Token limiti** (`services/usage.py`): SQLite'ta tutulan global sayaç; Türkiye saatiyle 6 saatte bir (00/06/12/18) sıfırlanır.
+- **Frontend** (`rag-frontend/`): Üç panelli arayüz (doküman listesi, sohbet, PDF önizleme). Limit dolunca input kilitlenir ve sıfırlanmaya kalan süre gösterilir.
+- **Eval** (`eval/`): 25 soruluk golden set ile salt-okunur retrieval ölçümü. Normalization DB'si ile Hit@3 = 24/25.
+
+**Ayarlar (`.env`):** `GEMINI_API_KEY`, `CORS_ORIGINS`, `CHROMA_DIR`, `TOKEN_LIMIT`, `TOKEN_WINDOW_HOURS`, `USAGE_DB_PATH`. Frontend: `rag-frontend/.env.local` → `NEXT_PUBLIC_API_URL`. `CHROMA_DIR`'deki DB yoksa uygulama başlamaz.
 
 ### Güçlü yönler
 - Kod küçük, okunabilir ve katmanlara ayrılmış (core / services / API / frontend).
 - PDF hash ile tekrar yükleme kontrolü, deterministik chunk ID'leri, metadata'da kaynak dosya + sayfa numarası tutulması.
 - Prompt'ta halüsinasyonu kısıtlayan kurallar ve kaynak gösterimi (frontend'de "Kullanılan Kaynaklar").
 - `eval/evaluate_retrieval.py` çok özenli yazılmış: orijinal DB'yi kopyalayıp çalışıyor, SHA-256 ile değişmediğini doğruluyor, index bütünlüğü ve embedding tutarlılığı kontrolü yapıyor. Ölçmeden değiştirmeme yaklaşımı doğru.
-- `core/embeddings.py` wrapper'ı ve testleri, `embed_query → embed_documents` tuzağını (subclass olsaydı `passage: query:` olurdu) bilinçli şekilde çözüyor.
 - `.env` hiçbir zaman commit edilmemiş (git geçmişi kontrol edildi), `.gitignore` makul.
 
 ---
 
 ## 2. Öncelik Sırasıyla İyileştirilmesi Gerekenler
+
+> İlk incelemenin (2026-10-18) bulguları; satır numaraları o tarihe ait. Güncel durum için **Durum Özeti** tablosuna bakın.
 
 ### 🔴 Kritik (Güvenlik / Veri bütünlüğü)
 
@@ -197,15 +261,20 @@ PDF yönetmelikleri üzerinde soru-cevap yapan bir RAG uygulaması:
 
 ## 3. Test, Kalite ve Süreç
 
-- **Test kapsamı çok düşük:** yalnızca `E5Embeddings` wrapper'ı test ediliyor. Eksikler:
-  - API testleri (`fastapi.testclient` + mock DB/LLM): upload doğrulamaları, path traversal, duplikasyon, token limiti, boş sonuç senaryosu.
-  - `prepare_chunks_with_metadata` için baraj/filtreleme birim testleri (LLM mock'lanarak).
+- **Mevcut testler (64 test, `python -m unittest discover tests`):** Gemini ve Chroma sahte; gerçek DB'ye yazılmıyor.
+  - `test_upload.py`: dosya adı temizleme, upload doğrulamaları, duplikasyon (409), hata gizleme, soru doğrulama, CORS, eşzamanlı upload.
+  - `test_query.py`: gerçek token sayımı, yedek tahmin, baraj filtrelemesi.
+  - `test_usage.py`: 6 saatlik pencere, sıfırlanma, 429, `/usage/`, eşzamanlı yazma.
+  - `test_ingestion_normalization.py`, `test_golden_set.py`: normalization ve golden set biçimi.
+- **Test eksikleri:**
   - `process_pdf` için küçük bir fixture PDF ile metadata/ID testleri.
+  - `/documents/` endpoint'inin normal çalışma durumu (şu an sadece hata durumu test ediliyor).
   - Frontend için hiç test yok.
+  - Gerçek Gemini/Chroma ile uçtan uca test yok (manuel yapılıyor).
 - **Eval'i CI'a bağlamak:** retrieval metrikleri belirli bir eşiğin altına düşerse uyarı veren bir regresyon kontrolü.
 - **CI/CD yok:** GitHub Actions ile lint (`ruff`, `eslint`), type check (`mypy`/`tsc`), test çalıştırma.
 - **Linter/formatter yok (backend):** `ruff` + `ruff format` önerilir. Yorum stili (`#Yorum` boşluksuz) PEP 8'e uymuyor; tutarlılık açısından düzeltilebilir.
-- **Git:** `core/embeddings.py`, `eval/`, `tests/` henüz commit edilmemiş. Commit geçmişinde anlamlı mesajlar yok (çoğu "Update README.md"). Küçük, açıklayıcı commit'ler önerilir.
+- **Git:** Küçük, açıklayıcı commit'ler ve her sprint için ayrı branch önerilir.
 - `eval/results/*.json` dosyalarının commit edilip edilmeyeceğine karar verilmeli (baseline'ı versiyonlamak faydalı; ama `golden_set` yolu Windows ayırıcısıyla `eval\\golden_set.jsonl` kaydedilmiş — `as_posix()` kullanılmalı).
 
 ---
@@ -218,6 +287,7 @@ PDF yönetmelikleri üzerinde soru-cevap yapan bir RAG uygulaması:
   - "memory structures for multi-turn conversations" → yok.
   - "reduces tokenization costs" → ölçülmüş bir iddia değil.
 - README'deki `bash` kod bloğu kapatılmamış (sonraki satırlar kod olarak render ediliyor).
+- README'de yeni kurulum bilgileri yok: `CHROMA_DIR`, `TOKEN_LIMIT`, `TOKEN_WINDOW_HOURS`, `USAGE_DB_PATH`, `rag-frontend/.env.local`; DB yoksa uygulamanın başlamadığı.
 - Eksik bölümler: `.env` değişkenleri listesi, API endpoint açıklamaları, eval'in nasıl çalıştırılacağı, testlerin nasıl çalıştırılacağı (`python -m unittest discover tests`), mimari diyagram, bilinen kısıtlar.
 - `rag-frontend/README.md` hâlâ create-next-app şablonu.
 
@@ -226,26 +296,53 @@ PDF yönetmelikleri üzerinde soru-cevap yapan bir RAG uygulaması:
 ## 5. Önerilen Yol Haritası
 
 **Adım 1 — Güvenlik ve hızlı düzeltmeler (küçük, riskli olmayan)**
-1. Dosya adı temizleme (path traversal) + boyut limiti + hash kontrolünü yazmadan önce yapma.
-2. `.dockerignore` ekleme.
-3. CORS origin'lerini kısıtlama, hata detaylarını gizleme.
-4. Kullanılmayan import/paketleri temizleme, versiyonları pinleme.
-5. Frontend'de duplikasyon `status` kontrolü, çift gönderim koruması.
+1. ✅ Dosya adı temizleme (path traversal) + boyut limiti + hash kontrolünü yazmadan önce yapma.
+2. ✅ `.dockerignore` ekleme.
+3. ✅ CORS origin'lerini kısıtlama, hata detaylarını gizleme.
+4. ❌ Kullanılmayan import/paketleri temizleme, versiyonları pinleme. → Sprint B
+5. ✅ Frontend'de duplikasyon `status` kontrolü, çift gönderim koruması.
 
 **Adım 2 — Yapısal iyileştirme**
-6. `Settings` + lazy factory'ler ile `core/config.py` refactor'u (eval ve uygulama aynı config'i kullansın).
-7. Endpoint'leri bloklamayan hale getirme; upload'u arka plan görevine taşıma.
-8. Token limitini kalıcı, kullanıcı bazlı ve zaman pencereli hale getirme; gerçek `usage_metadata` kullanma.
-9. Pydantic response modelleri, tutarlı `status` enum'u, doküman silme endpoint'i.
-10. API testleri + CI.
+6. ❌ `Settings` + lazy factory'ler ile `core/config.py` refactor'u (eval ve uygulama aynı config'i kullansın). → Sprint B
+7. ◐ Endpoint'leri bloklamayan hale getirme ✅; upload'u arka plan görevine taşıma ❌.
+8. ◐ Token limitini kalıcı ve zaman pencereli hale getirme, gerçek `usage_metadata` kullanma ✅; kullanıcı bazlı limit ❌ (auth ile).
+9. ❌ Pydantic response modelleri, tutarlı `status` enum'u, doküman silme endpoint'i.
+10. ◐ API testleri ✅; CI ❌.
 
 **Adım 3 — RAG kalitesi (her adımı eval ile ölçerek)**
-11. Golden set'i genişletme (tüm PDF'ler + negatif sorular).
-12. `E5Embeddings`'i bağlayıp yeniden index'leme → baseline ile kıyaslama.
-13. Skor barajını negatif örneklerle yeniden kalibre etme.
-14. Madde bazlı chunking, daha geniş aday + reranker, hibrit arama denemeleri.
+11. ◐ Golden set'i genişletme: 25 soruya çıktı; diğer PDF'ler ve negatif sorular yok.
+12. ✅ `passage:` ön eki denendi, kaliteyi artırmadı (madde 11).
+13. ❌ Skor barajını negatif örneklerle yeniden kalibre etme.
+14. ◐ Normalization yapıldı; madde bazlı chunking, daha geniş aday + reranker, hibrit arama denemeleri yok.
 
 **Adım 4 — Ürünleşme**
 15. Kimlik doğrulama, doküman bazlı yetki, audit log.
 16. Streaming yanıt, markdown render, kaynakta sayfaya atlama, çok turlu sohbet.
 17. Production Docker yapılandırması (non-root, reload yok, healthcheck, frontend dahil compose).
+
+**Sıradaki: Sprint B — Config refactor ve temizlik** (kullanıcıya görünen davranış değişmez)
+- B0: `notes.md` güncellemesi ✅
+- B1: Bağımlılıklar (madde 23, önce madde 38: Python sürümü)
+- B2: Kullanılmayan kod ve deprecated importlar (madde 22, 24, 39) → ardından eval ile sonuçların aynı kaldığını doğrulama
+- B3: Config refactor (madde 18)
+- B4: Logging (madde 21)
+- B5: DB kurulum script'i (madde 40)
+- Açık kararlar: Docker Python 3.13'e mi çekilsin, config için `pydantic-settings` mi dataclass mı, B5 bu sprintte mi?
+
+---
+
+## GUNCEL PROBLEMLER
+
+> Sprint A sırasında ortaya çıkan, yukarıdaki maddelerde olmayan problemler. Numaralar 2. bölümdeki maddelerin devamıdır.
+
+38. **Python sürümleri farklı** — `Dockerfile:1`, `venv/`
+    Yerel venv Python 3.13, Docker image'ı `python:3.10-slim`. Bağımlılıklar (madde 23) venv'deki sürümlerle pinlenirse bazıları Docker'da kurulamayabilir; testler de yerelde 3.13'te çalışıyor, uygulama 3.10'da. Pinlemeden önce iki ortam aynı sürüme çekilmeli (öneri: Dockerfile → 3.13).
+
+39. **`process_pdf` içindeki duplikasyon kontrolü gereksiz** — `services/ingestion.py`
+    Madde 2 düzeltildikten sonra duplikasyon kontrolü `main.py`'de diske yazmadan önce (ve `UPLOAD_LOCK` içinde) yapılıyor. `process_pdf`'teki ikinci kontrol ve döndürdüğü `"Reddedildi"` yanıtı artık hiçbir yere ulaşmıyor; kaldırılabilir (madde 26'daki tutarsız `status` değerlerinden biri de bu).
+
+40. **Chroma DB'yi sıfırdan kuran bir script yok**
+    Uygulama artık DB yoksa başlamıyor (`CHROMA_DIR` kontrolü, boş DB açılmıyor). `chroma_db_normalization/` gitignore ve dockerignore'da olduğu için yeni bir makinede DB klasörü elle kopyalanmalı. `uploaded_pdfs/` içindeki PDF'lerden DB'yi bilinçli olarak kuran ayrı bir kurulum script'i yazılmalı; uygulama kendi kendine DB oluşturmamalı.
+
+41. **`notes.md`'deki bazı bilgiler eskidi** — ✅ Sprint A sonundaki düzenlemeyle giderildi.
+    Başlıktaki branch (`extra-features`), "`eval/`, `tests/`, `core/embeddings.py` henüz commit edilmemiş" notları (`core/embeddings.py` repoda yok) ve `.gitattributes` için "daha commit'e girmedi" ifadesi artık geçerli değil. Sprint A'da biten maddeler (8, 9, 10, 19, 20) de GUNCEL bloklarına işlenmeli.

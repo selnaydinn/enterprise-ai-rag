@@ -36,15 +36,9 @@ def process_pdf(pdf_path):
         return {"status": "Hata", "message": "Dosya sistemde bulunamadı."}
 
     #Hashing
+    #Duplikasyon kontrolü burada değil, main.py'de diske yazmadan önce (UPLOAD_LOCK içinde) yapılıyor
+    #Doğrudan çağrılsa da chunk id'leri hash'ten türediği için aynı PDF DB'ye ikinci kez eklenmez
     pdf_hash = hash_pdf(pdf_path)
-
-    #Check
-    if is_file_already_processed(pdf_hash):
-        print(f" 🛡️ [SİSTEM KORUMASI]: {pdf_name} (Hash: {pdf_hash}) zaten veritabanında kayıtlı!")
-        return {
-            "status": "Reddedildi",
-            "message": f"{pdf_name} zaten veritabanında mevcut."
-        }
 
     print(f"🚀 {pdf_name} yeni bir döküman olarak algılandı, analiz ediliyor...")
 

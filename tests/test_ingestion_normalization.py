@@ -115,6 +115,8 @@ class ProcessPdfAppliesNormalizationTests(unittest.TestCase):
 
         self.assertEqual(captured["texts"], ["MADDE 1 - (1) Amaç \n\n(2) Kapsam"])
         fake_db.add_documents.assert_not_called()
+        #Duplikasyon kontrolü main.py'de; process_pdf DB'yi sorgulamıyor
+        fake_db.get.assert_not_called()
 
 
 if __name__ == "__main__":

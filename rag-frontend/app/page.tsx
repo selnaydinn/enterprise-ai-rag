@@ -126,7 +126,7 @@ export default function Home() {
       console.log("PDF yüklendi ve frontende yanıtını döndü.");
       clearInterval(progressInterval);
 
-      //Backend nadiren 200 ile "Reddedildi"/"Hata" dönebiliyor (ör. aynı anda iki yükleme)
+      //Backend nadiren 200 ile "Hata" dönebiliyor (process_pdf dosyayı bulamazsa)
       if (result?.status !== "Success") {
         alert(result?.message || "Dosya işlenemedi.");
       }

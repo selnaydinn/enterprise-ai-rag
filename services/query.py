@@ -1,6 +1,4 @@
-import os
 import logging
-from langchain_ollama import ChatOllama
 from langchain_core.prompts import PromptTemplate
 from core.config import db , llm
 
