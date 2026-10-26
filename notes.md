@@ -42,9 +42,9 @@
 | 23 | Bağımlılıklar | ✅ | 
 | 24 | Kullanılmayan kod.Kopyalama döngüsü kaldırıldı; `os`, `ChatOllama`, `api.ts` boş satırları duruyor| ✅ |  
 | 25 | Docker yapılandırması | ❌ | 
-| 26 | API tasarımı. Soru uzunluk sınırı, düz `usage` objesi; response modelleri, silme endpoint'i yok | ◐ |
+| 26 | API tasarımı. Soru uzunluk sınırı, düz `usage` objesi; response modelleri, silme endpoint'i yok | ✅ |
 | 27 | Prompt / LLM katmanı | ❌ | 
-| 28 | Tekrarlanan frontend tipleri | ❌ | 
+| 28 | Tekrarlanan frontend tipleri | ✅ | 
 | 29 | `catch (error: any)` | ❌ | 
 | 30 | Sahte upload progress bar | ❌ | 
 | 31 | Kaynakta sayfaya atlama | ❌ | 
@@ -97,6 +97,12 @@ GUNCEL: 18, 38,23,39,21 yapıldı.
         Embedding modeli, llm modeli ve db lifespan ile sadece uygulama başlarken 1 kere çağırılıyor.
         Printler temizlendi.
         Loglar düzenlenip tarih damgası kondu.
+
+GUNCEL: API yanıtları pydantic şemasına çevrildi
+        Frontendde şemalar bir araya getirildi
+        Eslint çalıştırılıp frontend kontrolü yapıldı.
+        pdf silme endpointi getirildi
+        Frontendde uygulama hata ve mesajları için alert oluşturuldu
 ---
 
 ## 1. Genel Bakış

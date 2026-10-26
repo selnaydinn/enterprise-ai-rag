@@ -1,4 +1,4 @@
-import type { DocumentItem, QueryResponse, UploadResponse, UsageStatus } from "@/types/api";
+import type { DeleteResponse, DocumentItem, FeaturesResponse, QueryResponse, UploadResponse, UsageStatus } from "@/types/api";
 
 //Backend adresi .env.local'daki NEXT_PUBLIC_API_URL'den gelir (build sırasında koda gömülür)
 export const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
@@ -24,6 +24,30 @@ export const apiService = {
 
     if (!response.ok) {
       throw new Error("Token kullanım bilgisi alınırken backend hatası oluştu.");
+    }
+    return response.json();
+  },
+
+  //Silme butonu gösterilsin mi (backend .env ALLOW_DELETE)
+  async getFeatures(): Promise<FeaturesResponse> {
+    const response = await fetch(`${BACKEND_URL}/features/`);
+
+    if (!response.ok) {
+      throw new Error("Özellik bilgisi alınırken backend hatası oluştu.");
+    }
+    return response.json();
+  },
+
+  //Dokümanı ve DB'deki parçalarını siliyoruz
+  async deleteDocument(name: string): Promise<DeleteResponse> {
+    const response = await fetch(`${BACKEND_URL}/documents/${encodeURIComponent(name)}`, {
+      method: "DELETE",
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      const detail = typeof errorData.detail === "string" ? errorData.detail : null;
+      throw new Error(detail || `Sunucu hatası: ${response.status}`);
     }
     return response.json();
   },

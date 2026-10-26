@@ -1,5 +1,5 @@
 'use client';
-import { Search, ChevronLeft, FileText, LogOut } from "lucide-react";
+import { Search, ChevronLeft, FileText, LogOut, Trash2 } from "lucide-react";
 import Image from 'next/image';
 import type { DocumentItem } from "@/types/api";
 
@@ -12,6 +12,10 @@ interface LeftPanelProps {
   searchTerm: string;
   setSearchTerm: (term: string) => void;
   filteredDocuments: DocumentItem[];
+  //Verilmezse (backend'de silme kapalıysa) silme butonu görünmez
+  onDeleteDocument?: (docName: string) => void;
+  //Çıkış göstermelik (auth yok); bildirim page.tsx'te gösteriliyor
+  onSignOut: () => void;
 }
 
 //Props
@@ -21,8 +25,10 @@ export default function LeftPanel({
   selectedDoc, 
   setSelectedDoc, 
   searchTerm, 
-  setSearchTerm, 
-  filteredDocuments 
+  setSearchTerm,
+  filteredDocuments,
+  onDeleteDocument,
+  onSignOut
 }: LeftPanelProps) {
   return (
     <aside className={`bg-slate-50 flex flex-col justify-between h-full transition-all duration-300 ease-in-out overflow-hidden shrink-0 ${
@@ -100,7 +106,21 @@ export default function LeftPanel({
                     }`}
                   >
                     <FileText className={`h-3.5 w-3.5 shrink-0 ${isSelected ? 'text-slate-700' : 'text-slate-400'}`} />
-                    <span className="truncate">{doc.name}</span>
+                    <span className="truncate flex-1">{doc.name}</span>
+                    {onDeleteDocument && (
+                      <button
+                        onClick={(e) => {
+                          //Satıra tıklama (dokümanı açma) tetiklenmesin
+                          e.stopPropagation();
+                          onDeleteDocument(doc.name);
+                        }}
+                        className="p-1 rounded text-slate-400 hover:text-red-600 hover:bg-slate-200/60 transition-colors shrink-0"
+                        title="Dokümanı sil"
+                        aria-label={`${doc.name} dokümanını sil`}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    )}
                   </div>
                 );
               })
@@ -124,7 +144,7 @@ export default function LeftPanel({
           
           {/* Çıkış Butonu */}
           <button 
-            onClick={() => alert("Göstermelik çıkış yapıldı.")} 
+            onClick={onSignOut}
             className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-slate-100 rounded-lg transition-all"
             title="Sign Out"
           >

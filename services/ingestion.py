@@ -29,6 +29,15 @@ def is_file_already_processed(file_hash):
     existing_docs = get_db().get(where={"pdf_hash": file_hash}, limit=1)
     return len(existing_docs["ids"]) > 0
 
+#Bir dokümanın tüm chunk'larını DB'den siler, silinen chunk sayısını döner
+#source_file ile arıyoruz: aynı adla farklı içerik yüklenemediği için (409) ad tek bir PDF'i gösteriyor
+def delete_document_chunks(pdf_name):
+    db = get_db()
+    ids = db.get(where={"source_file": pdf_name}, include=["metadatas"])["ids"]
+    if ids:
+        db.delete(ids=ids)
+    return len(ids)
+
 #PDF HASH, CHUNKING AND  VEKTORIZATION
 def process_pdf(pdf_path):
 

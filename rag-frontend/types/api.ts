@@ -37,3 +37,13 @@ export interface UploadResponse {
 export interface DocumentItem {
   name: string;
 }
+
+export interface DeleteResponse {
+  name: string;
+  deleted_chunks: number;
+}
+
+//Frontend'in hangi özellikleri göstereceği; ayar backend'de (.env ALLOW_DELETE)
+export interface FeaturesResponse {
+  allow_delete: boolean;
+}

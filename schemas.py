@@ -43,3 +43,13 @@ class UploadResponse(BaseModel):
 
 class DocumentItem(BaseModel):
     name: str
+
+
+class DeleteResponse(BaseModel):
+    name: str
+    deleted_chunks: int
+
+
+#Frontend'in hangi özellikleri göstereceği (ör. silme butonu); ayarlar backend'de tek yerde kalıyor
+class FeaturesResponse(BaseModel):
+    allow_delete: bool
