@@ -36,8 +36,8 @@ class PrepareChunksTests(unittest.TestCase):
     def test_real_token_count_is_used(self):
         result = self.ask(AIMessage(content="Sınır 10 gündür.", usage_metadata=USAGE))
         self.assertEqual(result["token_usage"], 2070)
-        self.assertEqual(result["data"], "Sınır 10 gündür.")
-        self.assertEqual(result["status"], "Success")
+        self.assertEqual(result["answer"], "Sınır 10 gündür.")
+        self.assertEqual(result["status"], "success")
 
     def test_estimate_is_used_when_usage_metadata_missing(self):
         #Kota sessizce 0 sayılmamalı; tahmin soruyu da içermeli
@@ -47,11 +47,11 @@ class PrepareChunksTests(unittest.TestCase):
 
     def test_list_content_is_returned_as_text(self):
         message = AIMessage(content=[{"type": "text", "text": "Sınır 10 gündür."}], usage_metadata=USAGE)
-        self.assertEqual(self.ask(message)["data"], "Sınır 10 gündür.")
+        self.assertEqual(self.ask(message)["answer"], "Sınır 10 gündür.")
 
-    def test_resources_keep_fields_and_round_score(self):
+    def test_sources_keep_fields_and_round_score(self):
         result = self.ask(AIMessage(content="Cevap", usage_metadata=USAGE))
-        self.assertEqual(result["resource"], [{
+        self.assertEqual(result["sources"], [{
             "source_name": "meb_yonetmelik.pdf",
             "page": 22,
             "score": 0.85,
@@ -65,7 +65,8 @@ class PrepareChunksTests(unittest.TestCase):
             result = self.query.prepare_chunks_with_metadata(QUESTION)
         get_qa_chain.assert_not_called()
         self.assertEqual(result["token_usage"], 0)
-        self.assertEqual(result["status"], "Warning")
+        self.assertEqual(result["status"], "no_result")
+        self.assertEqual(result["sources"], [])
 
     def test_search_uses_k_from_settings(self):
         db = mock.Mock()

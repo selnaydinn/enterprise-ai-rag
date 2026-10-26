@@ -15,6 +15,10 @@ PDF = b"%PDF-1.4\n" + b"0" * 100
 #Sorgu testleri gerçek usage.db'ye yazmasın; sınır testleri tests/test_usage.py'de
 OPEN_USAGE = {"used": 0, "limit": 10000, "resets_at": "2026-10-24T18:00:00+03:00", "limited": False}
 
+#Sahte process_pdf / prepare_chunks_with_metadata dönüşleri; schemas.py'deki yanıt modellerine uymalı
+PROCESSED = {"filename": "rapor.pdf", "total_pages": 1, "total_chunks": 1, "message": "ok"}
+ANSWER = {"status": "success", "message": "ok", "answer": "Cevap", "sources": [], "token_usage": 0}
+
 
 #Model, DB ve LLM artık import anında yüklenmiyor (core/config.py); main doğrudan import edilebiliyor
 #DB/LLM'e dokunan fonksiyonlar her testte sahte değerlerle değiştiriliyor
@@ -71,7 +75,7 @@ class UploadEndpointTests(unittest.TestCase):
         patches = [
             mock.patch.object(self.main, "UPLOAD_DIR", str(self.upload_dir)),
             mock.patch.object(self.main, "is_file_already_processed", return_value=False),
-            mock.patch.object(self.main, "process_pdf", return_value={"status": "Success"}),
+            mock.patch.object(self.main, "process_pdf", return_value=PROCESSED),
         ]
         self.in_db = patches[1].start()
         self.process = patches[2].start()
@@ -89,6 +93,7 @@ class UploadEndpointTests(unittest.TestCase):
     def test_valid_upload_is_written_and_processed(self):
         response = self.upload("rapor.pdf")
         self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), PROCESSED)
         self.assertEqual((self.upload_dir / "rapor.pdf").read_bytes(), PDF)
         self.process.assert_called_once_with(str(self.upload_dir / "rapor.pdf"))
 
@@ -202,7 +207,7 @@ class QueryValidationTests(unittest.TestCase):
         patches = [
             mock.patch.object(self.main, "get_status", return_value=OPEN_USAGE),
             mock.patch.object(self.main, "record_usage"),
-            mock.patch.object(self.main, "prepare_chunks_with_metadata", return_value={"status": "Success", "token_usage": 0}),
+            mock.patch.object(self.main, "prepare_chunks_with_metadata", return_value=ANSWER),
         ]
         patches[0].start()
         patches[1].start()
@@ -232,6 +237,49 @@ class QueryValidationTests(unittest.TestCase):
     def test_question_is_stripped(self):
         self.assertEqual(self.ask("  soru  ").status_code, 200)
         self.prepare.assert_called_once_with("soru")
+
+
+#Yanıtlar schemas.py'deki modellere uyuyor mu
+class ResponseModelTests(unittest.TestCase):
+
+    def setUp(self):
+        self.main = import_main()
+        self.client = TestClient(self.main.app)
+        for patch in (mock.patch.object(self.main, "get_status", return_value=OPEN_USAGE),
+                      mock.patch.object(self.main, "record_usage")):
+            patch.start()
+            self.addCleanup(patch.stop)
+
+    def ask(self, prepared):
+        with mock.patch.object(self.main, "prepare_chunks_with_metadata", return_value=prepared):
+            return self.client.post("/query/", json={"question": "soru"})
+
+    def test_query_response_has_model_fields_only(self):
+        source = {"source_name": "meb.pdf", "page": 22, "score": 0.85, "raw_text": "metin"}
+        response = self.ask({**ANSWER, "sources": [source], "ic_bilgi": "gizli"})
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(set(body), {"status", "message", "answer", "sources", "token_usage", "usage"})
+        self.assertEqual(body["sources"], [source])
+        self.assertEqual(body["usage"]["limit"], OPEN_USAGE["limit"])
+        #Modelde olmayan alan yanıta sızmıyor
+        self.assertNotIn("gizli", response.text)
+
+    def test_no_result_status_is_accepted(self):
+        response = self.ask({**ANSWER, "status": "no_result"})
+        self.assertEqual(response.json()["status"], "no_result")
+
+    def test_malformed_query_result_returns_generic_500(self):
+        #Eski biçim ("Success", "data") artık modele uymuyor; ham hata yerine genel mesaj dönmeli
+        with self.assertLogs("EnterpriseAI", level="ERROR"):
+            response = self.ask({"status": "Success", "data": "Cevap", "token_usage": 0})
+        self.assertEqual(response.status_code, 500)
+        self.assertEqual(response.json()["detail"], "Sorunuz yanıtlanırken beklenmeyen bir hata oluştu.")
+
+    def test_usage_endpoint_matches_model(self):
+        response = self.client.get("/usage/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(set(response.json()), {"used", "limit", "resets_at", "limited"})
 
 
 class CorsTests(unittest.TestCase):
@@ -287,7 +335,7 @@ class ConcurrencyTests(unittest.TestCase):
         def slow_process(path):
             started.set()
             release.wait(5)
-            return {"status": "Success"}
+            return PROCESSED
 
         def list_documents():
             if self.client.get("/documents/").status_code == 200:
@@ -311,7 +359,7 @@ class ConcurrencyTests(unittest.TestCase):
         def slow_process(path):
             time.sleep(0.5)
             processed.add(self.main.hash_bytes(PDF))
-            return {"status": "Success"}
+            return PROCESSED
 
         codes = []
         with mock.patch.object(self.main, "is_file_already_processed", side_effect=lambda h: h in processed), \

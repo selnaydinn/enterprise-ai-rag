@@ -97,14 +97,26 @@ class ProcessPdfAppliesNormalizationTests(unittest.TestCase):
         #Duplikasyon kontrolü main.py'de; process_pdf DB'yi sorgulamıyor
         fake_db.get.assert_not_called()
 
-    def test_missing_file_logs_error(self):
+    #Hata 200 ile dönen bir sözlük değil exception; main.py bunu yakalayıp dosyayı temizliyor ve 500 veriyor
+    def test_missing_file_raises(self):
         ingestion = import_ingestion()
         with mock.patch.object(ingestion, "get_db") as get_db, \
-             self.assertLogs("EnterpriseAI", level="ERROR") as logs:
-            result = ingestion.process_pdf("olmayan_dosya.pdf")
-        self.assertEqual(result["status"], "Hata")
-        self.assertIn("olmayan_dosya.pdf", "\n".join(logs.output))
+             self.assertRaisesRegex(FileNotFoundError, "olmayan_dosya.pdf"):
+            ingestion.process_pdf("olmayan_dosya.pdf")
         get_db.assert_not_called()
+
+    def test_success_result_has_upload_fields(self):
+        ingestion = import_ingestion()
+        page = SimpleNamespace(page_content="MADDE 1", metadata={"page": 0})
+        with mock.patch.object(ingestion, "get_db"), \
+             mock.patch.object(ingestion, "PyPDFLoader") as loader, \
+             mock.patch.object(ingestion, "hash_pdf", return_value="deadbeef"), \
+             mock.patch.object(ingestion.os.path, "exists", return_value=True), \
+             self.assertLogs("EnterpriseAI", level="INFO"):
+            loader.return_value.load.return_value = [page]
+            result = ingestion.process_pdf("klasor/rapor.pdf")
+        self.assertEqual(set(result), {"filename", "total_pages", "total_chunks", "message"})
+        self.assertEqual((result["filename"], result["total_pages"]), ("rapor.pdf", 1))
 
 
 if __name__ == "__main__":

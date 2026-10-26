@@ -244,7 +244,7 @@ def main():
         embed_seconds = time.perf_counter() - embed_started
         real_db = None
         release_chroma()
-        log("3/4 embedding", f"process_pdf sonuçları: {[r.get('status') for r in results]}")
+        log("3/4 embedding", f"process_pdf sonuçları (chunk sayıları): {[r.get('total_chunks') for r in results]}")
 
         log("4/4 doğrulama", "Yeni DB geçici bir kopyada açılıp planlanan chunk'larla karşılaştırılıyor...")
         verify_root = Path(tempfile.mkdtemp(prefix="chroma_norm_verify_"))

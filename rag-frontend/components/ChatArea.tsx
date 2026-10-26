@@ -1,19 +1,8 @@
 'use client';
 import { useEffect, useRef, useState } from "react";
 import { Menu, ArrowUp, Paperclip, Loader2 } from "lucide-react";
-import type { Usage } from "@/services/api";
-
-//Type safety
-interface Message {
-  role: 'user' | 'assistant';
-  text: string;
-  resources?: Array<{
-    source_name: string;
-    page: string;
-    score: number;
-    raw_text: string;
-  }>;
-}
+import type { UsageStatus } from "@/types/api";
+import type { Message } from "@/types/chat";
 
 //Backenddeki soru sınırıyla aynı (main.py MAX_QUESTION_LENGTH)
 const MAX_QUESTION_LENGTH = 500;
@@ -60,7 +49,7 @@ interface ChatAreaProps {
   uploadProgress: number;
   setSelectedDoc?: (doc: string | null) => void;
   isLoading: boolean;
-  usage: Usage | null;
+  usage: UsageStatus | null;
 }
 
 //Props
@@ -138,12 +127,12 @@ export default function ChatArea({
               </div>
 
               {/* KULLANILAN KAYNAKLAR*/}
-              {msg.role === 'assistant' && msg.resources && msg.resources.length > 0 && (
+              {msg.role === 'assistant' && msg.sources && msg.sources.length > 0 && (
                 <div className="mt-2 flex flex-wrap gap-2 max-w-[80%] animate-in fade-in slide-in-from-bottom-1 duration-200">
                   <span className="text-[10px] text-black font-semibold block w-full pl-1">
                     Kullanılan Kaynaklar:
                   </span>
-                  {msg.resources.map((res, i) => (
+                  {msg.sources.map((res, i) => (
                     <button 
                       key={i}
                       onClick={() => {

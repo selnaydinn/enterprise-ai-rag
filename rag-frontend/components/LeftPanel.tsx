@@ -1,10 +1,7 @@
 'use client';
 import { Search, ChevronLeft, FileText, LogOut } from "lucide-react";
 import Image from 'next/image';
-
-interface DocumentItem {
-  name: string;
-}
+import type { DocumentItem } from "@/types/api";
 
 //Props type safety
 interface LeftPanelProps {

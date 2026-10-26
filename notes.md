@@ -40,7 +40,7 @@
 | 21 | `print` / `logging` | ✅ | 
 | 22 | Deprecated LangChain importları | ✅ | 
 | 23 | Bağımlılıklar | ✅ | 
-| 24 | Kullanılmayan kod.Kopyalama döngüsü kaldırıldı; `os`, `ChatOllama`, `api.ts` boş satırları duruyor| ◐ |  
+| 24 | Kullanılmayan kod.Kopyalama döngüsü kaldırıldı; `os`, `ChatOllama`, `api.ts` boş satırları duruyor| ✅ |  
 | 25 | Docker yapılandırması | ❌ | 
 | 26 | API tasarımı. Soru uzunluk sınırı, düz `usage` objesi; response modelleri, silme endpoint'i yok | ◐ |
 | 27 | Prompt / LLM katmanı | ❌ | 

@@ -35,9 +35,9 @@ def process_pdf(pdf_path):
     # Dosya adını loglar için yoldan ayıklıyoruz
     pdf_name = os.path.basename(pdf_path)
 
+    #Hata sessiz bir sözlük olarak değil exception olarak dönüyor; main.py dosyayı temizleyip 500 veriyor
     if not os.path.exists(pdf_path):
-        logger.error(f"Dosya bulunamadı: {pdf_path}")
-        return {"status": "Hata", "message": "Dosya sistemde bulunamadı."}
+        raise FileNotFoundError(f"Dosya bulunamadı: {pdf_path}")
 
     #Hashing
     #Duplikasyon kontrolü burada değil, main.py'de diske yazmadan önce (UPLOAD_LOCK içinde) yapılıyor
@@ -99,8 +99,9 @@ def process_pdf(pdf_path):
 
     logger.info(f"{pdf_name} vektörize edildi.")
 
+    #Alan adları schemas.py UploadResponse ile aynı
     return {
-        "status": "Success",
+        "filename": pdf_name,
         "total_pages": len(pages),
         "total_chunks": len(chunks),
         "message": f"{pdf_name} başarıyla vektörize edildi."

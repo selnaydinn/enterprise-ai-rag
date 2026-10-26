@@ -3,24 +3,9 @@ import { useState, useEffect, useCallback } from "react";
 import ChatArea from "@/components/ChatArea";
 import PdfViewer from "@/components/PdfViewer";
 import LeftPanel from "@/components/LeftPanel";
-import { apiService, BACKEND_URL, TokenLimitError, type Usage } from "@/services/api";
-
-//Message Prop
-interface Message {
-  role: 'user' | 'assistant';
-  text: string;
-  resources?: Array<{
-    source_name: string;
-    page: string;
-    score: number;
-    raw_text: string;
-  }>;
-}
-
-//Document Prop
-interface DocumentItem {
-  name: string;
-}
+import { apiService, BACKEND_URL, TokenLimitError } from "@/services/api";
+import type { DocumentItem, UsageStatus } from "@/types/api";
+import type { Message } from "@/types/chat";
 
 //Backenddeki upload sınırıyla aynı (main.py MAX_UPLOAD_BYTES)
 const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
@@ -45,7 +30,7 @@ export default function Home() {
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
 
   //Token kullanımı mesajlardan ayrı tutuluyor; hata mesajından sonra sayaç sıfıra düşmesin
-  const [usage, setUsage] = useState<Usage | null>(null);
+  const [usage, setUsage] = useState<UsageStatus | null>(null);
 
   const filteredDocuments = documents.filter(doc => 
     doc.name.toLowerCase().includes(searchTerm.toLowerCase())
@@ -76,9 +61,12 @@ export default function Home() {
   }, []);
 
   //Sayfa açılışında sayacı yükledik
+  //setState effect içinde doğrudan değil, istek bitince callback'te çağrılıyor (react-hooks/set-state-in-effect)
   useEffect(() => {
-    refreshUsage();
-  }, [refreshUsage]);
+    apiService.getUsage()
+      .then(setUsage)
+      .catch((error) => console.error("Token kullanım bilgisi çekilirken bir hata oluştu:", error));
+  }, []);
 
   //Sınır doluyken sıfırlanma anına kadar bekleyip kullanımı yeniden çekiyoruz, kilit böyle açılıyor
   //Bilgisayarın saati sunucudan farklıysa ve sınır hâlâ doluysa 30 sn sonra tekrar deniyoruz
@@ -126,13 +114,9 @@ export default function Home() {
       console.log("PDF yüklendi ve frontende yanıtını döndü.");
       clearInterval(progressInterval);
 
-      //Backend nadiren 200 ile "Hata" dönebiliyor (process_pdf dosyayı bulamazsa)
-      if (result?.status !== "Success") {
-        alert(result?.message || "Dosya işlenemedi.");
-      }
-
-      //Listeye kendimiz eklemek yerine backendten çekiyoruz; backend dosya adını değiştirebiliyor (".PDF" -> ".pdf")
-      const savedName = file.name.trim().replace(/\.pdf$/i, '.pdf');
+      //Hatalar artık HTTP koduyla geliyor (uploadPdf fırlatıyor); buraya yalnızca başarılı yükleme ulaşır
+      //Listeye kendimiz eklemek yerine backendten çekiyoruz; kaydedilen ad backendten (".PDF" -> ".pdf" olabilir)
+      const savedName = result.filename;
       let refreshedDocs: DocumentItem[] | null = null;
       try {
         refreshedDocs = await apiService.getExistingDocuments();
@@ -152,11 +136,12 @@ export default function Home() {
         }
       }, 400);
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       clearInterval(progressInterval);
       setIsUploading(false);
       setUploadProgress(0);
-      alert(error.message || "Dosya yüklenirken bir hata oluştu.");
+      const message = error instanceof Error ? error.message : "";
+      alert(message || "Dosya yüklenirken bir hata oluştu.");
       console.error(error);
     }
   };
@@ -180,18 +165,16 @@ export default function Home() {
       console.log("LLM frontende yanıtını döndü.", result);
 
       //Son istek sınırı aşarsa usage.limited true gelir ve input hemen kilitlenir
-      if (result?.usage) {
-        setUsage(result.usage);
-      }
+      setUsage(result.usage);
 
       const botMessage: Message = {
         role: 'assistant',
-        text: result?.data || "Cevap üretilemedi.",
-        resources: result?.resource || []
+        text: result.answer || "Cevap üretilemedi.",
+        sources: result.sources
       };
       setMessages((prev) => [...prev, botMessage]);
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Query Error:", error);
       //Sınır başka bir sekmeden dolmuş olabilir; kilidi göstermek için kullanımı yeniden çekiyoruz
       if (error instanceof TokenLimitError) {
@@ -199,7 +182,7 @@ export default function Home() {
       }
       const errorMessage: Message = {
         role: 'assistant',
-        text: error.message || "Üzgünüm, sorunuza yanıt üretilirken bir hata meydana geldi."
+        text: (error instanceof Error ? error.message : "") || "Üzgünüm, sorunuza yanıt üretilirken bir hata meydana geldi."
       };
       setMessages((prev) => [...prev, errorMessage]);
     }

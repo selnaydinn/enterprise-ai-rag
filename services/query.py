@@ -64,8 +64,9 @@ def prepare_chunks_with_metadata(user_input):
             continue
             
         #Metadatayı çektik
+        #Sayfa numarası ingestion'da her chunk'a yazılıyor; yoksa 0 (yanıt modelinde page sayı olmalı)
         source_name = doc.metadata.get("source_file", "bilinmiyor")
-        page = doc.metadata.get("page_number", "-")
+        page = doc.metadata.get("page_number", 0)
         
         #LLMe metin parçalarını göndermeden önce metadata bilgisini de ekledik
         context_text += f"\n--- [DÖKÜMAN PARÇASI - KAYNAK: {source_name}, SAYFA: {page}] ---\n{doc.page_content}\n"
@@ -77,13 +78,14 @@ def prepare_chunks_with_metadata(user_input):
             "raw_text": doc.page_content
         })
 
-    #Eğer barajı geçen hiçbir chunk kalmadıysa direkt uyarı dönüyoruz
+    #Eğer barajı geçen hiçbir chunk kalmadıysa LLM'i çağırmadan dönüyoruz
+    #Alan adları schemas.py QueryResponse ile aynı
     if not valid_chunks:
         return {
-            "status": "Warning",
+            "status": "no_result",
             "message": "Soru için 0 adet alakalı doküman parçası bulundu.",
-            "data": "Sorunuzla ilgili yüklü dokümanlarda yeterli bilgi bulunamadı. Lütfen sorunuzu dokümanların kapsamına göre yeniden yazın.",
-            "resource" : [] ,
+            "answer": "Sorunuzla ilgili yüklü dokümanlarda yeterli bilgi bulunamadı. Lütfen sorunuzu dokümanların kapsamına göre yeniden yazın.",
+            "sources" : [] ,
             "token_usage" : 0
         }
 
@@ -102,9 +104,9 @@ def prepare_chunks_with_metadata(user_input):
     token_usage = count_tokens(llm_message, prompt.format(**chain_input))
 
     return {
-        "status": "Success",
+        "status": "success",
         "message": f"Soru için {len(valid_chunks)} adet döküman kaynağı incelendi ve bütünsel cevap üretildi.",
-        "data": final_llm_response,
-        "resource": valid_chunks,
+        "answer": final_llm_response,
+        "sources": valid_chunks,
         "token_usage" : token_usage
     }
