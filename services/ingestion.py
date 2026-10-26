@@ -1,9 +1,13 @@
 import os
 import re
 import hashlib
+import logging
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from core.config import db
+from core.config import get_db
+from core.settings import get_settings
+
+logger = logging.getLogger("EnterpriseAI")
 
 #PDFleri hashledik aynı pdf yüklenmesin diye
 #Format (md5'in ilk 8 karakteri) DB'deki pdf_hash değerleriyle aynı kalmalı
@@ -22,7 +26,7 @@ def normalize_blank_lines(text):
 
 #Aynı pdf kontrolü
 def is_file_already_processed(file_hash):
-    existing_docs = db.get(where={"pdf_hash": file_hash}, limit=1)
+    existing_docs = get_db().get(where={"pdf_hash": file_hash}, limit=1)
     return len(existing_docs["ids"]) > 0
 
 #PDF HASH, CHUNKING AND  VEKTORIZATION
@@ -32,21 +36,15 @@ def process_pdf(pdf_path):
     pdf_name = os.path.basename(pdf_path)
 
     if not os.path.exists(pdf_path):
-        print(f"❌ [HATA]: Dosya bulunamadı! Yol: {pdf_path}")
+        logger.error(f"Dosya bulunamadı: {pdf_path}")
         return {"status": "Hata", "message": "Dosya sistemde bulunamadı."}
 
     #Hashing
+    #Duplikasyon kontrolü burada değil, main.py'de diske yazmadan önce (UPLOAD_LOCK içinde) yapılıyor
+    #Doğrudan çağrılsa da chunk id'leri hash'ten türediği için aynı PDF DB'ye ikinci kez eklenmez
     pdf_hash = hash_pdf(pdf_path)
 
-    #Check
-    if is_file_already_processed(pdf_hash):
-        print(f" 🛡️ [SİSTEM KORUMASI]: {pdf_name} (Hash: {pdf_hash}) zaten veritabanında kayıtlı!")
-        return {
-            "status": "Reddedildi",
-            "message": f"{pdf_name} zaten veritabanında mevcut."
-        }
-
-    print(f"🚀 {pdf_name} yeni bir döküman olarak algılandı, analiz ediliyor...")
+    logger.info(f"{pdf_name} analiz ediliyor...")
 
     #PDFi sayfa sayfa döküman objesi yaptık
     loader = PyPDFLoader(pdf_path)
@@ -54,15 +52,15 @@ def process_pdf(pdf_path):
     for page in pages:
         page.page_content = normalize_blank_lines(page.page_content)
 
-    #Sayfaları chunklara böldük
+    #Sayfaları chunklara böldük (boyutlar core/settings.py'de; değişirse DB yeniden kurulmalı)
+    settings = get_settings()
     splitter = RecursiveCharacterTextSplitter(
-        chunk_size = 1200,
-        chunk_overlap = 300
+        chunk_size = settings.chunk_size,
+        chunk_overlap = settings.chunk_overlap
     )
     chunks = splitter.split_documents(pages)
 
-    print(f"📄 {pdf_name} adlı pdf {len(pages)} sayfa olarak okundu.")
-    print(f"✂️ {pdf_name} adlı pdf {len(chunks)} kadar anlamsal parçaya bölündü.")
+    logger.info(f"{pdf_name}: {len(pages)} sayfa okundu, {len(chunks)} parçaya bölündü.")
 
     final_chunks = []
     chunk_ids = []
@@ -86,19 +84,20 @@ def process_pdf(pdf_path):
         final_chunks.append(chunk)
         chunk_ids.append(unique_id_of_chunk)
 
-    print(f"📦 {len(final_chunks)} kadar parça database için hazır.")
+    logger.info(f"{len(final_chunks)} parça vektörize edilecek.")
 
     #VECTORIZE CHUNKS
     #Tüm dökümanı tek seferde değil, 32şerli paketlerle gömerek CPU'yu rahatlatıyoruz
     batch_size = 32
+    db = get_db()
     for i in range(0, len(final_chunks), batch_size):
         batch_chunks = final_chunks[i : i + batch_size]
         batch_ids = chunk_ids[i : i + batch_size]
         
-        print(f"{i}/{len(final_chunks)} arası parçalar vektörize ediliyor...")
+        logger.debug(f"{i}/{len(final_chunks)} arası parçalar vektörize ediliyor...")
         db.add_documents(documents=batch_chunks, ids=batch_ids)
 
-    print(f"{pdf_name} adlı yönetmelik başarıyla vektörize edildi.")
+    logger.info(f"{pdf_name} vektörize edildi.")
 
     return {
         "status": "Success",

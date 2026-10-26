@@ -1,8 +1,5 @@
-import contextlib
 import importlib
-import io
 import re
-import sys
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
@@ -15,27 +12,9 @@ PDF_PATH = PROJECT_ROOT / "uploaded_pdfs" / "meb_yonetmelik.pdf"
 SPACED_BLANK = re.compile(r"\n[^\S\n]+\n")
 
 
-_ingestion = None
-
-
-#services.ingestion import edilirken core.config modeli, DB'yi ve Gemini'yi yüklüyor; bir kez, sahte config ile import ediyoruz
-#(Yalnızca core.config girdisini geri alıyoruz; tüm sys.modules'ü geri almak numpy gibi modülleri bozar)
+#Model, DB ve LLM artık import anında yüklenmiyor (core/config.py); services.ingestion doğrudan import edilebiliyor
 def import_ingestion():
-    global _ingestion
-    if _ingestion is None:
-        missing = object()
-        saved = {name: sys.modules.get(name, missing) for name in ("core.config", "services.ingestion")}
-        sys.modules["core.config"] = SimpleNamespace(db=None)
-        sys.modules.pop("services.ingestion", None)
-        try:
-            _ingestion = importlib.import_module("services.ingestion")
-        finally:
-            for name, module in saved.items():
-                if module is missing:
-                    sys.modules.pop(name, None)
-                else:
-                    sys.modules[name] = module
-    return _ingestion
+    return importlib.import_module("services.ingestion")
 
 
 class NormalizeBlankLinesTests(unittest.TestCase):
@@ -103,18 +82,29 @@ class ProcessPdfAppliesNormalizationTests(unittest.TestCase):
             captured["texts"] = [p.page_content for p in pages]
             return []
 
-        with mock.patch.object(ingestion, "db", fake_db), \
+        with mock.patch.object(ingestion, "get_db", return_value=fake_db), \
              mock.patch.object(ingestion, "PyPDFLoader") as loader, \
              mock.patch.object(ingestion.RecursiveCharacterTextSplitter, "split_documents", side_effect=fake_split), \
              mock.patch.object(ingestion, "hash_pdf", return_value="deadbeef"), \
              mock.patch.object(ingestion.os.path, "exists", return_value=True):
             loader.return_value.load.return_value = [page]
-            #process_pdf emoji'li print'ler içeriyor; Windows konsolunda (cp1252) hata vermesin diye çıktıyı yutuyoruz
-            with contextlib.redirect_stdout(io.StringIO()):
+            #process_pdf'in INFO logları test çıktısına karışmasın diye yakalıyoruz
+            with self.assertLogs("EnterpriseAI", level="INFO"):
                 ingestion.process_pdf("sahte.pdf")
 
         self.assertEqual(captured["texts"], ["MADDE 1 - (1) Amaç \n\n(2) Kapsam"])
         fake_db.add_documents.assert_not_called()
+        #Duplikasyon kontrolü main.py'de; process_pdf DB'yi sorgulamıyor
+        fake_db.get.assert_not_called()
+
+    def test_missing_file_logs_error(self):
+        ingestion = import_ingestion()
+        with mock.patch.object(ingestion, "get_db") as get_db, \
+             self.assertLogs("EnterpriseAI", level="ERROR") as logs:
+            result = ingestion.process_pdf("olmayan_dosya.pdf")
+        self.assertEqual(result["status"], "Hata")
+        self.assertIn("olmayan_dosya.pdf", "\n".join(logs.output))
+        get_db.assert_not_called()
 
 
 if __name__ == "__main__":

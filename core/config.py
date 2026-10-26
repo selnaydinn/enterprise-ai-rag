@@ -1,51 +1,61 @@
-import os
-from pathlib import Path
-from langchain_community.embeddings import HuggingFaceEmbeddings
-from langchain_community.vectorstores import Chroma
+import logging
+from functools import lru_cache
+from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_chroma import Chroma
 from langchain_google_genai import ChatGoogleGenerativeAI
-from dotenv import load_dotenv 
+from core.settings import get_settings
 
-#API key
-load_dotenv()
-api_key = os.getenv("GEMINI_API_KEY", "").strip()
-#Key yoksa ilk sorguda değil, başlangıçta hata veriyoruz
-if not api_key:
-    raise RuntimeError("GEMINI_API_KEY tanımlı değil. .env.example dosyasına bakın.")
-print("Key etkinleştirildi.")
+logger = logging.getLogger("EnterpriseAI")
 
+#Model, DB ve LLM import anında değil ilk kullanımda oluşturulur, sonra aynı nesne tekrar kullanılır
+#main.py başlangıçta (lifespan) hepsini çağırıyor; key veya DB eksikse uygulama ilk soruyu beklemeden hata verir
 
-#DB path
-#Yol .env'deki CHROMA_DIR'den gelir; göreli yol proje köküne göre çözülür (Docker'da /app, Windows'ta proje klasörü)
-chroma_setting = os.getenv("CHROMA_DIR", "").strip()
-if not chroma_setting:
-    raise RuntimeError("CHROMA_DIR tanımlı değil. .env.example dosyasına bakın.")
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-chroma_dir = PROJECT_ROOT / chroma_setting
-#Uygulama DB oluşturmaz; DB yoksa boş bir DB açmak yerine başlangıçta hata veriyoruz
-if not (chroma_dir / "chroma.sqlite3").is_file():
-    raise RuntimeError(f"Chroma DB bulunamadı: {chroma_dir}. CHROMA_DIR'i kontrol edin.")
-
-#Embedding modeli
-print("Embedding modeli yükleniyor (multilingual-e5-base)...")
-embeddings = HuggingFaceEmbeddings(
-    model_name="intfloat/multilingual-e5-base",
-    model_kwargs={'device': 'cpu'}
-)
-print("Embedding modeli yüklendi.")
-
-#DB bağlantısı
-print("Veritabanına bağlanılıyor...")
-db = Chroma(
-    persist_directory=str(chroma_dir),
-    embedding_function=embeddings
-)
-print("Veritabanına bağlanıldı.")
 
 #LLM modeli (Gemini)
-print("LLM modeli yükleniyor (gemini-2.5-flash)...")
-llm = ChatGoogleGenerativeAI(
-    model = "gemini-2.5-flash",
-    google_api_key = api_key,
-    temperature = 0.2
-)
-print("LLM modeli yüklendi.")
+@lru_cache
+def get_llm():
+    settings = get_settings()
+    #Key yoksa ilk sorguda değil, başlangıçta hata veriyoruz
+    if settings.gemini_api_key is None:
+        raise RuntimeError("GEMINI_API_KEY tanımlı değil. .env.example dosyasına bakın.")
+    logger.info("Key etkinleştirildi.")
+
+    logger.info(f"LLM modeli yükleniyor ({settings.llm_model})...")
+    llm = ChatGoogleGenerativeAI(
+        model = settings.llm_model,
+        google_api_key = settings.gemini_api_key.get_secret_value(),
+        temperature = settings.llm_temperature
+    )
+    logger.info("LLM modeli yüklendi.")
+    return llm
+
+
+#Embedding modeli
+@lru_cache
+def get_embeddings():
+    settings = get_settings()
+    logger.info(f"Embedding modeli yükleniyor ({settings.embedding_model})...")
+    embeddings = HuggingFaceEmbeddings(
+        model_name=settings.embedding_model,
+        model_kwargs={'device': 'cpu'}
+    )
+    logger.info("Embedding modeli yüklendi.")
+    return embeddings
+
+
+#DB bağlantısı
+@lru_cache
+def get_db():
+    settings = get_settings()
+    #Uygulama DB oluşturmaz; DB yoksa boş bir DB açmak yerine hata veriyoruz
+    if not (settings.chroma_dir / "chroma.sqlite3").is_file():
+        raise RuntimeError(f"Chroma DB bulunamadı: {settings.chroma_dir}. CHROMA_DIR'i kontrol edin.")
+
+    logger.info("Veritabanına bağlanılıyor...")
+    db = Chroma(
+        collection_name=settings.collection_name,
+        persist_directory=str(settings.chroma_dir),
+        embedding_function=get_embeddings()
+    )
+    logger.info("Veritabanına bağlanıldı.")
+    return db

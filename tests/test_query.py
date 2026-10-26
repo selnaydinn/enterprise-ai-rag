@@ -1,7 +1,5 @@
 import importlib
-import sys
 import unittest
-from types import SimpleNamespace
 from unittest import mock
 
 from langchain_core.documents import Document
@@ -12,29 +10,9 @@ QUESTION = "Özürsüz devamsızlık sınırı kaç gündür?"
 USAGE = {"input_tokens": 1450, "output_tokens": 620, "total_tokens": 2070}
 
 
-_query = None
-
-
-#services.query import edilirken core.config modeli, DB'yi ve Gemini'yi yüklüyor; sahte config ile bir kez import ediyoruz
-#llm'in yerine geçen RunnableLambda, "prompt | llm" zincirinin kurulabilmesi için gerekli
-#(Yalnızca bu girdileri geri alıyoruz; tüm sys.modules'ü geri almak numpy gibi modülleri bozar)
+#Model, DB ve LLM artık import anında yüklenmiyor (core/config.py); services.query doğrudan import edilebiliyor
 def import_query():
-    global _query
-    if _query is None:
-        missing = object()
-        names = ("core.config", "services.query")
-        saved = {name: sys.modules.get(name, missing) for name in names}
-        sys.modules["core.config"] = SimpleNamespace(db=None, llm=RunnableLambda(lambda x: x))
-        sys.modules.pop("services.query", None)
-        try:
-            _query = importlib.import_module("services.query")
-        finally:
-            for name, module in saved.items():
-                if module is missing:
-                    sys.modules.pop(name, None)
-                else:
-                    sys.modules[name] = module
-    return _query
+    return importlib.import_module("services.query")
 
 
 def chunk(score):
@@ -52,7 +30,7 @@ class PrepareChunksTests(unittest.TestCase):
     def ask(self, message, chunks=None):
         chunks = [chunk(0.8456)] if chunks is None else chunks
         with mock.patch.object(self.query, "search_in_db", return_value=chunks), \
-             mock.patch.object(self.query, "qa_chain", RunnableLambda(lambda _: message)):
+             mock.patch.object(self.query, "get_qa_chain", return_value=RunnableLambda(lambda _: message)):
             return self.query.prepare_chunks_with_metadata(QUESTION)
 
     def test_real_token_count_is_used(self):
@@ -81,13 +59,21 @@ class PrepareChunksTests(unittest.TestCase):
         }])
 
     def test_llm_is_not_called_when_no_chunk_passes_threshold(self):
-        qa_chain = mock.Mock()
+        get_qa_chain = mock.Mock()
         with mock.patch.object(self.query, "search_in_db", return_value=[chunk(0.5)]), \
-             mock.patch.object(self.query, "qa_chain", qa_chain):
+             mock.patch.object(self.query, "get_qa_chain", get_qa_chain):
             result = self.query.prepare_chunks_with_metadata(QUESTION)
-        qa_chain.invoke.assert_not_called()
+        get_qa_chain.assert_not_called()
         self.assertEqual(result["token_usage"], 0)
         self.assertEqual(result["status"], "Warning")
+
+    def test_search_uses_k_from_settings(self):
+        db = mock.Mock()
+        db.similarity_search_with_relevance_scores.return_value = []
+        with mock.patch.object(self.query, "get_db", return_value=db):
+            self.query.search_in_db(QUESTION)
+        db.similarity_search_with_relevance_scores.assert_called_once_with(
+            f"query: {QUESTION}", k=self.query.get_settings().retrieval_k)
 
 
 if __name__ == "__main__":

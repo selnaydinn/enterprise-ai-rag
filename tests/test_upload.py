@@ -1,13 +1,11 @@
 import hashlib
 import importlib
 import shutil
-import sys
 import tempfile
 import threading
 import time
 import unittest
 from pathlib import Path
-from types import SimpleNamespace
 from unittest import mock
 
 from fastapi.testclient import TestClient
@@ -18,31 +16,10 @@ PDF = b"%PDF-1.4\n" + b"0" * 100
 OPEN_USAGE = {"used": 0, "limit": 10000, "resets_at": "2026-10-24T18:00:00+03:00", "limited": False}
 
 
-_main = None
-
-
-#main.py import edilirken core.config modeli, DB'yi ve Gemini'yi yüklüyor; services.query de config'e bağlı
-#İkisini sahte modülle değiştirip bir kez import ediyoruz; gerçek ingestion yükleniyor ama içindeki db None oluyor
-#(Yalnızca bu girdileri geri alıyoruz; tüm sys.modules'ü geri almak numpy gibi modülleri bozar)
+#Model, DB ve LLM artık import anında yüklenmiyor (core/config.py); main doğrudan import edilebiliyor
+#DB/LLM'e dokunan fonksiyonlar her testte sahte değerlerle değiştiriliyor
 def import_main():
-    global _main
-    if _main is None:
-        missing = object()
-        names = ("core.config", "services.query", "services.ingestion", "main")
-        saved = {name: sys.modules.get(name, missing) for name in names}
-        sys.modules["core.config"] = SimpleNamespace(db=None, llm=None)
-        sys.modules["services.query"] = SimpleNamespace(prepare_chunks_with_metadata=None)
-        sys.modules.pop("services.ingestion", None)
-        sys.modules.pop("main", None)
-        try:
-            _main = importlib.import_module("main")
-        finally:
-            for name, module in saved.items():
-                if module is missing:
-                    sys.modules.pop(name, None)
-                else:
-                    sys.modules[name] = module
-    return _main
+    return importlib.import_module("main")
 
 
 class HashTests(unittest.TestCase):
@@ -285,16 +262,19 @@ class CorsTests(unittest.TestCase):
 class ConcurrencyTests(unittest.TestCase):
 
     #TestClient "with" ile açılıyor: eş istekler aynı event loop'ta çalışsın (UPLOAD_LOCK tek bir loop'a bağlanır)
+    #"with" lifespan'ı da çalıştırıyor; gerçek model/Gemini yüklenmesin diye get_llm ve get_db sahte
     def setUp(self):
         self.main = import_main()
+        self.upload_dir = Path(tempfile.mkdtemp(prefix="upload_test_"))
+        self.addCleanup(shutil.rmtree, self.upload_dir, True)
+        for patch in (mock.patch.object(self.main, "UPLOAD_DIR", str(self.upload_dir)),
+                      mock.patch.object(self.main, "get_llm"),
+                      mock.patch.object(self.main, "get_db")):
+            patch.start()
+            self.addCleanup(patch.stop)
         self.client = TestClient(self.main.app)
         self.client.__enter__()
         self.addCleanup(self.client.__exit__, None, None, None)
-        self.upload_dir = Path(tempfile.mkdtemp(prefix="upload_test_"))
-        self.addCleanup(shutil.rmtree, self.upload_dir, True)
-        patch = mock.patch.object(self.main, "UPLOAD_DIR", str(self.upload_dir))
-        patch.start()
-        self.addCleanup(patch.stop)
 
     def upload(self, name):
         return self.client.post("/upload-pdf/", files={"file": (name, PDF, "application/pdf")})

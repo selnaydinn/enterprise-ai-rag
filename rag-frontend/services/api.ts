@@ -16,12 +16,7 @@ export const apiService = {
 
   //Var olan dökümanları backendten çekiyoruz
   async getExistingDocuments(): Promise<Array<{ name: string }>> {
-    const response = await fetch(`${BACKEND_URL}/documents/`, {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-      },
-    });
+    const response = await fetch(`${BACKEND_URL}/documents/`);
 
     if (!response.ok) {
       throw new Error("Mevcut dökümanlar getirilirken backend hatası oluştu.");
@@ -88,11 +83,4 @@ export const apiService = {
 
     return await response.json();
   }
-
-
-
-
-
-
-
 };

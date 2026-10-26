@@ -1,0 +1,1898 @@
+{
+  "meta": {
+    "created_at": "2026-10-25T17:07:33+00:00",
+    "description": "Evidence-level evaluation: a hit must be the expected file+page AND contain the golden evidence phrase",
+    "model": "intfloat/multilingual-e5-base",
+    "collection": "langchain",
+    "chunk_count": 598,
+    "hnsw": {
+      "space": "l2",
+      "ef_construction": 100,
+      "ef_search": 100,
+      "max_neighbors": 16,
+      "resize_factor": 1.2,
+      "sync_threshold": 1000
+    },
+    "query_prefix": "query: ",
+    "passage_prefix": null,
+    "score_threshold": 0.72,
+    "k": 5,
+    "consistency_min_cosine": 1.0,
+    "evidence_source": "tests/test_golden_set.py",
+    "evidence_source_sha256": "8afcfea80309cc3fad6182f42262fbae3641ce087e94bcfcf724787e6224c0dd",
+    "chromadb_version": "1.5.9",
+    "sentence_transformers_version": "5.6.0",
+    "chroma_dir": "chroma_db_normalization",
+    "golden_set": "eval/golden_set.jsonl",
+    "db_unchanged": true
+  },
+  "summary": {
+    "questions": 25,
+    "evidence_hit_at_1": 16,
+    "evidence_hit_at_3": 22,
+    "evidence_hit_at_5": 24,
+    "evidence_reaches_llm_in_production": 22,
+    "evidence_mrr": 0.766,
+    "evidence_rank_median": 1,
+    "questions_without_evidence_chunk": 0,
+    "top1_correct_file": 25,
+    "top1_correct_page": 18,
+    "page_hit_at_3": 24,
+    "page_hit_at_5": 25,
+    "page_hit_without_evidence_in_top3": 2
+  },
+  "per_question": [
+    {
+      "id": "q01",
+      "question": "Özürsüz devamsızlık sınırı kaç gündür ve bu sınır aşılırsa ne olur?",
+      "expected_file": "meb_yonetmelik.pdf",
+      "expected_pages": [
+        22
+      ],
+      "evidence_hit_at_1": false,
+      "evidence_hit_at_3": false,
+      "evidence_hit_at_5": true,
+      "evidence_first_rank": 5,
+      "evidence_first_score": 0.7922,
+      "evidence_first_chunk": "h_e08eec72_p22_c91",
+      "evidence_chunks_in_collection": 1,
+      "evidence_reaches_llm_in_production": false,
+      "top1_correct_file": true,
+      "top1_correct_page": false,
+      "page_hit_at_3": true,
+      "page_hit_at_5": true,
+      "page_first_rank": 2,
+      "page_hit_without_evidence_in_top3": true,
+      "retrieved": [
+        {
+          "rank": 1,
+          "id": "h_e08eec72_p23_c95",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 23,
+          "score": 0.8355,
+          "is_page_hit": false,
+          "is_evidence": false,
+          "text": "(7) (Değişik:RG-1/7/2015-29403)  Öğrencinin devamsızlık yaptığı süreye ilişkin özür \nbelgesi veya yazılı veli beyanı, özür gününü takip eden en geç 5 iş günü içinde okul \nyönetimine velisi tarafından verilir ve e -Okul sistemine işlenir. Zorunlu hallerde özür \nbelgesinin teslim süresi okul yönetimin"
+        },
+        {
+          "rank": 2,
+          "id": "h_e08eec72_p22_c92",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 22,
+          "score": 0.8169,
+          "is_page_hit": true,
+          "is_evidence": false,
+          "text": "teşekküllü hastanelerde kontrol kayıtlı sürekli tedaviyi ya da organ naklini gerektiren hastalığı \nbulunanlar, (Mülga ibare:RG -5/9/2019-30879) (…) sosyal hizmet, emniyet ve asayiş \nbirimlerinin resmî raporları doğrultusunda koruma ve bakım altına alınanlar ile tutuklu \nöğrencilerin özürsüz devamsız"
+        },
+        {
+          "rank": 3,
+          "id": "h_e08eec72_p22_c93",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 22,
+          "score": 0.8051,
+          "is_page_hit": true,
+          "is_evidence": false,
+          "text": "devamsızlık nedeniyle başarısız sayılan ve öğrenim hakkı bulunan öğrenciler derslere devam \nedemez ve bir sonraki eğitim ve öğretim yılında okula devam ettirilir. Öğrenim hakkı \nbulunmayanlar ise Açık Öğretim Lisesi, Mesleki Açık Öğretim Lisesi, Açık Öğretim İmam \nHatip Lisesi veya mesleki eğitim me"
+        },
+        {
+          "rank": 4,
+          "id": "h_e08eec72_p22_c90",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 22,
+          "score": 0.8011,
+          "is_page_hit": true,
+          "is_evidence": false,
+          "text": "belirtilen izinlerin dışında okul müdürü veya görevlendirmesi hâlinde nöbetçi müdür \nyardımcısı tarafından verilen faaliyet izinleri devamsızlıktan sayılmaz. \n(4) (Değişik:RG-16/9/2017-30182) Devamsızlık yapan öğrencinin durumu posta, e -\nposta veya diğer iletişim araçlarıyla velisine bildirilir, va"
+        },
+        {
+          "rank": 5,
+          "id": "h_e08eec72_p22_c91",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 22,
+          "score": 0.7922,
+          "is_page_hit": true,
+          "is_evidence": true,
+          "text": "55 inci günlerinde de tebligat yapılır ve öğrencinin okula devamının sağlanması istenir. (Ek \ncümle:RG-1/9/2018-30522) Mesleki eğitim merkezi öğr encilerinin teorik ders \ndevamsızlıklarının 2 nci, 4 üncü ve 5 inci; işletmede mesleki eğitime devamsızlıklarının ise 5 \ninci, 15 inci ve 25 inci günlerin"
+        }
+      ]
+    },
+    {
+      "id": "q02",
+      "question": "Devamsızlık için özür belgesi okula kaç gün içinde teslim edilmelidir?",
+      "expected_file": "meb_yonetmelik.pdf",
+      "expected_pages": [
+        23
+      ],
+      "evidence_hit_at_1": true,
+      "evidence_hit_at_3": true,
+      "evidence_hit_at_5": true,
+      "evidence_first_rank": 1,
+      "evidence_first_score": 0.8708,
+      "evidence_first_chunk": "h_e08eec72_p23_c95",
+      "evidence_chunks_in_collection": 1,
+      "evidence_reaches_llm_in_production": true,
+      "top1_correct_file": true,
+      "top1_correct_page": true,
+      "page_hit_at_3": true,
+      "page_hit_at_5": true,
+      "page_first_rank": 1,
+      "page_hit_without_evidence_in_top3": false,
+      "retrieved": [
+        {
+          "rank": 1,
+          "id": "h_e08eec72_p23_c95",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 23,
+          "score": 0.8708,
+          "is_page_hit": true,
+          "is_evidence": true,
+          "text": "(7) (Değişik:RG-1/7/2015-29403)  Öğrencinin devamsızlık yaptığı süreye ilişkin özür \nbelgesi veya yazılı veli beyanı, özür gününü takip eden en geç 5 iş günü içinde okul \nyönetimine velisi tarafından verilir ve e -Okul sistemine işlenir. Zorunlu hallerde özür \nbelgesinin teslim süresi okul yönetimin"
+        },
+        {
+          "rank": 2,
+          "id": "h_e08eec72_p22_c90",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 22,
+          "score": 0.8346,
+          "is_page_hit": false,
+          "is_evidence": false,
+          "text": "belirtilen izinlerin dışında okul müdürü veya görevlendirmesi hâlinde nöbetçi müdür \nyardımcısı tarafından verilen faaliyet izinleri devamsızlıktan sayılmaz. \n(4) (Değişik:RG-16/9/2017-30182) Devamsızlık yapan öğrencinin durumu posta, e -\nposta veya diğer iletişim araçlarıyla velisine bildirilir, va"
+        },
+        {
+          "rank": 3,
+          "id": "h_e08eec72_p90_c369",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 90,
+          "score": 0.8147,
+          "is_page_hit": false,
+          "is_evidence": false,
+          "text": "İKİNCİ BÖLÜM \nÖdül \n\nÖğrencilerin ödüllendirilmesi \nMADDE 159 - (1) Örnek davranışların ve başarıların niteliklerine göre \nödüllendirilmesinde öğrencilere; \na) Teşekkür belgesi, \nb) Takdir belgesi, \nc) Onur belgesi, \nç) Üstün başarı belgesi \nverilir. \n\nTeşekkür, takdir ve üstün başarı belgesi ile öd"
+        },
+        {
+          "rank": 4,
+          "id": "h_e08eec72_p22_c93",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 22,
+          "score": 0.8132,
+          "is_page_hit": false,
+          "is_evidence": false,
+          "text": "devamsızlık nedeniyle başarısız sayılan ve öğrenim hakkı bulunan öğrenciler derslere devam \nedemez ve bir sonraki eğitim ve öğretim yılında okula devam ettirilir. Öğrenim hakkı \nbulunmayanlar ise Açık Öğretim Lisesi, Mesleki Açık Öğretim Lisesi, Açık Öğretim İmam \nHatip Lisesi veya mesleki eğitim me"
+        },
+        {
+          "rank": 5,
+          "id": "h_e08eec72_p22_c94",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 22,
+          "score": 0.8108,
+          "is_page_hit": false,
+          "is_evidence": false,
+          "text": "yasal temsilcisine ve işletmeye, 18 yaşından büyükler için kendisine de bildirilir. Devamsızlık \nnedeniyle başarısız sayılan ve öğrenim hakkı bulunan öğrenciler derslere devam edemez ve \nbir sonraki eğitim ve öğretim yılının başından itibaren bir işletme ile sözleşme imzalamak \nşartıyla okula devam "
+        }
+      ]
+    },
+    {
+      "id": "q03",
+      "question": "Bir dersten ders yılı sonunda başarılı sayılmak için hangi puan şartı gerekir?",
+      "expected_file": "meb_yonetmelik.pdf",
+      "expected_pages": [
+        35
+      ],
+      "evidence_hit_at_1": true,
+      "evidence_hit_at_3": true,
+      "evidence_hit_at_5": true,
+      "evidence_first_rank": 1,
+      "evidence_first_score": 0.8376,
+      "evidence_first_chunk": "h_e08eec72_p35_c151",
+      "evidence_chunks_in_collection": 1,
+      "evidence_reaches_llm_in_production": true,
+      "top1_correct_file": true,
+      "top1_correct_page": true,
+      "page_hit_at_3": true,
+      "page_hit_at_5": true,
+      "page_first_rank": 1,
+      "page_hit_without_evidence_in_top3": false,
+      "retrieved": [
+        {
+          "rank": 1,
+          "id": "h_e08eec72_p35_c151",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 35,
+          "score": 0.8376,
+          "is_page_hit": true,
+          "is_evidence": true,
+          "text": "Ders yılı sonunda herhangi bir dersten başarılı sayılma \nMADDE 56 - (1) Öğrencinin, ders yılı sonunda herhangi bir dersten başarılı \nsayılabilmesi için; \na) İki dönem puanının aritmetik ortalamasının en az 50 veya birinci dönem puanı ne \nolursa olsun ikinci dönem puanının en az 70, \nb) İşletmelerde "
+        },
+        {
+          "rank": 2,
+          "id": "h_e08eec72_p28_c122",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 28,
+          "score": 0.8085,
+          "is_page_hit": false,
+          "is_evidence": false,
+          "text": "DÖRDÜNCÜ KISIM \nÖğrenci Başarısının Değerlendirilmesi \n\nBİRİNCİ BÖLÜM \nÖlçme ve Değerlendirme \n\nÖlçme ve değerlendirmenin genel esasları \nMADDE 43-  (1) Öğrenci başarısının ölçme ve değerlendirilmesinde aşağıdaki esaslar \ngözetilir. \na) Ders yılı, ölçme ve değerlendirme bakımından birbirini tamamlay"
+        },
+        {
+          "rank": 3,
+          "id": "h_e08eec72_p78_c322",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 78,
+          "score": 0.8077,
+          "is_page_hit": false,
+          "is_evidence": false,
+          "text": "takdir edilen puanın yüzde 20 sinin toplamı 50 ve daha fazla olan öğrenciler stajını başarı ile \ntamamlamış sayılır.  (Mülga cümle:RG -26/3/2017-30019) (…) (Ek cümle:RG -1/9/2018-\n30522) Staj bitirme sınavı puanı, ilişkilendirildiği dersin yılsonu puanının belirlenmesinde \ndikkate alınır. Stajdan mu"
+        },
+        {
+          "rank": 4,
+          "id": "h_e08eec72_p35_c150",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 35,
+          "score": 0.8075,
+          "is_page_hit": true,
+          "is_evidence": false,
+          "text": "Bir dersin ağırlığı ve ağırlıklı puanı \nMADDE 54- (1) Bir dersin ağırlığı, o dersin haftalık ders saati sayısına eşittir. \n(2) Bir dersin yılsonu puanıyla o dersin haftalık ders saati sayısının çarpımından elde \nedilen puan, o dersin ağırlıklı puanıdır. \n\nYılsonu başarı puanı \nMADDE 55- (1) Öğrencin"
+        },
+        {
+          "rank": 5,
+          "id": "h_e08eec72_p33_c143",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 33,
+          "score": 0.7977,
+          "is_page_hit": false,
+          "is_evidence": false,
+          "text": "başarılarının değerlendirilmesi ilgili mevzuata göre yapılır. \n(2) (Değişik:RG-16/9/2017-30182) Yönetmeliğin 36 ncı maddesine göre özürleri \nnedeniyle 60 günlük devamsızlık kapsamında değerlendirilen öğrencilerin dönem puanları \nzorunlu hâllerde bir sınav eksiğiyle verilebilir. \n(3) Öğrenciye her de"
+        }
+      ]
+    },
+    {
+      "id": "q04",
+      "question": "En fazla kaç başarısız dersle sorumlu olarak sınıf geçilebilir?",
+      "expected_file": "meb_yonetmelik.pdf",
+      "expected_pages": [
+        36
+      ],
+      "evidence_hit_at_1": true,
+      "evidence_hit_at_3": true,
+      "evidence_hit_at_5": true,
+      "evidence_first_rank": 1,
+      "evidence_first_score": 0.7998,
+      "evidence_first_chunk": "h_e08eec72_p36_c152",
+      "evidence_chunks_in_collection": 1,
+      "evidence_reaches_llm_in_production": true,
+      "top1_correct_file": true,
+      "top1_correct_page": true,
+      "page_hit_at_3": true,
+      "page_hit_at_5": true,
+      "page_first_rank": 1,
+      "page_hit_without_evidence_in_top3": false,
+      "retrieved": [
+        {
+          "rank": 1,
+          "id": "h_e08eec72_p36_c152",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 36,
+          "score": 0.7998,
+          "is_page_hit": true,
+          "is_evidence": true,
+          "text": "Sorumlu olarak sınıf geçme ve sorumluluğun kalkması  \nMADDE 58- (1) (Değişik:RG-1/7/2015-29403)   Ders yılı sonunda her bir dersten iki \ndönem puanı bulunmak kaydıyla doğrudan sınıfını geçemeyen öğrencilerden; bir sınıfta \nbaşarısız ders sayısı en fazla 3 ders olanlar sorumlu olarak sınıflarını geçe"
+        },
+        {
+          "rank": 2,
+          "id": "h_e08eec72_p36_c154",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 36,
+          "score": 0.7909,
+          "is_page_hit": true,
+          "is_evidence": false,
+          "text": "(4) Bir dersin sorumluluğu, o dersin sorumluluk sınavında başarılı olunması hâlinde \nkalkar. \n(5) Sorumluluk sınavlarına itiraz edilmesi durumunda bu Yönetmeliğin 49 uncu madde \nhükümleri uygulanır. \n(6) (Ek:RG-28/10/2016-29871) Eğitim ve öğretim yılı başında yapılan sorumluluk \nsınavı sonunda tek d"
+        },
+        {
+          "rank": 3,
+          "id": "h_e08eec72_p36_c156",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 36,
+          "score": 0.7895,
+          "is_page_hit": true,
+          "is_evidence": false,
+          "text": "öğrencilerinden sınıf tekrar etme hakkı bulunanlar başarısız olunan ders sayısına \nbakılmaksızın sınıf tekrar edebilir. Ancak, sınıf tekrar etmek istemeyen öğrencilerden sınıf \ntekrarı yapmış olanlar bir, sınıf tekrarı yapmamış olanlar ise iki öğretim yılı daha başarısız \noldukları derslerden soruml"
+        },
+        {
+          "rank": 4,
+          "id": "h_e08eec72_p35_c151",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 35,
+          "score": 0.7828,
+          "is_page_hit": false,
+          "is_evidence": false,
+          "text": "Ders yılı sonunda herhangi bir dersten başarılı sayılma \nMADDE 56 - (1) Öğrencinin, ders yılı sonunda herhangi bir dersten başarılı \nsayılabilmesi için; \na) İki dönem puanının aritmetik ortalamasının en az 50 veya birinci dönem puanı ne \nolursa olsun ikinci dönem puanının en az 70, \nb) İşletmelerde "
+        },
+        {
+          "rank": 5,
+          "id": "h_e08eec72_p28_c119",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 28,
+          "score": 0.7746,
+          "is_page_hit": false,
+          "is_evidence": false,
+          "text": "Nakil ve geçişlerde muafiyet ve sorumluluk \nMADDE 42- (1) Nakil isteği kabul edilen öğrencilerin önceki okulunda görmüş olduğu \ndersler, yeni okulun dersleriyle sınıf seviyesinde karşılaştırılır. Sınıf seviyesinde toplam ders \nsaatinde ve zorunlu derslerde (ortak/alan/dal dersleri) eksiklik ya da ba"
+        }
+      ]
+    },
+    {
+      "id": "q05",
+      "question": "Lise öğrenimi boyunca en fazla kaç kez sınıf tekrarı yapılabilir?",
+      "expected_file": "meb_yonetmelik.pdf",
+      "expected_pages": [
+        36
+      ],
+      "evidence_hit_at_1": true,
+      "evidence_hit_at_3": true,
+      "evidence_hit_at_5": true,
+      "evidence_first_rank": 1,
+      "evidence_first_score": 0.8268,
+      "evidence_first_chunk": "h_e08eec72_p36_c155",
+      "evidence_chunks_in_collection": 1,
+      "evidence_reaches_llm_in_production": true,
+      "top1_correct_file": true,
+      "top1_correct_page": true,
+      "page_hit_at_3": true,
+      "page_hit_at_5": true,
+      "page_first_rank": 1,
+      "page_hit_without_evidence_in_top3": false,
+      "retrieved": [
+        {
+          "rank": 1,
+          "id": "h_e08eec72_p36_c155",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 36,
+          "score": 0.8268,
+          "is_page_hit": true,
+          "is_evidence": true,
+          "text": "Sınıf tekrarı ve öğrenim hakkı \nMADDE 59- (1) Öğrencilerden; \na) (Değişik:RG-26/3/2017-30019) Doğrudan, yılsonu başarı puanıyla veya sorumlu \nolarak sınıf geçeme yenlerle devamsızlık nedeniyle başarısız sayılanlar sınıf tekrar eder. Sınıf \ntekrarı hazırlık sınıfı hariç, orta öğrenim süresince en faz"
+        },
+        {
+          "rank": 2,
+          "id": "h_e08eec72_p36_c156",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 36,
+          "score": 0.8017,
+          "is_page_hit": true,
+          "is_evidence": false,
+          "text": "öğrencilerinden sınıf tekrar etme hakkı bulunanlar başarısız olunan ders sayısına \nbakılmaksızın sınıf tekrar edebilir. Ancak, sınıf tekrar etmek istemeyen öğrencilerden sınıf \ntekrarı yapmış olanlar bir, sınıf tekrarı yapmamış olanlar ise iki öğretim yılı daha başarısız \noldukları derslerden soruml"
+        },
+        {
+          "rank": 3,
+          "id": "h_e08eec72_p37_c157",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 37,
+          "score": 0.7932,
+          "is_page_hit": false,
+          "is_evidence": false,
+          "text": "yıla ait öğrenim haklarını kullanmamış sayılır. Öğrenim hakkının kullanılmamış sayılması \nhâli, öğrenim süresince iki eğitim ve öğretim yılıyla sınırlıdır. \nç) (Ek:RG-1/9/2018-30522) (Değişik:RG-5/9/2019-30879) Mesleki eğitim merkezi \nprogramlarına kayıtlı öğrencilerden; doğrudan, yılsonu başarı pua"
+        },
+        {
+          "rank": 4,
+          "id": "h_e08eec72_p111_c451",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 111,
+          "score": 0.7678,
+          "is_page_hit": false,
+          "is_evidence": false,
+          "text": "programı uygulayan okullara nakil ve geçişler; \na) Okulların her birinin kendi arasında veya okullar arasında alan/dal bulunmak \nkaydıyla her sınıf seviyesinde sürekli, alan/dal bulunmaması hâlinde 10 uncu sınıfta alan, 11 \ninci sınıfta aynı alanda dal değiştirerek, birinci dönem sonuna kadar, \n(b) "
+        },
+        {
+          "rank": 5,
+          "id": "h_e08eec72_p36_c152",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 36,
+          "score": 0.7601,
+          "is_page_hit": true,
+          "is_evidence": false,
+          "text": "Sorumlu olarak sınıf geçme ve sorumluluğun kalkması  \nMADDE 58- (1) (Değişik:RG-1/7/2015-29403)   Ders yılı sonunda her bir dersten iki \ndönem puanı bulunmak kaydıyla doğrudan sınıfını geçemeyen öğrencilerden; bir sınıfta \nbaşarısız ders sayısı en fazla 3 ders olanlar sorumlu olarak sınıflarını geçe"
+        }
+      ]
+    },
+    {
+      "id": "q06",
+      "question": "Bir sınıfta aynı gün en fazla kaç yazılı veya uygulamalı sınav yapılabilir?",
+      "expected_file": "meb_yonetmelik.pdf",
+      "expected_pages": [
+        30
+      ],
+      "evidence_hit_at_1": false,
+      "evidence_hit_at_3": true,
+      "evidence_hit_at_5": true,
+      "evidence_first_rank": 2,
+      "evidence_first_score": 0.8039,
+      "evidence_first_chunk": "h_e08eec72_p30_c128",
+      "evidence_chunks_in_collection": 1,
+      "evidence_reaches_llm_in_production": true,
+      "top1_correct_file": true,
+      "top1_correct_page": false,
+      "page_hit_at_3": true,
+      "page_hit_at_5": true,
+      "page_first_rank": 2,
+      "page_hit_without_evidence_in_top3": false,
+      "retrieved": [
+        {
+          "rank": 1,
+          "id": "h_e08eec72_p29_c125",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 29,
+          "score": 0.8046,
+          "is_page_hit": false,
+          "is_evidence": false,
+          "text": "Yazılı ve uygulamalı sınavlar \nMADDE 45- (1) Derslerin özelliğine göre bir dönemde yapılacak yazılı ve uygulamalı \nsınavlarla ilgili olarak aşağıdaki esaslara uyulur. \na) (Değişik:RG-1/9/2018-30522) Haftalık ders saati sayısına bakılmaksızın her dersten \nen az iki sınav yapılması esastır. Her dönem "
+        },
+        {
+          "rank": 2,
+          "id": "h_e08eec72_p30_c128",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 30,
+          "score": 0.8039,
+          "is_page_hit": true,
+          "is_evidence": true,
+          "text": "uygulamalı olarak veya bunlardan yalnızca biriyle ortak olarak ya da ayrı ayrı yapılabilir. \nSınavların şekli, sayısı ve uygulamalı sınavların süresiyle hangi derslerde uygulamalı sınav \nyapılacağı zümre öğretmenler kurulunda belirlenir, okul müdürünün onayına bağlı olarak \nuygulanır. \ng) Bir sınıft"
+        },
+        {
+          "rank": 3,
+          "id": "h_e08eec72_p30_c127",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 30,
+          "score": 0.7996,
+          "is_page_hit": true,
+          "is_evidence": false,
+          "text": "c) (Değişik:RG-1/9/2018-30522) Yazılı sınavlar; gerektiğinde okul, eğitim bölgesi, \nilçe, il ve ülke genelinde ortak sınavlar şeklinde yapılabilir. Bu sınavların uygulanmasına \nilişkin iş ve işlemler Bakanlıkça hazırlanan yönerge ve/veya kılavuz ile belirlenir. \nç) Zorunlu hâller dışında yazılı sına"
+        },
+        {
+          "rank": 4,
+          "id": "h_e08eec72_p36_c152",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 36,
+          "score": 0.7745,
+          "is_page_hit": false,
+          "is_evidence": false,
+          "text": "Sorumlu olarak sınıf geçme ve sorumluluğun kalkması  \nMADDE 58- (1) (Değişik:RG-1/7/2015-29403)   Ders yılı sonunda her bir dersten iki \ndönem puanı bulunmak kaydıyla doğrudan sınıfını geçemeyen öğrencilerden; bir sınıfta \nbaşarısız ders sayısı en fazla 3 ders olanlar sorumlu olarak sınıflarını geçe"
+        },
+        {
+          "rank": 5,
+          "id": "h_e08eec72_p36_c153",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 36,
+          "score": 0.7635,
+          "is_page_hit": false,
+          "is_evidence": false,
+          "text": "yapılması hâlinde her sınav salonu için ayrıca bir gözcü öğretmen daha görevlendirilir. \nc) Farklı sınıflardaki aynı dersin öğrenci sayısının toplamda otuzu aşmaması hâlinde bu \nöğrencilerin sınavları birleştirilerek tek komisyon marifetiyle de yapılabilir. \nç) Sınav tarihleri ve görevlendirilecek ö"
+        }
+      ]
+    },
+    {
+      "id": "q07",
+      "question": "Geçerli özrü olmadan sınava girmeyen öğrencinin puan hanesine ne yazılır?",
+      "expected_file": "meb_yonetmelik.pdf",
+      "expected_pages": [
+        31
+      ],
+      "evidence_hit_at_1": true,
+      "evidence_hit_at_3": true,
+      "evidence_hit_at_5": true,
+      "evidence_first_rank": 1,
+      "evidence_first_score": 0.8356,
+      "evidence_first_chunk": "h_e08eec72_p31_c136",
+      "evidence_chunks_in_collection": 1,
+      "evidence_reaches_llm_in_production": true,
+      "top1_correct_file": true,
+      "top1_correct_page": true,
+      "page_hit_at_3": true,
+      "page_hit_at_5": true,
+      "page_first_rank": 1,
+      "page_hit_without_evidence_in_top3": false,
+      "retrieved": [
+        {
+          "rank": 1,
+          "id": "h_e08eec72_p31_c136",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 31,
+          "score": 0.8356,
+          "is_page_hit": true,
+          "is_evidence": true,
+          "text": "saatinin bitimine kadar kurum müdürlüğüne bildirilmesi ve en geç beş iş günü içinde \nbelgelendirilmesi k aydıyla kurum müdürlüğünce öğretmenler tatile girmeden önce uygun \ngörülecek bir tarihte, özrün süresi öğretmenlerin tatile girdiği tarihten sonraya rastlayan \nöğrenciler ise yeni ders yılının ba"
+        },
+        {
+          "rank": 2,
+          "id": "h_e08eec72_p31_c135",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 31,
+          "score": 0.779,
+          "is_page_hit": true,
+          "is_evidence": false,
+          "text": "Sınavlara katılmayanlar \nMADDE 48 - (1) (Değişik:RG-13/9/2014-29118)  Sınavlara katılmayan, performans \nçalışmasını yerine getirmeyen veya projesini zamanında teslim etmeyen öğrencilerden , \nözrünü 36 ncı maddenin yedinci fıkrasına göre belgelendirenlerin mazeret sınavı ilgili \nzümrenin belirleyeceğ"
+        },
+        {
+          "rank": 3,
+          "id": "h_e08eec72_p34_c148",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 34,
+          "score": 0.7711,
+          "is_page_hit": false,
+          "is_evidence": false,
+          "text": "durumunda eski okulundaki dersin dönem puanlarının aritmetik ortalamasıdır. \nd) (Değişik:RG-5/9/2019-30879) Sorumluluk sınavına giren öğrencilerin sınavına \ngirdikleri dersin yılsonu puanı, o dersin yılsonu puanı ile sorumluluk sınavından alınan puanın \naritmetik ortalamasıdır. \ne) (Ek:RG-5/9/2019-3"
+        },
+        {
+          "rank": 4,
+          "id": "h_e08eec72_p78_c322",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 78,
+          "score": 0.7708,
+          "is_page_hit": false,
+          "is_evidence": false,
+          "text": "takdir edilen puanın yüzde 20 sinin toplamı 50 ve daha fazla olan öğrenciler stajını başarı ile \ntamamlamış sayılır.  (Mülga cümle:RG -26/3/2017-30019) (…) (Ek cümle:RG -1/9/2018-\n30522) Staj bitirme sınavı puanı, ilişkilendirildiği dersin yılsonu puanının belirlenmesinde \ndikkate alınır. Stajdan mu"
+        },
+        {
+          "rank": 5,
+          "id": "h_e08eec72_p33_c143",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 33,
+          "score": 0.7682,
+          "is_page_hit": false,
+          "is_evidence": false,
+          "text": "başarılarının değerlendirilmesi ilgili mevzuata göre yapılır. \n(2) (Değişik:RG-16/9/2017-30182) Yönetmeliğin 36 ncı maddesine göre özürleri \nnedeniyle 60 günlük devamsızlık kapsamında değerlendirilen öğrencilerin dönem puanları \nzorunlu hâllerde bir sınav eksiğiyle verilebilir. \n(3) Öğrenciye her de"
+        }
+      ]
+    },
+    {
+      "id": "q08",
+      "question": "Okullar arası nakil başvuruları hangi dönemlerde haftalık olarak yapılır?",
+      "expected_file": "meb_yonetmelik.pdf",
+      "expected_pages": [
+        25
+      ],
+      "evidence_hit_at_1": false,
+      "evidence_hit_at_3": false,
+      "evidence_hit_at_5": true,
+      "evidence_first_rank": 5,
+      "evidence_first_score": 0.8336,
+      "evidence_first_chunk": "h_e08eec72_p25_c105",
+      "evidence_chunks_in_collection": 1,
+      "evidence_reaches_llm_in_production": false,
+      "top1_correct_file": true,
+      "top1_correct_page": false,
+      "page_hit_at_3": true,
+      "page_hit_at_5": true,
+      "page_first_rank": 2,
+      "page_hit_without_evidence_in_top3": true,
+      "retrieved": [
+        {
+          "rank": 1,
+          "id": "h_e08eec72_p26_c113",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 26,
+          "score": 0.8608,
+          "is_page_hit": false,
+          "is_evidence": false,
+          "text": "istenilen okulun alanında açık kontenjan bulunmasına bağlı olarak ilgili okul müdürlüklerince \ngerçekleştirilir. Nakil ve geçiş başvurusu, dönem bitiminin öncesindeki üç hafta ile e -Okul \nsisteminde dönem ve sınıf atlatma süresi hariç olmak üzere,   yıl sonu sınıf atlatma işlemleri \ntamamlandıktan "
+        },
+        {
+          "rank": 2,
+          "id": "h_e08eec72_p25_c106",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 25,
+          "score": 0.8506,
+          "is_page_hit": true,
+          "is_evidence": false,
+          "text": "zamanlarda ise aylık yapılır. Nakil ve geçişler, haftalık yapıldığında her haftanın, aylık \nyapıldığında ise her ayın; ilk iş gününden başlayarak son iş gününden önce veli tarafından \nçalışma saatleri içerisinde öğrencinin öğrenim gördüğü okul müdürlüğüne dilekçe ile veya e -\nDevlet üzerinden yapılı"
+        },
+        {
+          "rank": 3,
+          "id": "h_e08eec72_p26_c112",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 26,
+          "score": 0.8382,
+          "is_page_hit": false,
+          "is_evidence": false,
+          "text": "Yetenek sınavıyla öğrenci alan okullar arasında nakiller \nMADDE 39- (Değişik:RG-13/9/2014-29118)  \n(1) a) (Değişik:RG -28/10/2016-29871) Güzel sanatlar liseleri ile spor liselerine kendi \ntürlerinden sadece aynı alan/bölüm arasın da her sınıf seviyesinde öğrenci nakli yapılır. \nÜniversitelerin bünye"
+        },
+        {
+          "rank": 4,
+          "id": "h_e08eec72_p25_c107",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 25,
+          "score": 0.8344,
+          "is_page_hit": true,
+          "is_evidence": false,
+          "text": "başvuruları; (Ek ibare:RG -1/9/2018-30522) haftalık yapıldığında her haftanın,  aylık \nyapıldığında ise  her ayın son iş gününde ilgili okul müdürlüğünce değerlendirilir. \nDeğerlendirmeyle ilgili belge, e-Okul sistemi üzerinden alınarak okul müdürü ve ilgili müdür \nyardımcısı tarafından imzalanıp do"
+        },
+        {
+          "rank": 5,
+          "id": "h_e08eec72_p25_c105",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 25,
+          "score": 0.8336,
+          "is_page_hit": true,
+          "is_evidence": true,
+          "text": "sosyal bilimler liseleri, proje uygulayan eğitim kurumları ile Anadolu teknik programlarında \n34’ü, diğer okul türlerinde ise 40’ı, ancak tam zamanlı kaynaştırma/bütünleştirme yoluyla \neğitim uygulaması yapılan okullarda özel eğitim ihti yacı olan bireylerin gelişim özellikleri de \ndikkate alınarak "
+        }
+      ]
+    },
+    {
+      "id": "q09",
+      "question": "Okul değiştirme cezası hangi kurulun onayından sonra uygulanır?",
+      "expected_file": "meb_yonetmelik.pdf",
+      "expected_pages": [
+        91,
+        96
+      ],
+      "evidence_hit_at_1": false,
+      "evidence_hit_at_3": true,
+      "evidence_hit_at_5": true,
+      "evidence_first_rank": 3,
+      "evidence_first_score": 0.8027,
+      "evidence_first_chunk": "h_e08eec72_p96_c394",
+      "evidence_chunks_in_collection": 2,
+      "evidence_reaches_llm_in_production": true,
+      "top1_correct_file": true,
+      "top1_correct_page": true,
+      "page_hit_at_3": true,
+      "page_hit_at_5": true,
+      "page_first_rank": 1,
+      "page_hit_without_evidence_in_top3": false,
+      "retrieved": [
+        {
+          "rank": 1,
+          "id": "h_e08eec72_p96_c395",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 96,
+          "score": 0.8127,
+          "is_page_hit": true,
+          "is_evidence": false,
+          "text": "değerlendirmeye yetkili disiplin kuruluna sevk etmek üzere gönderir. \na) Kınama ve okuldan kısa süreli uzaklaştırma cezalarına itiraz ilçe öğrenci disiplin \nkurulunca, \nb) Okul değiştirme cezasına itiraz il öğrenci disiplin kurulunca, \nc) (Değişik:RG-5/9/2019-30879) Örgün eğitim dışına çıkarma cezas"
+        },
+        {
+          "rank": 2,
+          "id": "h_e08eec72_p97_c399",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 97,
+          "score": 0.8049,
+          "is_page_hit": false,
+          "is_evidence": false,
+          "text": "Cezaların uygulanması \nMADDE 172- (1) Okuldan kısa süreli uzaklaştırma cezası alan öğrenciler; \na) (Değişik:RG-16/9/2017-30182)  Okulun açık olduğu sürede bir günden beş güne \nkadar okul binası, eklentileri ve işletmelerde yapılan her türlü eğitim ve öğretim etkinlikleri, \nsınav ile staj çalışmaları"
+        },
+        {
+          "rank": 3,
+          "id": "h_e08eec72_p96_c394",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 96,
+          "score": 0.8027,
+          "is_page_hit": true,
+          "is_evidence": true,
+          "text": "Disiplin cezaları ile ilgili onay, itiraz ve tebliğ \nMADDE 169 - (1) Onay yetkisi okul müdüründe bulunanların dışındaki disiplin \ncezalarının onaylanmasıyla itiraza ilişkin dosya ve yazılar millî eğitim müdürlükleri \naracılığıyla ilgili disiplin kurullarına gönderilir. \n(2) Okul öğrenci ödül ve disi"
+        },
+        {
+          "rank": 4,
+          "id": "h_e08eec72_p95_c389",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 95,
+          "score": 0.8022,
+          "is_page_hit": false,
+          "is_evidence": false,
+          "text": "okula nakledilmesi durumunda, işlemi başlatan okul, araştırma /inceleme/soruşturmayı \ntamamlar ve dosyayı yeni okuluna gönderir. Yeni okulu aracılığıyla posta, e -Posta ve/veya \ndiğer iletişim araçlarıyla tebligat yapılarak öğrenciye ceza uygulanır ve dosyasına işlenir. \nCeza alan öğrenciyle ilgili "
+        },
+        {
+          "rank": 5,
+          "id": "h_e08eec72_p98_c401",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 98,
+          "score": 0.8018,
+          "is_page_hit": false,
+          "is_evidence": false,
+          "text": "b) (Değişik:RG-16/9/2017-30182) Parasız yatılı öğrencilerin nakilleri, M illî Eğitim \nBakanlığına Bağlı Resmi Okullarda Yatılılık, Bursluluk, Sosyal Yardımlar ve Okul \nPansiyonları Yönetmeliği ve bu Yönetmeliğin nakille ilgili hükümlerine göre uygun okullara \nyapılır. \nc)(Değişik:RG-1/7/2015-29403) "
+        }
+      ]
+    },
+    {
+      "id": "q10",
+      "question": "Kınama cezası alan öğrencinin davranış puanından kaç puan düşülür?",
+      "expected_file": "meb_yonetmelik.pdf",
+      "expected_pages": [
+        97
+      ],
+      "evidence_hit_at_1": true,
+      "evidence_hit_at_3": true,
+      "evidence_hit_at_5": true,
+      "evidence_first_rank": 1,
+      "evidence_first_score": 0.8478,
+      "evidence_first_chunk": "h_e08eec72_p97_c396",
+      "evidence_chunks_in_collection": 1,
+      "evidence_reaches_llm_in_production": true,
+      "top1_correct_file": true,
+      "top1_correct_page": true,
+      "page_hit_at_3": true,
+      "page_hit_at_5": true,
+      "page_first_rank": 1,
+      "page_hit_without_evidence_in_top3": false,
+      "retrieved": [
+        {
+          "rank": 1,
+          "id": "h_e08eec72_p97_c396",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 97,
+          "score": 0.8478,
+          "is_page_hit": true,
+          "is_evidence": true,
+          "text": "(6) (Ek:RG-1/9/2018-30522) Okul değiştirme cezası kesinleşen öğrencinin diğer okula \nnakil işlemi gerçekleştirilinceye kadar geçen sürede öğrenci okula devam ettirilmez ve bu süre \ndevamsızlıktan sayılmaz. \n\nDavranış puanının indirilmesi \nMADDE 170- (1) Her ders yılı başında öğrencilerin davranış pu"
+        },
+        {
+          "rank": 2,
+          "id": "h_e08eec72_p91_c374",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 91,
+          "score": 0.8151,
+          "is_page_hit": false,
+          "is_evidence": false,
+          "text": "Disiplin cezasını gerektiren davranış ve fiiller \nMADDE 164- (1) (Değişik:RG-5/9/2019-30879) Kınama; öğrenciye, cezayı gerektiren \ndavranışta bulunduğunun ve tekrarından kaçınmasının kesin bir dille ve yazılı olarak \nbildirilmesidir. Kınama cezasını gerektiren davranışlar ve fiiller şunlardır: \na) O"
+        },
+        {
+          "rank": 3,
+          "id": "h_e08eec72_p91_c373",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 91,
+          "score": 0.8112,
+          "is_page_hit": false,
+          "is_evidence": false,
+          "text": "ÜÇÜNCÜ BÖLÜM \nDisiplin \n\nDisiplin cezaları \nMADDE 163 - (1) (Değişik:RG-5/9/2019-30879) Öğrencilere, disiplin cezasını \ngerektiren davranış ve fiillerinin niteliklerine göre; \na) Kınama,                                                                                                                  "
+        },
+        {
+          "rank": 4,
+          "id": "h_e08eec72_p97_c397",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 97,
+          "score": 0.8111,
+          "is_page_hit": true,
+          "is_evidence": false,
+          "text": "Cezaların işlenmesi, silinmesi, puan iadesi ve dosyaların saklanması \nMADDE 171 - (1) Öğrencilerin aldıkları cezalar,  (Değişik ibare:RG -5/9/2019-\n30879) e-Okul/e-Mesem sistemine işlenir. \n(2) (Değişik:RG-28/10/2016-29871) Ceza alan ve davranış puanı indirilmiş olan ancak \ndavranışları olumlu yönde"
+        },
+        {
+          "rank": 5,
+          "id": "h_e08eec72_p95_c389",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 95,
+          "score": 0.7845,
+          "is_page_hit": false,
+          "is_evidence": false,
+          "text": "okula nakledilmesi durumunda, işlemi başlatan okul, araştırma /inceleme/soruşturmayı \ntamamlar ve dosyayı yeni okuluna gönderir. Yeni okulu aracılığıyla posta, e -Posta ve/veya \ndiğer iletişim araçlarıyla tebligat yapılarak öğrenciye ceza uygulanır ve dosyasına işlenir. \nCeza alan öğrenciyle ilgili "
+        }
+      ]
+    },
+    {
+      "id": "q11",
+      "question": "Ortaöğretim kurumlarında bir ders saati kaç dakikadır ve dersler arasındaki dinlenme süresi en az ne kadar olmalıdır?",
+      "expected_file": "meb_yonetmelik.pdf",
+      "expected_pages": [
+        7
+      ],
+      "evidence_hit_at_1": true,
+      "evidence_hit_at_3": true,
+      "evidence_hit_at_5": true,
+      "evidence_first_rank": 1,
+      "evidence_first_score": 0.8697,
+      "evidence_first_chunk": "h_e08eec72_p7_c24",
+      "evidence_chunks_in_collection": 1,
+      "evidence_reaches_llm_in_production": true,
+      "top1_correct_file": true,
+      "top1_correct_page": true,
+      "page_hit_at_3": true,
+      "page_hit_at_5": true,
+      "page_first_rank": 1,
+      "page_hit_without_evidence_in_top3": false,
+      "retrieved": [
+        {
+          "rank": 1,
+          "id": "h_e08eec72_p7_c24",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 7,
+          "score": 0.8697,
+          "is_page_hit": true,
+          "is_evidence": true,
+          "text": "Ders süresi ve günlük çalışma saatleri \nMADDE 9 - (1) (Değişik:RG-13/9/2014-29118)   Ortaöğretim kurumlarında bir ders \nsaati süresi 40 dakikadır. Dersler arasındaki dinlenme süreleri okul yönetimlerince belirlenir. \nDerslerin başlama, bitiş ve öğle arası dinlenme süreleri il çalışma takvimine uygun"
+        },
+        {
+          "rank": 2,
+          "id": "h_e08eec72_p39_c168",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 39,
+          "score": 0.7943,
+          "is_page_hit": false,
+          "is_evidence": false,
+          "text": "mesleki eğitim görmeleri esastır. \n (4) 10 uncu ve 11 inci sınıflarda derslerin kesildiği tarihle beceri sınavı sonrasında \nöğrencilere ikişer haftalık dinlenme izni verilir. \n(5) (Değişik:RG-16/9/2017-30182) Bu kapsamda bulunan okulların 9 ve 10 uncu \nsınıfları diğer ortaöğretim kurumlarıyla birlik"
+        },
+        {
+          "rank": 3,
+          "id": "h_e08eec72_p10_c39",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 10,
+          "score": 0.7864,
+          "is_page_hit": false,
+          "is_evidence": false,
+          "text": "Çalışma takvimi \nMADDE 15- (1) (Değişik cümle:RG-12/7/2019-30829) Ders yılı iki döneme ayrılır ve \nher dönemde bir ara tatil yapılır.  (Değişik cümle:RG -12/7/2019-30829) Ders yılının \nbaşlaması, ara tatiller, yarıyıl tatili, yaz tatili ile ders kesimi tarihleri Bakanlıkça belirlenir. \nDers yılının "
+        },
+        {
+          "rank": 4,
+          "id": "h_e08eec72_p39_c167",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 39,
+          "score": 0.782,
+          "is_page_hit": false,
+          "is_evidence": false,
+          "text": "uncu sınıfta alan ortak derslerinin eğitimini tamamlaya n öğrenciler, 11 ve 12 nci sınıfın dal \nderslerinin eğitimini işletmelerde yoğunlaştırılmış olarak görebilirler. Bu alan/dallarda yıl \nboyunca faaliyet gösteren yeterli sayıda iş yeri bulunan yerleşim birimlerindeki okullarda, \nöğrencilerin bir"
+        },
+        {
+          "rank": 5,
+          "id": "h_e08eec72_p88_c362",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 88,
+          "score": 0.7785,
+          "is_page_hit": false,
+          "is_evidence": false,
+          "text": "arası ile öğle arası dinlenme sürelerinde okul yönetiminin; ders saatleri içinde ise öğretmenin \nbilgisi ve kontrolü dışında kullanılmamak üzere, eğitim ortamlarında bilişim araçlarının \nbulundurulması ve kulla nılmasına yönelik izin verilmesi ile buna ilişkin usul ve esaslar \nöğretmenler kurulunda "
+        }
+      ]
+    },
+    {
+      "id": "q12",
+      "question": "Bir ders yılı en az kaç iş günü olmalıdır?",
+      "expected_file": "meb_yonetmelik.pdf",
+      "expected_pages": [
+        10
+      ],
+      "evidence_hit_at_1": true,
+      "evidence_hit_at_3": true,
+      "evidence_hit_at_5": true,
+      "evidence_first_rank": 1,
+      "evidence_first_score": 0.8178,
+      "evidence_first_chunk": "h_e08eec72_p10_c39",
+      "evidence_chunks_in_collection": 1,
+      "evidence_reaches_llm_in_production": true,
+      "top1_correct_file": true,
+      "top1_correct_page": true,
+      "page_hit_at_3": true,
+      "page_hit_at_5": true,
+      "page_first_rank": 1,
+      "page_hit_without_evidence_in_top3": false,
+      "retrieved": [
+        {
+          "rank": 1,
+          "id": "h_e08eec72_p10_c39",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 10,
+          "score": 0.8178,
+          "is_page_hit": true,
+          "is_evidence": true,
+          "text": "Çalışma takvimi \nMADDE 15- (1) (Değişik cümle:RG-12/7/2019-30829) Ders yılı iki döneme ayrılır ve \nher dönemde bir ara tatil yapılır.  (Değişik cümle:RG -12/7/2019-30829) Ders yılının \nbaşlaması, ara tatiller, yarıyıl tatili, yaz tatili ile ders kesimi tarihleri Bakanlıkça belirlenir. \nDers yılının "
+        },
+        {
+          "rank": 2,
+          "id": "h_e08eec72_p7_c24",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 7,
+          "score": 0.7898,
+          "is_page_hit": false,
+          "is_evidence": false,
+          "text": "Ders süresi ve günlük çalışma saatleri \nMADDE 9 - (1) (Değişik:RG-13/9/2014-29118)   Ortaöğretim kurumlarında bir ders \nsaati süresi 40 dakikadır. Dersler arasındaki dinlenme süreleri okul yönetimlerince belirlenir. \nDerslerin başlama, bitiş ve öğle arası dinlenme süreleri il çalışma takvimine uygun"
+        },
+        {
+          "rank": 3,
+          "id": "h_e08eec72_p10_c40",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 10,
+          "score": 0.7867,
+          "is_page_hit": true,
+          "is_evidence": false,
+          "text": "havanın aşırı sıcak ve soğuk olması gibi nedenlerle il veya ilçe hıfzıssıhha kurulunun kararı \nile gerekli gördüğü ve mahalli mülkî idare amirinin onayladığı durumlarda okullarda öğretime \nara verilir. Bu gibi durumlarda öğrencilerin derslerinde eksik kalan konularda yetiştirilmesi \niçin okul yöneti"
+        },
+        {
+          "rank": 4,
+          "id": "h_e08eec72_p39_c167",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 39,
+          "score": 0.786,
+          "is_page_hit": false,
+          "is_evidence": false,
+          "text": "uncu sınıfta alan ortak derslerinin eğitimini tamamlaya n öğrenciler, 11 ve 12 nci sınıfın dal \nderslerinin eğitimini işletmelerde yoğunlaştırılmış olarak görebilirler. Bu alan/dallarda yıl \nboyunca faaliyet gösteren yeterli sayıda iş yeri bulunan yerleşim birimlerindeki okullarda, \nöğrencilerin bir"
+        },
+        {
+          "rank": 5,
+          "id": "h_e08eec72_p7_c25",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 7,
+          "score": 0.7855,
+          "is_page_hit": false,
+          "is_evidence": false,
+          "text": "(3) (Değişik:RG-28/10/2016-29871) Mesleki ve teknik ortaöğretim programlarında bir \nders saati, mesleki alan uygulamalarına ilişkin derslerin eğitiminin okul/kurumun atölye ve \nlaboratuvarlarında yapılması hâlinde 40 dakika, işletmelerde yapılması durumunda ise 60 \ndakikadır. Okulda veya işletmede y"
+        }
+      ]
+    },
+    {
+      "id": "q13",
+      "question": "Ortaöğretim kurumlarına kayıt için hangi yaş şartı aranır?",
+      "expected_file": "meb_yonetmelik.pdf",
+      "expected_pages": [
+        12
+      ],
+      "evidence_hit_at_1": true,
+      "evidence_hit_at_3": true,
+      "evidence_hit_at_5": true,
+      "evidence_first_rank": 1,
+      "evidence_first_score": 0.8664,
+      "evidence_first_chunk": "h_e08eec72_p12_c47",
+      "evidence_chunks_in_collection": 1,
+      "evidence_reaches_llm_in_production": true,
+      "top1_correct_file": true,
+      "top1_correct_page": true,
+      "page_hit_at_3": true,
+      "page_hit_at_5": true,
+      "page_first_rank": 1,
+      "page_hit_without_evidence_in_top3": false,
+      "retrieved": [
+        {
+          "rank": 1,
+          "id": "h_e08eec72_p12_c47",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 12,
+          "score": 0.8664,
+          "is_page_hit": true,
+          "is_evidence": true,
+          "text": "Kayıt şartları \nMADDE 21- (1) Ortaöğretim kurumlarına kaydolmak için ortaokulu veya imam -hatip \nortaokulunu bitirmiş ve öğretim yılının başlayacağı tarihte 18 yaşını bitirmemiş olma şartı \naranır. Yaş şartını taşımayan öğrencilerin örgün ortaöğretim kurumlarına kayıtları \nyapılmaz. (Ek cümle:RG-26/"
+        },
+        {
+          "rank": 2,
+          "id": "h_e08eec72_p14_c56",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 14,
+          "score": 0.8032,
+          "is_page_hit": false,
+          "is_evidence": false,
+          "text": "gerekli fizikî düzenlemelerin yapılmasına yönelik tedbirleri alır. \ne) Derslik, atölye, laboratuvar ve benzer i eğitim ortamları ile spor salonları ve \nalanlarının kapasitelerini ve kullanılabilme durumlarını belirler. \n f) (Ek:RG-13/9/2014-29118) (Değişik:RG -14/2/2018-30332)   Önceki yıllarda 8 in"
+        },
+        {
+          "rank": 3,
+          "id": "h_e08eec72_p5_c15",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 5,
+          "score": 0.7934,
+          "is_page_hit": false,
+          "is_evidence": false,
+          "text": "Ortaöğretim kurumlarının kuruluşu \nMADDE 6 - (1) Ortaöğretim kurumları, ortaokul veya imam -hatip ortaokulu üzerine \nöğrenim süresi dört yıl olan yatılı ve/veya gündüzlü olarak eğitim ve öğretim veren \nkurumlardır. \n(2) Bu kurumlar; \na) (Değişik:RG-21/6/2014-29037) Fen liseleri, sosyal bilimler lise"
+        },
+        {
+          "rank": 4,
+          "id": "h_e08eec72_p5_c16",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 5,
+          "score": 0.7871,
+          "is_page_hit": false,
+          "is_evidence": false,
+          "text": "Ortaöğretim kurumlarının amaçları \nMADDE 7- (1) Ortaöğretim kurumları; \na) Öğrencileri bedenî, zihnî, ahlâkî, manevî, sosyal ve kültürel nitelikler yönünden \ngeliştirmeyi, demokrasi ve insan haklarına saygılı olmayı, çağımızın gerektirdiği bilgi ve \nbecerilerle donatarak geleceğe hazırlamayı, \nb) Öğ"
+        },
+        {
+          "rank": 5,
+          "id": "h_e08eec72_p12_c45",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 12,
+          "score": 0.7869,
+          "is_page_hit": true,
+          "is_evidence": false,
+          "text": "Ortaöğretime geçiş esasları \nMADDE 20- (Değişik:RG-14/2/2018-30332) \n(1) (Değişik ibare:RG -5/9/2019-30879) Ortaokulu, imam hatip ortaokulu veya \nbünyesinde özel ilköğretim programı uygulanan ARGEM’i bitiren öğrenciler bilgi, beceri ve \nyetenekleri doğrultusunda; \na) Merkezi sınav puanıyla, \nb) Orta"
+        }
+      ]
+    },
+    {
+      "id": "q14",
+      "question": "Fen liselerinde bir şubeye kaç öğrenci alınır?",
+      "expected_file": "meb_yonetmelik.pdf",
+      "expected_pages": [
+        16
+      ],
+      "evidence_hit_at_1": false,
+      "evidence_hit_at_3": true,
+      "evidence_hit_at_5": true,
+      "evidence_first_rank": 2,
+      "evidence_first_score": 0.7875,
+      "evidence_first_chunk": "h_e08eec72_p16_c65",
+      "evidence_chunks_in_collection": 1,
+      "evidence_reaches_llm_in_production": true,
+      "top1_correct_file": true,
+      "top1_correct_page": false,
+      "page_hit_at_3": true,
+      "page_hit_at_5": true,
+      "page_first_rank": 2,
+      "page_hit_without_evidence_in_top3": false,
+      "retrieved": [
+        {
+          "rank": 1,
+          "id": "h_e08eec72_p17_c66",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 17,
+          "score": 0.8146,
+          "is_page_hit": false,
+          "is_evidence": false,
+          "text": "programlı Anadolu liselerinde, mesleki ve teknik eğitim merkezlerinde ve mesleki eğitim \nmerkezlerinde ise bir şubeye alınacak öğrenci sayısının 34 olması esastır. Ancak öğrenci kayıt \nalanındaki öğrenci sayısının yoğunluğu ve zorunlu hâllerde okulun fiziki şartları da dikkate \nalınarak bu sayı 40’a"
+        },
+        {
+          "rank": 2,
+          "id": "h_e08eec72_p16_c65",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 16,
+          "score": 0.7875,
+          "is_page_hit": true,
+          "is_evidence": true,
+          "text": "Kontenjan belirleme (Değişik başlık:RG-13/9/2014-29118)  \nMADDE 25- (1) (Değişik cümle:RG-13/9/2014-29118) Ortaöğretim kurumlarında; \na) 9 uncu sınıflara ve hazırlık sınıfı bulunan okulların hazırlık sınıflarına alınacak \nöğrenci kontenjanlarını belirlemek üzere, okul müdürünün başkanlığında bir müd"
+        },
+        {
+          "rank": 3,
+          "id": "h_e08eec72_p25_c104",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 25,
+          "score": 0.7864,
+          "is_page_hit": false,
+          "is_evidence": false,
+          "text": "seviyesinde yerleştirme sonucunda oluşan en düşük puanlı öğrencinin puanından az olmaması \nkaydıyla puan üstünlüğüne göre yapılır. \nb) Ortaöğretim kayıt alanı içindeki okullara tercihe bağlı olarak yapılır.  \nc) 23 üncü maddenin ikinci fıkrasının (g) bendi kapsamındaki öğrencilerin nakil ve \ngeçiş i"
+        },
+        {
+          "rank": 4,
+          "id": "h_e08eec72_p110_c448",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 110,
+          "score": 0.7621,
+          "is_page_hit": false,
+          "is_evidence": false,
+          "text": "GEÇİCİ MADDE 3 - (1) Bu Yönetmeliğin yayımından önce merkezi yerleştirmede \nkullanılan puana göre yerleşen öğrencilerin nakillerinde yerleştirilmelerinde kullanılan puan \nve yılı esas alınır. \n\nGEÇİCİ MADDE 4 – (Ek:RG-21/6/2014-29037) \n(1) (Değişik:RG-1/7/2015-29403)  Anadolu liselerinde, Anadolu im"
+        },
+        {
+          "rank": 5,
+          "id": "h_e08eec72_p17_c67",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 17,
+          "score": 0.7579,
+          "is_page_hit": false,
+          "is_evidence": false,
+          "text": "(2) (Değişik :RG-13/9/2014-29118)  Kontenjanların ilanı: \na) Okulların hazırlık veya 9 uncu sınıfına alınacak öğrenci sayısıyla açılacak şube \nsayısı, her yıl Bakanlıkça belirlenen takvime göre ilçe ve il millî eğitim müdürlüklerince de \nonaylanarak Bakanlığın ilgili birimine elektronik ortamda bild"
+        }
+      ]
+    },
+    {
+      "id": "q15",
+      "question": "Sınıf başkanlığına aday olacak öğrencilerde hangi şartlar aranır?",
+      "expected_file": "meb_yonetmelik.pdf",
+      "expected_pages": [
+        20
+      ],
+      "evidence_hit_at_1": true,
+      "evidence_hit_at_3": true,
+      "evidence_hit_at_5": true,
+      "evidence_first_rank": 1,
+      "evidence_first_score": 0.855,
+      "evidence_first_chunk": "h_e08eec72_p20_c84",
+      "evidence_chunks_in_collection": 1,
+      "evidence_reaches_llm_in_production": true,
+      "top1_correct_file": true,
+      "top1_correct_page": true,
+      "page_hit_at_3": true,
+      "page_hit_at_5": true,
+      "page_first_rank": 1,
+      "page_hit_without_evidence_in_top3": false,
+      "retrieved": [
+        {
+          "rank": 1,
+          "id": "h_e08eec72_p20_c84",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 20,
+          "score": 0.855,
+          "is_page_hit": true,
+          "is_evidence": true,
+          "text": "Sınıf başkanlığı \nMADDE 32- (1) Bir sınıfta bulunan öğrenciler, sınıf öğretmeni rehberliğinde her ders \nyılı için sınıf başkanı ve başkan yardımcısı seçer. Boşalan sınıf başkanlığı için aynı yolla \nseçim yapılır. \n(2) Sınıf başkanlığına ve başkan yardımcılığına aday olacak öğrencilerde; disiplin cez"
+        },
+        {
+          "rank": 2,
+          "id": "h_e08eec72_p26_c111",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 26,
+          "score": 0.7813,
+          "is_page_hit": false,
+          "is_evidence": false,
+          "text": "küçük olana, \nb) Diğer okullarda başvurunun kontenjandan fazla olması durumunda 9 uncu sınıflarda \nsırasıyla; OBP, 8 inci, 7 nci  ve 6  ncı sınıf yılsonu başarı puanı yüksek olana, eşitliğin \nbozulmaması hâlinde yaşı küçük olana; 10 uncu, 11 inci ve 12 nci  sınıflarda ise sırasıyla bir \nönceki sınıf"
+        },
+        {
+          "rank": 3,
+          "id": "h_e08eec72_p100_c407",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 100,
+          "score": 0.7804,
+          "is_page_hit": false,
+          "is_evidence": false,
+          "text": "Onur kurulu \nMADDE 180- (Değişik:RG-5/9/2019-30879) \n(1) Onur genel kurulu; her sınıf seviyesinde bir öğrenciyi onur kurulu üyeliğine, onur \nkurulu üyeliğine seçilen son sınıf veya on birinci sınıf öğrencisini, onur kurulu ikinci \nbaşkanlığına, bir öğrenciyi de onur kurulu ikinci başkanlığı yedek üy"
+        },
+        {
+          "rank": 4,
+          "id": "h_e08eec72_p87_c358",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 87,
+          "score": 0.7802,
+          "is_page_hit": false,
+          "is_evidence": false,
+          "text": "(2) Bu doğrultuda öğrencilerden; \na) Atatürk inkılâp ve ilkelerine bağlı kalmaları ve bunları korumaları, \nb) Hukuka, toplum değerlerine ve okul kurallarına uymaları, \nc) Doğru sözlü, dürüst, yardımsever, erdemli, saygılı ve çalışkan olmaları; güzel ve \nnazik tavır sergilemel eri; kaba söz ve davran"
+        },
+        {
+          "rank": 5,
+          "id": "h_e08eec72_p37_c158",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 37,
+          "score": 0.7796,
+          "is_page_hit": false,
+          "is_evidence": false,
+          "text": "Hazırlık sınıfında yeterlilik sınavı ve 9 uncu sınıfa geçiş \nMADDE 60 - (1) Hazırlık sınıfında sınıf geçme, birinci yabancı dil dersiyle Türkçe \ndersindeki başarı durumlarına göre tespit edilir. Diğer derslerdeki başarı durumu, öğrencinin \nödüllendirilmesinde dikkate alınır. Hazırlık sınıfında alına"
+        }
+      ]
+    },
+    {
+      "id": "q16",
+      "question": "Ölçme ve değerlendirmede \"Orta\" derecesi hangi puan aralığına karşılık gelir?",
+      "expected_file": "meb_yonetmelik.pdf",
+      "expected_pages": [
+        29
+      ],
+      "evidence_hit_at_1": true,
+      "evidence_hit_at_3": true,
+      "evidence_hit_at_5": true,
+      "evidence_first_rank": 1,
+      "evidence_first_score": 0.7683,
+      "evidence_first_chunk": "h_e08eec72_p29_c124",
+      "evidence_chunks_in_collection": 1,
+      "evidence_reaches_llm_in_production": true,
+      "top1_correct_file": true,
+      "top1_correct_page": true,
+      "page_hit_at_3": true,
+      "page_hit_at_5": true,
+      "page_first_rank": 1,
+      "page_hit_without_evidence_in_top3": false,
+      "retrieved": [
+        {
+          "rank": 1,
+          "id": "h_e08eec72_p29_c124",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 29,
+          "score": 0.7683,
+          "is_page_hit": true,
+          "is_evidence": true,
+          "text": "Puan Derece \n85,00 - 100 Pekiyi \n70,00 - 84,99 İyi \n60,00 - 69,99 Orta \n50,00 - 59,99 Geçer \n0 - 49,99 Geçmez \n\nİKİNCİ BÖLÜM \nSınavlar"
+        },
+        {
+          "rank": 2,
+          "id": "h_e08eec72_p41_c173",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 41,
+          "score": 0.7636,
+          "is_page_hit": false,
+          "is_evidence": false,
+          "text": "Mezuniyet puanı \nMADDE 65 - (1) Mezuniyet puanı; dokuz, on, on bir ve on ikinci sınıfların yılsonu \nbaşarı puanlarının aritmetik ortalamasıdır. Mezuniyet puanı hesaplanırken bölme işlemi, \nvirgülden sonra (Değişik ibare:RG-5/9/2019-30879) dört basamak yürütülür. \n(2) (Ek:RG-26/3/2017-30019) Mesleki "
+        },
+        {
+          "rank": 3,
+          "id": "h_e08eec72_p33_c142",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 33,
+          "score": 0.7604,
+          "is_page_hit": false,
+          "is_evidence": false,
+          "text": "Dönem puanı \nMADDE 51- (1) Bir dersin dönem puanı; \na) Sınavlardan alınan puanların, \nb) Performans çalışması puanının/puanlarının, \nc) Varsa proje puanının, \nç) Mesleki ve teknik ortaöğretim kurumlarında okutulan uygulamalı derslerde ayrıca \nhizmet ve/veya temrin puanlarının aritmetik ortalamasında"
+        },
+        {
+          "rank": 4,
+          "id": "h_e08eec72_p26_c111",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 26,
+          "score": 0.7563,
+          "is_page_hit": false,
+          "is_evidence": false,
+          "text": "küçük olana, \nb) Diğer okullarda başvurunun kontenjandan fazla olması durumunda 9 uncu sınıflarda \nsırasıyla; OBP, 8 inci, 7 nci  ve 6  ncı sınıf yılsonu başarı puanı yüksek olana, eşitliğin \nbozulmaması hâlinde yaşı küçük olana; 10 uncu, 11 inci ve 12 nci  sınıflarda ise sırasıyla bir \nönceki sınıf"
+        },
+        {
+          "rank": 5,
+          "id": "h_e08eec72_p34_c147",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 34,
+          "score": 0.7491,
+          "is_page_hit": false,
+          "is_evidence": false,
+          "text": "Bir dersin yılsonu puanı \nMADDE 53- (1) (Değişik:RG-1/9/2018-30522) Bir dersin yılsonu puanı; \na) Birinci ve ikinci dönem puanlarının aritmetik ortalamasıdır. \nb) Bir dönem puanının bulunmaması hâlinde dönem puanı ile telafi programı sonunda \nbelirlenen puanın aritmetik ortalaması; iki dönem puanını"
+        }
+      ]
+    },
+    {
+      "id": "q17",
+      "question": "Veli, sınav sonuçlarına kaç iş günü içinde itiraz edebilir?",
+      "expected_file": "meb_yonetmelik.pdf",
+      "expected_pages": [
+        32
+      ],
+      "evidence_hit_at_1": false,
+      "evidence_hit_at_3": true,
+      "evidence_hit_at_5": true,
+      "evidence_first_rank": 2,
+      "evidence_first_score": 0.7981,
+      "evidence_first_chunk": "h_e08eec72_p32_c137",
+      "evidence_chunks_in_collection": 1,
+      "evidence_reaches_llm_in_production": true,
+      "top1_correct_file": true,
+      "top1_correct_page": true,
+      "page_hit_at_3": true,
+      "page_hit_at_5": true,
+      "page_first_rank": 1,
+      "page_hit_without_evidence_in_top3": false,
+      "retrieved": [
+        {
+          "rank": 1,
+          "id": "h_e08eec72_p32_c138",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 32,
+          "score": 0.8173,
+          "is_page_hit": true,
+          "is_evidence": false,
+          "text": "yönetimine itirazda bulunabilir. Yapılan itiraz doğrultusunda; okul yönetimince ders \nöğretmeni/öğretmenleri dışında ilgili branştan en az iki öğretmenden oluşturulan komisyon, \nokulda yeterli öğretmen bulunmaması durumunda ise il/ilçe millî eğitim müdürlüğünce \noluşturulan komisyon tarafından 5 gün"
+        },
+        {
+          "rank": 2,
+          "id": "h_e08eec72_p32_c137",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 32,
+          "score": 0.7981,
+          "is_page_hit": true,
+          "is_evidence": true,
+          "text": "Ölçme ve değerlendirme sonuçlarının duyurulması \nMADDE 49 - (1) Öğretmenler sınav, performans çalışması ve projelerin sonuçlarını \nöğrencilere bildirir ve sınav analizlerine göre ortak hataları açıklar. \n(2) (Değişik:RG-16/9/2017-30182) Yazılı sınav, uygulama, performans çalışması  ve \nprojelerin de"
+        },
+        {
+          "rank": 3,
+          "id": "h_e08eec72_p23_c95",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 23,
+          "score": 0.7904,
+          "is_page_hit": false,
+          "is_evidence": false,
+          "text": "(7) (Değişik:RG-1/7/2015-29403)  Öğrencinin devamsızlık yaptığı süreye ilişkin özür \nbelgesi veya yazılı veli beyanı, özür gününü takip eden en geç 5 iş günü içinde okul \nyönetimine velisi tarafından verilir ve e -Okul sistemine işlenir. Zorunlu hallerde özür \nbelgesinin teslim süresi okul yönetimin"
+        },
+        {
+          "rank": 4,
+          "id": "h_e08eec72_p31_c136",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 31,
+          "score": 0.7777,
+          "is_page_hit": false,
+          "is_evidence": false,
+          "text": "saatinin bitimine kadar kurum müdürlüğüne bildirilmesi ve en geç beş iş günü içinde \nbelgelendirilmesi k aydıyla kurum müdürlüğünce öğretmenler tatile girmeden önce uygun \ngörülecek bir tarihte, özrün süresi öğretmenlerin tatile girdiği tarihten sonraya rastlayan \nöğrenciler ise yeni ders yılının ba"
+        },
+        {
+          "rank": 5,
+          "id": "h_e08eec72_p96_c395",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 96,
+          "score": 0.775,
+          "is_page_hit": false,
+          "is_evidence": false,
+          "text": "değerlendirmeye yetkili disiplin kuruluna sevk etmek üzere gönderir. \na) Kınama ve okuldan kısa süreli uzaklaştırma cezalarına itiraz ilçe öğrenci disiplin \nkurulunca, \nb) Okul değiştirme cezasına itiraz il öğrenci disiplin kurulunca, \nc) (Değişik:RG-5/9/2019-30879) Örgün eğitim dışına çıkarma cezas"
+        }
+      ]
+    },
+    {
+      "id": "q18",
+      "question": "Hazırlık sınıfını okumadan doğrudan 9. sınıfa geçmek isteyen öğrencinin yeterlilik sınavında hangi puanı alması gerekir?",
+      "expected_file": "meb_yonetmelik.pdf",
+      "expected_pages": [
+        37
+      ],
+      "evidence_hit_at_1": true,
+      "evidence_hit_at_3": true,
+      "evidence_hit_at_5": true,
+      "evidence_first_rank": 1,
+      "evidence_first_score": 0.8548,
+      "evidence_first_chunk": "h_e08eec72_p37_c159",
+      "evidence_chunks_in_collection": 1,
+      "evidence_reaches_llm_in_production": true,
+      "top1_correct_file": true,
+      "top1_correct_page": true,
+      "page_hit_at_3": true,
+      "page_hit_at_5": true,
+      "page_first_rank": 1,
+      "page_hit_without_evidence_in_top3": false,
+      "retrieved": [
+        {
+          "rank": 1,
+          "id": "h_e08eec72_p37_c159",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 37,
+          "score": 0.8548,
+          "is_page_hit": true,
+          "is_evidence": true,
+          "text": "(3) (Değişik:RG-13/9/2014-29118)  Hazırlık sınıfında öğrenim görmeden aynı okulun \n9 uncu sınıfına doğrudan geçmek isteyen öğrencilerin velileri, yeterlilik sınavından 5 gü n \nönce okul yönetimine yazılı olarak başvurur. Başvurusu alınan öğrenciler, birinci yabancı dil \ndersiyle Türkçe dersinden  (D"
+        },
+        {
+          "rank": 2,
+          "id": "h_e08eec72_p37_c158",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 37,
+          "score": 0.8493,
+          "is_page_hit": true,
+          "is_evidence": false,
+          "text": "Hazırlık sınıfında yeterlilik sınavı ve 9 uncu sınıfa geçiş \nMADDE 60 - (1) Hazırlık sınıfında sınıf geçme, birinci yabancı dil dersiyle Türkçe \ndersindeki başarı durumlarına göre tespit edilir. Diğer derslerdeki başarı durumu, öğrencinin \nödüllendirilmesinde dikkate alınır. Hazırlık sınıfında alına"
+        },
+        {
+          "rank": 3,
+          "id": "h_e08eec72_p3_c7",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 3,
+          "score": 0.811,
+          "is_page_hit": false,
+          "is_evidence": false,
+          "text": "r) Ölçme araçları: Öğrencilerin bilgi, beceri ve kazanımlarının ölçülmesinde \nbaşvurulacak yazılı ve uygulamalı sınavlar, performans çalışması ve projeyi, \ns) (Değişik:RG-13/9/2014-29118) Performans çalışması: Ders programında öngör ülen \neleştirel düşünme, problem çözme, okuduğunu anlama, yaratıcıl"
+        },
+        {
+          "rank": 4,
+          "id": "h_e08eec72_p34_c146",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 34,
+          "score": 0.809,
+          "is_page_hit": false,
+          "is_evidence": false,
+          "text": "derslere ait dönem puanları, mevcut puanlarına göre yeni okul yönetimince tespit edilir. \n2) Önceki okulunda dönem puanı verilebilecek kadar puan alınmamış ise öğrenci yeni \nokulunda ve/veya alan/dalında öğretime açılmış olan dersi/dersleri alır. Bu derslerden alınan \npuanlara göre dönem puanı tespi"
+        },
+        {
+          "rank": 5,
+          "id": "h_e08eec72_p25_c108",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 25,
+          "score": 0.8067,
+          "is_page_hit": false,
+          "is_evidence": false,
+          "text": "(6) (Değişik:RG-1/7/2015-29403)  Nakil şartlarının taşınması durumunda; \na) Hazırlık sınıflarından hazırlık sınıfı bulunmayan okulların 9 uncu sınıflarına, hazırlık \nsınıfı bulunmayan okulların 9 uncu sınıflarından hazırlık sınıflarına yeterlilik sınavı \naranmadan,  \nb) Hazırlık sınıfı bulunmayan ok"
+        }
+      ]
+    },
+    {
+      "id": "q19",
+      "question": "Mezuniyet puanı nasıl hesaplanır?",
+      "expected_file": "meb_yonetmelik.pdf",
+      "expected_pages": [
+        41
+      ],
+      "evidence_hit_at_1": true,
+      "evidence_hit_at_3": true,
+      "evidence_hit_at_5": true,
+      "evidence_first_rank": 1,
+      "evidence_first_score": 0.8434,
+      "evidence_first_chunk": "h_e08eec72_p41_c173",
+      "evidence_chunks_in_collection": 1,
+      "evidence_reaches_llm_in_production": true,
+      "top1_correct_file": true,
+      "top1_correct_page": true,
+      "page_hit_at_3": true,
+      "page_hit_at_5": true,
+      "page_first_rank": 1,
+      "page_hit_without_evidence_in_top3": false,
+      "retrieved": [
+        {
+          "rank": 1,
+          "id": "h_e08eec72_p41_c173",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 41,
+          "score": 0.8434,
+          "is_page_hit": true,
+          "is_evidence": true,
+          "text": "Mezuniyet puanı \nMADDE 65 - (1) Mezuniyet puanı; dokuz, on, on bir ve on ikinci sınıfların yılsonu \nbaşarı puanlarının aritmetik ortalamasıdır. Mezuniyet puanı hesaplanırken bölme işlemi, \nvirgülden sonra (Değişik ibare:RG-5/9/2019-30879) dört basamak yürütülür. \n(2) (Ek:RG-26/3/2017-30019) Mesleki "
+        },
+        {
+          "rank": 2,
+          "id": "h_e08eec72_p41_c174",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 41,
+          "score": 0.7866,
+          "is_page_hit": true,
+          "is_evidence": false,
+          "text": "Yurtdışından gelenlerin mezuniyet puanı \nMADDE 66 - (1) Öğrenimlerinin bir kısmını yurtdışında yaparak yurda dönen \nöğrencilerin mezuniyet puanları; \na) Ülkemizde öğrenim gördükleri yıllara ait yılsonu başarı puanlarıyla yurtdışında \ngördükleri derslerin yılsonu puanlarına, \nb) (Değişik:RG-1/9/2018-"
+        },
+        {
+          "rank": 3,
+          "id": "h_e08eec72_p35_c150",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 35,
+          "score": 0.7854,
+          "is_page_hit": false,
+          "is_evidence": false,
+          "text": "Bir dersin ağırlığı ve ağırlıklı puanı \nMADDE 54- (1) Bir dersin ağırlığı, o dersin haftalık ders saati sayısına eşittir. \n(2) Bir dersin yılsonu puanıyla o dersin haftalık ders saati sayısının çarpımından elde \nedilen puan, o dersin ağırlıklı puanıdır. \n\nYılsonu başarı puanı \nMADDE 55- (1) Öğrencin"
+        },
+        {
+          "rank": 4,
+          "id": "h_e08eec72_p33_c142",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 33,
+          "score": 0.7796,
+          "is_page_hit": false,
+          "is_evidence": false,
+          "text": "Dönem puanı \nMADDE 51- (1) Bir dersin dönem puanı; \na) Sınavlardan alınan puanların, \nb) Performans çalışması puanının/puanlarının, \nc) Varsa proje puanının, \nç) Mesleki ve teknik ortaöğretim kurumlarında okutulan uygulamalı derslerde ayrıca \nhizmet ve/veya temrin puanlarının aritmetik ortalamasında"
+        },
+        {
+          "rank": 5,
+          "id": "h_e08eec72_p33_c141",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 33,
+          "score": 0.7731,
+          "is_page_hit": false,
+          "is_evidence": false,
+          "text": "göre verilir. Zümre kararıyla performans çalışmasına dayalı olarak bir performans puanı daha \nverilebilir ve öğrencilere duyurulur. \n(9) (Ek:RG-26/3/2017-30019) Mesleki eğitim merkezi öğrencilerine sadece derse  \nhazırlık, devam, aktif katılım ve örnek davranışlarına göre performans puanı verilir. \n"
+        }
+      ]
+    },
+    {
+      "id": "q20",
+      "question": "Diplomasını kaybeden öğrenciye ne verilir?",
+      "expected_file": "meb_yonetmelik.pdf",
+      "expected_pages": [
+        42,
+        44
+      ],
+      "evidence_hit_at_1": true,
+      "evidence_hit_at_3": true,
+      "evidence_hit_at_5": true,
+      "evidence_first_rank": 1,
+      "evidence_first_score": 0.7775,
+      "evidence_first_chunk": "h_e08eec72_p42_c179",
+      "evidence_chunks_in_collection": 3,
+      "evidence_reaches_llm_in_production": true,
+      "top1_correct_file": true,
+      "top1_correct_page": true,
+      "page_hit_at_3": true,
+      "page_hit_at_5": true,
+      "page_first_rank": 1,
+      "page_hit_without_evidence_in_top3": false,
+      "retrieved": [
+        {
+          "rank": 1,
+          "id": "h_e08eec72_p42_c179",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 42,
+          "score": 0.7775,
+          "is_page_hit": true,
+          "is_evidence": true,
+          "text": "h) (Değişik:RG-5/9/2019-30879) Diplomanın kullanılamayacak derecede yıpranması \nveya kaybolması durumunda yenisi düzenlenmez. Bu durumda öğrenim durum belgesi \ndüzenlenir. Ancak, kişisel bilgilerin yarg ı kararıyla değişmesi durumunda 2008 yılı ve \nsonrasında e-Okul sistemi üzerinden verilen diploma"
+        },
+        {
+          "rank": 2,
+          "id": "h_e08eec72_p42_c178",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 42,
+          "score": 0.7755,
+          "is_page_hit": true,
+          "is_evidence": true,
+          "text": "d) Diplomalar, müdür ve ilgili müdür yardımcısı, müdür yardımcısının bulunmadığı \ndurumlarda ise millî eğitim müdürlüğünce görevlendirilen öğretmen tarafından imzalanır. \ne) Diplomalar, mezuniyet tarihini izleyen 20 gün içinde düzenlenerek soğuk damga için \nmillî eğitim müdürlüğüne gönderilir. \nf) ("
+        },
+        {
+          "rank": 3,
+          "id": "h_e08eec72_p18_c75",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 18,
+          "score": 0.7738,
+          "is_page_hit": false,
+          "is_evidence": false,
+          "text": "Değişim programı kapsamındaki öğrencilerin kayıt ve nakilleri \nMADDE 28- (1) Kültürlerarası öğrenci değişim programları çerçevesinde bir eğitim ve \nöğretim yılını geçmemek üzere, önceden durumlarını belgelendirerek yurtdışında öğrenim \ngörmek için okuldan ayrılan öğrencilerin kayıtları okullarında s"
+        },
+        {
+          "rank": 4,
+          "id": "h_e08eec72_p44_c186",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 44,
+          "score": 0.765,
+          "is_page_hit": true,
+          "is_evidence": false,
+          "text": "Öğrenci kimlik belgesi düzenlenmesi \nMADDE 74- (1) Okul müdürlüğünce öğrencilere, nüfus kayıt ve okul bilgilerini içeren, \nfotoğraflı öğrenci kimlik belgesi (Değişik ibare:RG-1/9/2018-30522) düzenlenebilir. Öğrenci \nkimlik belgeleri, gerektiğinde elektromanyetik kullanıma uygun şekilde de tasarlanab"
+        },
+        {
+          "rank": 5,
+          "id": "h_e08eec72_p42_c176",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 42,
+          "score": 0.7649,
+          "is_page_hit": true,
+          "is_evidence": false,
+          "text": "Diploma düzenlenmesi \nMADDE 69 - (1) (Değişik:RG-12/7/2019-30829) Ortaöğretim kurumlarından mezun \nolanlara, e -Okul sistemindeki kayıtlar esas alınarak bitirdikleri okul türüne göre diploma \nverilir. Bütün derslerden başarılı olmasına rağmen stajını tamamlamayanlara d iploma \ndüzenlenmez. Mesleki e"
+        }
+      ]
+    },
+    {
+      "id": "q21",
+      "question": "Üstün başarı belgesi almak için hangi şart aranır?",
+      "expected_file": "meb_yonetmelik.pdf",
+      "expected_pages": [
+        90
+      ],
+      "evidence_hit_at_1": false,
+      "evidence_hit_at_3": true,
+      "evidence_hit_at_5": true,
+      "evidence_first_rank": 2,
+      "evidence_first_score": 0.7719,
+      "evidence_first_chunk": "h_e08eec72_p90_c369",
+      "evidence_chunks_in_collection": 1,
+      "evidence_reaches_llm_in_production": true,
+      "top1_correct_file": true,
+      "top1_correct_page": false,
+      "page_hit_at_3": true,
+      "page_hit_at_5": true,
+      "page_first_rank": 2,
+      "page_hit_without_evidence_in_top3": false,
+      "retrieved": [
+        {
+          "rank": 1,
+          "id": "h_e08eec72_p26_c111",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 26,
+          "score": 0.7724,
+          "is_page_hit": false,
+          "is_evidence": false,
+          "text": "küçük olana, \nb) Diğer okullarda başvurunun kontenjandan fazla olması durumunda 9 uncu sınıflarda \nsırasıyla; OBP, 8 inci, 7 nci  ve 6  ncı sınıf yılsonu başarı puanı yüksek olana, eşitliğin \nbozulmaması hâlinde yaşı küçük olana; 10 uncu, 11 inci ve 12 nci  sınıflarda ise sırasıyla bir \nönceki sınıf"
+        },
+        {
+          "rank": 2,
+          "id": "h_e08eec72_p90_c369",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 90,
+          "score": 0.7719,
+          "is_page_hit": true,
+          "is_evidence": true,
+          "text": "İKİNCİ BÖLÜM \nÖdül \n\nÖğrencilerin ödüllendirilmesi \nMADDE 159 - (1) Örnek davranışların ve başarıların niteliklerine göre \nödüllendirilmesinde öğrencilere; \na) Teşekkür belgesi, \nb) Takdir belgesi, \nc) Onur belgesi, \nç) Üstün başarı belgesi \nverilir. \n\nTeşekkür, takdir ve üstün başarı belgesi ile öd"
+        },
+        {
+          "rank": 3,
+          "id": "h_f6958101_p3_c25",
+          "source_file": "KanMerkezleriYonetmelik.pdf",
+          "page": 3,
+          "score": 0.7543,
+          "is_page_hit": false,
+          "is_evidence": false,
+          "text": "sağlamak ve çalışmaları belirtilen çerçevede denetlemek,\n             ç) Hizmet biriminde yürütülen tüm faaliyetlerle ilgili gerekli koordinasyonu sağlamak,\n             d) Hizmet birimi ve kendine bağlı birimlerin ihtiyaçlarını tespit etmek ve giderilmesini sağlamak,\n             e) Hizmet birimind"
+        },
+        {
+          "rank": 4,
+          "id": "h_e08eec72_p2_c6",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 2,
+          "score": 0.753,
+          "is_page_hit": false,
+          "is_evidence": false,
+          "text": "sertifikayla belgelendirilerek istihdam yeterliliği kazandıran program birimini, \nl) Nakil: Aynı tür program, alan veya dalda öğrenim gören öğrencilerin ortaöğretim \nkurumları arasında yer değişikliğini, \nm) Ortaöğretim Kurumu: Ortaokul veya imam- hatip ortaokulundan sonra  (Ek \nibare:RG-1/9/2018-30"
+        },
+        {
+          "rank": 5,
+          "id": "h_e08eec72_p26_c110",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 26,
+          "score": 0.7508,
+          "is_page_hit": false,
+          "is_evidence": false,
+          "text": "1/9/2018-30522)  merkezi sınav puanı  üstünlüğüne göre yapılır. Başarısız olanların \nbaşvuruları ise reddedilir. \n(8) Naklen gidilmek istenilen okul da birinci yabancı dil farklı ise, nakil şartlarının \ntaşınması durumuna bağlı olarak, öğrenci velisinin yazılı isteği doğrultusunda yabancı dil \ndeğiş"
+        }
+      ]
+    },
+    {
+      "id": "q22",
+      "question": "Onur kurulu ne sıklıkla toplanır?",
+      "expected_file": "meb_yonetmelik.pdf",
+      "expected_pages": [
+        100
+      ],
+      "evidence_hit_at_1": true,
+      "evidence_hit_at_3": true,
+      "evidence_hit_at_5": true,
+      "evidence_first_rank": 1,
+      "evidence_first_score": 0.8074,
+      "evidence_first_chunk": "h_e08eec72_p100_c409",
+      "evidence_chunks_in_collection": 1,
+      "evidence_reaches_llm_in_production": true,
+      "top1_correct_file": true,
+      "top1_correct_page": true,
+      "page_hit_at_3": true,
+      "page_hit_at_5": true,
+      "page_first_rank": 1,
+      "page_hit_without_evidence_in_top3": false,
+      "retrieved": [
+        {
+          "rank": 1,
+          "id": "h_e08eec72_p100_c409",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 100,
+          "score": 0.8074,
+          "is_page_hit": true,
+          "is_evidence": true,
+          "text": "Onur kurulunun görevleri \nMADDE 183- (1) Onur kurulu; \na) Ayda en az bir kez toplanır. Okulun disiplin ve düzeniyle ilgili olarak okul \nmüdürünce veya genel kurul üyelerince getirilen konuları görüşür, aldığı kararları okul \nöğrenci ödül ve disiplin kuruluna bildirmek üzere okul müdürüne sunar. \nb) "
+        },
+        {
+          "rank": 2,
+          "id": "h_e08eec72_p99_c406",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 99,
+          "score": 0.7892,
+          "is_page_hit": false,
+          "is_evidence": false,
+          "text": "ALTINCI BÖLÜM \nOnur Genel Kurulu ve Onur Kurulunun Kuruluşu ve Görevleri \n\nOnur genel kurulunun oluşturulması \nMADDE 178 - (1) Onur genel kurulu, öğrencilerin okul yönetimine katılmalarını ve \nokulun işleyişine yardımcı olmalarını sağlamak amacıyla her sınıfın bütün şubelerinden birer \nöğrenci, ders"
+        },
+        {
+          "rank": 3,
+          "id": "h_e08eec72_p100_c407",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 100,
+          "score": 0.7847,
+          "is_page_hit": true,
+          "is_evidence": false,
+          "text": "Onur kurulu \nMADDE 180- (Değişik:RG-5/9/2019-30879) \n(1) Onur genel kurulu; her sınıf seviyesinde bir öğrenciyi onur kurulu üyeliğine, onur \nkurulu üyeliğine seçilen son sınıf veya on birinci sınıf öğrencisini, onur kurulu ikinci \nbaşkanlığına, bir öğrenciyi de onur kurulu ikinci başkanlığı yedek üy"
+        },
+        {
+          "rank": 4,
+          "id": "h_e08eec72_p100_c408",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 100,
+          "score": 0.7727,
+          "is_page_hit": true,
+          "is_evidence": false,
+          "text": "Onur kurulu başkanı \nMADDE 182- (1) Onur kurulu başkanı, okul öğrenci ödül ve disiplin kurulu üyelerinin \ndışında, öğr etmenler kurulunca seçilen bir öğretmendir. Öğretmenler kurulu, okul öğrenci \nödül ve disiplin kurulu üyelerini seçerken onur kurulu başkanı ve yedek üyeyi de seçer."
+        },
+        {
+          "rank": 5,
+          "id": "h_e08eec72_p100_c410",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 100,
+          "score": 0.7653,
+          "is_page_hit": true,
+          "is_evidence": false,
+          "text": "Onur kurulu kararlarının yazılması \nMADDE 184- (1) Onur kurulunun aldığı kararlar, onur kurulu karar defterine yazılır. \n\n\nYEDİNCİ BÖLÜM \nOkul Öğrenci Ödül ve Disiplin Kurulunun Kuruluşu ve Görevleri \n\nOkul öğrenci ödül ve disiplin kurulunun kuruluşu \nMADDE 185- (1) Okul öğrenci ödül ve disiplin kur"
+        }
+      ]
+    },
+    {
+      "id": "q23",
+      "question": "Okul öğrenci ödül ve disiplin kurulu bir disiplin olayını en geç kaç gün içinde karara bağlar?",
+      "expected_file": "meb_yonetmelik.pdf",
+      "expected_pages": [
+        102
+      ],
+      "evidence_hit_at_1": false,
+      "evidence_hit_at_3": false,
+      "evidence_hit_at_5": false,
+      "evidence_first_rank": 12,
+      "evidence_first_score": 0.8116,
+      "evidence_first_chunk": "h_e08eec72_p102_c418",
+      "evidence_chunks_in_collection": 1,
+      "evidence_reaches_llm_in_production": false,
+      "top1_correct_file": true,
+      "top1_correct_page": false,
+      "page_hit_at_3": false,
+      "page_hit_at_5": true,
+      "page_first_rank": 5,
+      "page_hit_without_evidence_in_top3": false,
+      "retrieved": [
+        {
+          "rank": 1,
+          "id": "h_e08eec72_p103_c422",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 103,
+          "score": 0.8441,
+          "is_page_hit": false,
+          "is_evidence": false,
+          "text": "Müdürün karara itirazı ve ilçe öğrenci disiplin kuruluna göndermesi \nMADDE 197 - (1) Müdür, kararı uygun bulmazsa bir defa daha görüşülmek üzere \ndosyayı gerekçeleriyle birlikte kurula iade eder. Okul öğrenci ödül ve disiplin kurulu \nkararında ısrar ederse müdür görüş ve tekliflerini de ekleyerek do"
+        },
+        {
+          "rank": 2,
+          "id": "h_e08eec72_p98_c403",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 98,
+          "score": 0.8418,
+          "is_page_hit": false,
+          "is_evidence": false,
+          "text": "Tedbir kararı \nMADDE 175- (1) Müdür, disiplin olaylarında öğrenciyi bir taraftan okul öğrenci ödül \nve disiplin kuruluna sevk etmekle birlikte, gerektiğinde kurula sevkten önce veya sonra, \nkovuşturmanın tamamlanmasını ve sonucunu beklemeden acele bir tedbir olmak üzere on iş \ngününü geçmemek kaydıy"
+        },
+        {
+          "rank": 3,
+          "id": "h_e08eec72_p95_c388",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 95,
+          "score": 0.8272,
+          "is_page_hit": false,
+          "is_evidence": false,
+          "text": "(2) (Değişik:RG-1/7/2015-29403)  Staj çalışması veya meslek eğitimi görülen \nişletmelerde öğrencinin karıştığı disiplin olayları, kayıtlı bulunduğu okula bildirilir. Olay, \nokul müdürlüğünce araştırılarak/incelenerek/ soruşturularak sonuçlandırılır. \n(3) (Değişik:RG-1/9/2018-30522) Araştırma/incelem"
+        },
+        {
+          "rank": 4,
+          "id": "h_e08eec72_p96_c394",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 96,
+          "score": 0.8262,
+          "is_page_hit": false,
+          "is_evidence": false,
+          "text": "Disiplin cezaları ile ilgili onay, itiraz ve tebliğ \nMADDE 169 - (1) Onay yetkisi okul müdüründe bulunanların dışındaki disiplin \ncezalarının onaylanmasıyla itiraza ilişkin dosya ve yazılar millî eğitim müdürlükleri \naracılığıyla ilgili disiplin kurullarına gönderilir. \n(2) Okul öğrenci ödül ve disi"
+        },
+        {
+          "rank": 5,
+          "id": "h_e08eec72_p102_c419",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 102,
+          "score": 0.8256,
+          "is_page_hit": true,
+          "is_evidence": false,
+          "text": "İfadelerin alınması ve delillerin toplanması \nMADDE 193- (1) Okul öğrenci ödül ve disiplin kuruluna sevk edilen öğrencilerin ve \nolayla ilgili tanıkların, önce okul öğrenc i ödül ve disiplin kurulu başkanı tarafından yazılı \nifadeleri alınır. Olay, sınıfta veya topluluğun bulunduğu yerlerde cereyan "
+        }
+      ]
+    },
+    {
+      "id": "q24",
+      "question": "İşletmelerde mesleki eğitim gören öğrenciler haftanın kaç günü işletmede, kaç günü okulda eğitim alır?",
+      "expected_file": "meb_yonetmelik.pdf",
+      "expected_pages": [
+        79
+      ],
+      "evidence_hit_at_1": false,
+      "evidence_hit_at_3": true,
+      "evidence_hit_at_5": true,
+      "evidence_first_rank": 3,
+      "evidence_first_score": 0.8334,
+      "evidence_first_chunk": "h_e08eec72_p79_c324",
+      "evidence_chunks_in_collection": 1,
+      "evidence_reaches_llm_in_production": true,
+      "top1_correct_file": true,
+      "top1_correct_page": false,
+      "page_hit_at_3": true,
+      "page_hit_at_5": true,
+      "page_first_rank": 3,
+      "page_hit_without_evidence_in_top3": false,
+      "retrieved": [
+        {
+          "rank": 1,
+          "id": "h_e08eec72_p7_c25",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 7,
+          "score": 0.8419,
+          "is_page_hit": false,
+          "is_evidence": false,
+          "text": "(3) (Değişik:RG-28/10/2016-29871) Mesleki ve teknik ortaöğretim programlarında bir \nders saati, mesleki alan uygulamalarına ilişkin derslerin eğitiminin okul/kurumun atölye ve \nlaboratuvarlarında yapılması hâlinde 40 dakika, işletmelerde yapılması durumunda ise 60 \ndakikadır. Okulda veya işletmede y"
+        },
+        {
+          "rank": 2,
+          "id": "h_e08eec72_p80_c329",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 80,
+          "score": 0.8351,
+          "is_page_hit": false,
+          "is_evidence": false,
+          "text": "kapsamında koruma altına alınan öğrenciler sıralamaya tabi tutulmaksızın işletmelerde \nmesleki eğitime gönderilir.  \n\nİşletmelerdeki mesleki eğitimin planlanması \nMADDE 137 - (1) İşletmelerdeki mesleki eğitimin planlanması, uygulanması ve \ndeğerlendirilmesi, okul müdürü ve işletme yetkilisi tarafınd"
+        },
+        {
+          "rank": 3,
+          "id": "h_e08eec72_p79_c324",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 79,
+          "score": 0.8334,
+          "is_page_hit": true,
+          "is_evidence": true,
+          "text": "Mesleki ve teknik eğitimde süreklilik \nMADDE 134 - (1) İşletmelerdeki mesleki eğitim d ers yılı başında başlar, ders yılı \nsonunda biter. Haftada üç gün işletmede beceri eğitimi, iki gün ise okulda veya eğitim \nbiriminde teorik eğitim yapılması esastır. Ancak okulda atölye ve laboratuvar donatımı \no"
+        },
+        {
+          "rank": 4,
+          "id": "h_e08eec72_p10_c40",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 10,
+          "score": 0.8234,
+          "is_page_hit": false,
+          "is_evidence": false,
+          "text": "havanın aşırı sıcak ve soğuk olması gibi nedenlerle il veya ilçe hıfzıssıhha kurulunun kararı \nile gerekli gördüğü ve mahalli mülkî idare amirinin onayladığı durumlarda okullarda öğretime \nara verilir. Bu gibi durumlarda öğrencilerin derslerinde eksik kalan konularda yetiştirilmesi \niçin okul yöneti"
+        },
+        {
+          "rank": 5,
+          "id": "h_e08eec72_p74_c306",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 74,
+          "score": 0.8223,
+          "is_page_hit": false,
+          "is_evidence": false,
+          "text": "Ekipler \nMADDE 120 - (1) Okullarda;   okul gelişim yönetim ekibi, sivil savunma ekipleri, iş \nsağlığı ve güvenliği ekibi ve diğer ekipler ilgili mevzuatı doğrultusunda kurulur ve görevlerini \nyürütür. \n\nSEKİZİNCİ KISIM \nOkulda ve İşletmelerde Mesleki Eğitim \n\nBİRİNCİ BÖLÜM \nEğitim Uygulaması \n\nİşlet"
+        }
+      ]
+    },
+    {
+      "id": "q25",
+      "question": "Kültürlerarası öğrenci değişim programıyla yurtdışına giden öğrencinin okuldaki kaydına ne olur?",
+      "expected_file": "meb_yonetmelik.pdf",
+      "expected_pages": [
+        18
+      ],
+      "evidence_hit_at_1": true,
+      "evidence_hit_at_3": true,
+      "evidence_hit_at_5": true,
+      "evidence_first_rank": 1,
+      "evidence_first_score": 0.8509,
+      "evidence_first_chunk": "h_e08eec72_p18_c75",
+      "evidence_chunks_in_collection": 1,
+      "evidence_reaches_llm_in_production": true,
+      "top1_correct_file": true,
+      "top1_correct_page": true,
+      "page_hit_at_3": true,
+      "page_hit_at_5": true,
+      "page_first_rank": 1,
+      "page_hit_without_evidence_in_top3": false,
+      "retrieved": [
+        {
+          "rank": 1,
+          "id": "h_e08eec72_p18_c75",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 18,
+          "score": 0.8509,
+          "is_page_hit": true,
+          "is_evidence": true,
+          "text": "Değişim programı kapsamındaki öğrencilerin kayıt ve nakilleri \nMADDE 28- (1) Kültürlerarası öğrenci değişim programları çerçevesinde bir eğitim ve \nöğretim yılını geçmemek üzere, önceden durumlarını belgelendirerek yurtdışında öğrenim \ngörmek için okuldan ayrılan öğrencilerin kayıtları okullarında s"
+        },
+        {
+          "rank": 2,
+          "id": "h_e08eec72_p45_c187",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 45,
+          "score": 0.826,
+          "is_page_hit": false,
+          "is_evidence": false,
+          "text": "yazılıp imzalanarak onaylanır ve millî eğitim müdürlüğüne bildirilir.  (Değişik cümle:RG -\n1/9/2018-30522) e-Okul sistemine kayıtlı diplomalar ve e -Mesem sistemine kayıtlı belgelerle \nilgili düzeltmeler sistem üzerinden okul müdürlüğünce yapılır. \n(3) Yabancı uyruklu öğrencilerle ilgili belgeler dü"
+        },
+        {
+          "rank": 3,
+          "id": "h_e08eec72_p19_c78",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 19,
+          "score": 0.819,
+          "is_page_hit": false,
+          "is_evidence": false,
+          "text": "d) Türkiye Cumhuriyeti vatandaşlığını kazanmış olup sonradan Bakanlar Kurulundan \nTürk vatandaşlığından çıkma izni alarak yabancı bir devlet vatandaşlığını kazanan kişilerin ve \nbunların çocuklarının kayıtları yapılır. \n(2) Kayıtlarda okulların kayıt ve kabul şartları ayrıca aranır. \n(3) Bu Yönetmel"
+        },
+        {
+          "rank": 4,
+          "id": "h_e08eec72_p19_c77",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 19,
+          "score": 0.7999,
+          "is_page_hit": false,
+          "is_evidence": false,
+          "text": "Yabancı uyruklu öğrencilerin kayıtları \nMADDE 29- (1) Yabancı uyruklu öğrencilerin kayıtlarında: \na) Usulüne uygun pasaport ve öğrenim vizesi almış olmaları şartı aranır. \nb) Ülkesi belli olmayan veya sığınmacı/mülteci durumundaki yabancıların \nçocuklarından öğrenim vizesi istenmez. Bu durumda olanl"
+        },
+        {
+          "rank": 5,
+          "id": "h_e08eec72_p23_c98",
+          "source_file": "meb_yonetmelik.pdf",
+          "page": 23,
+          "score": 0.7987,
+          "is_page_hit": false,
+          "is_evidence": false,
+          "text": "bu Yönetmelikte belirtilen süre içerisinde yapılır. \n(2) (Değişik:RG-1/9/2018-30522) Ortaöğretim kayıt alanındaki okullar arasında nakil \nve geçişler, okulların açık kontenjanlarına göre; \na) Okul türlerinin her birinin kendi arasında her sınıf seviyesinde, \nb) Okul türleri arasında sınıf atlatma iş"
+        }
+      ]
+    }
+  ]
+}

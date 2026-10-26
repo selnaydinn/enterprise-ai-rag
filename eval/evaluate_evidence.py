@@ -105,8 +105,8 @@ def evaluate(db, embeddings, item, evidence, k, chunk_count) -> dict:
 def run(copy_dir: Path, questions: list, evidence: dict, k: int) -> dict:
     import chromadb
     import sentence_transformers
-    from langchain_community.embeddings import HuggingFaceEmbeddings
-    from langchain_community.vectorstores import Chroma
+    from langchain_huggingface import HuggingFaceEmbeddings
+    from langchain_chroma import Chroma
 
     embeddings = HuggingFaceEmbeddings(model_name=base.MODEL_NAME, model_kwargs={"device": "cpu"})
     db = None

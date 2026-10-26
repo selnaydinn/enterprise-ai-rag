@@ -1,8 +1,8 @@
-import os
 import logging
-from langchain_ollama import ChatOllama
+from functools import lru_cache
 from langchain_core.prompts import PromptTemplate
-from core.config import db , llm
+from core.config import get_db, get_llm
+from core.settings import get_settings
 
 logger = logging.getLogger("EnterpriseAI")
 
@@ -24,7 +24,11 @@ YAPAY ZEKA CEVABI:"""
 #Chain yapısı oluşturduk
 #StrOutputParser kullanmıyoruz; dönen AIMessage'daki usage_metadata'dan gerçek token sayısını okuyoruz
 prompt = PromptTemplate(template=prompt_template, input_variables=["single_context", "question"])
-qa_chain = prompt | llm
+
+#Zincir ilk soruda kuruluyor; LLM import anında oluşturulmasın
+@lru_cache
+def get_qa_chain():
+    return prompt | get_llm()
 
 #Gerçek token sayısı (Gemini'nin thinking token'ları dahil)
 #usage_metadata gelmezse kota 0 sayılmasın diye karakter sayısından tahmin ediyoruz
@@ -37,26 +41,26 @@ def count_tokens(llm_message, prompt_text):
 
 # VECTOR SEARCH in DB
 def search_in_db(user_query):
-    print(f"\n...Vektör veritabanında arama yapılıyor: {user_query}...")
+    #Soru metni şimdilik loglanıyor (KVKK açısından notes.md madde 21'de açık)
+    logger.info(f"Vektör veritabanında arama yapılıyor: {user_query}")
     #e5 modeli için gerekli olan 'query' ön ekini ekliyoruz
     optimized_query = f"query: {user_query}"
-    results = db.similarity_search_with_relevance_scores(optimized_query, k=3)
+    results = get_db().similarity_search_with_relevance_scores(optimized_query, k=get_settings().retrieval_k)
     return results
 
-#Optimized treshold değeri
-SCORE_THRESHOLD = 0.72 
-
-def prepare_chunks_with_metadata(user_input):  
+def prepare_chunks_with_metadata(user_input):
     context_text = ""
-    
+    #Optimized treshold değeri (core/settings.py)
+    score_threshold = get_settings().score_threshold
+
     #Gelen sorguyla DBdeki metin parçalarını eşleştirdik
     matched_chunks = search_in_db(user_input)
     valid_chunks = []
 
     for idx, (doc, score) in enumerate(matched_chunks, 1):
         #Skor kontrolü
-        if score < SCORE_THRESHOLD:
-            print(f"Parça {idx} elendi (Embedding benzerlik skoru barajın altında: {round(score, 2)})")
+        if score < score_threshold:
+            logger.debug(f"Parça {idx} elendi (benzerlik skoru barajın altında: {round(score, 2)})")
             continue
             
         #Metadatayı çektik
@@ -84,14 +88,14 @@ def prepare_chunks_with_metadata(user_input):
         }
 
     
-    print("Gemini API tetikleniyor, tüm döküman tek seferde analiz ediliyor...")
+    logger.info(f"Gemini API çağrılıyor ({len(valid_chunks)} parça tek prompt'ta).")
     
     #LLM tetiklendi
     chain_input = {
         "single_context": context_text,
         "question": user_input
     }
-    llm_message = qa_chain.invoke(chain_input)
+    llm_message = get_qa_chain().invoke(chain_input)
 
     #.text, content liste halinde gelse de düz metni verir (StrOutputParser'ın yaptığı gibi)
     final_llm_response = llm_message.text.strip()
