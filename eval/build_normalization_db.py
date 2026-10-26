@@ -19,7 +19,6 @@ import tempfile
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from types import SimpleNamespace
 
 #Model indirmeyi ve Chroma telemetrisini kütüphaneler import edilmeden önce kapatıyoruz
 os.environ["HF_HUB_OFFLINE"] = "1"
@@ -59,20 +58,9 @@ def release_chroma():
     chromadb.api.client.SharedSystemClient.clear_system_cache()
 
 
-#services.ingestion import edilirken core.config modeli, /app/chroma_db'yi ve Gemini'yi yüklüyor; sahte config ile import ediyoruz
+#core/config.py model/DB/Gemini'yi import anında yüklemiyor; DB'ye run_process_pdf'te get_db yerine verilen db kullanılıyor
 def import_ingestion():
-    missing = object()
-    saved = {name: sys.modules.get(name, missing) for name in ("core.config", "services.ingestion")}
-    sys.modules["core.config"] = SimpleNamespace(db=None)
-    sys.modules.pop("services.ingestion", None)
-    try:
-        return importlib.import_module("services.ingestion")
-    finally:
-        for name, module in saved.items():
-            if module is missing:
-                sys.modules.pop(name, None)
-            else:
-                sys.modules[name] = module
+    return importlib.import_module("services.ingestion")
 
 
 #Hiçbir şey yazmayan sahte DB: process_pdf'in add_documents'a verdiği chunk'ları ve id'leri toplar
@@ -90,21 +78,21 @@ class CaptureDB:
 
 
 def run_process_pdf(ingestion, db, pdf_paths, normalize=True):
-    #process_pdf'in emoji'li print'lerini yutuyoruz (Windows konsolu cp1252'de hata veriyor); akışın kendisi değişmiyor
+    #process_pdf artık logging kullanıyor; stdout'u yutmak yalnızca olası print'lere karşı, akışın kendisi değişmiyor
     patches = [] if normalize else [("normalize_blank_lines", lambda text: text)]
     originals = {name: getattr(ingestion, name) for name, _ in patches}
-    original_db = ingestion.db
+    original_get_db = ingestion.get_db
     try:
         for name, value in patches:
             setattr(ingestion, name, value)
-        ingestion.db = db
+        ingestion.get_db = lambda: db
         results = []
         for path in pdf_paths:
             with contextlib.redirect_stdout(io.StringIO()):
                 results.append(ingestion.process_pdf(str(path)))
         return results
     finally:
-        ingestion.db = original_db
+        ingestion.get_db = original_get_db
         for name, value in originals.items():
             setattr(ingestion, name, value)
 

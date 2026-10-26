@@ -1,7 +1,7 @@
 #Baseline retrieval değerlendirmesi (salt okunur).
 #Orijinal chroma_db/ klasörüne asla yazmaz: klasörü proje dışındaki geçici bir dizine kopyalar,
 #sadece kopyayı açar, bitince orijinalin SHA-256 parmak izlerini tekrar karşılaştırır.
-#Gemini çağrılmaz; bu yüzden core/config.py ve services/query.py import edilmez.
+#Gemini çağrılmaz; ayarlar uygulamayla aynı yerden (core/settings.py) okunur, GEMINI_API_KEY gerekmez.
 
 import argparse
 import gc
@@ -20,11 +20,17 @@ os.environ["HF_HUB_OFFLINE"] = "1"
 os.environ["TRANSFORMERS_OFFLINE"] = "1"
 os.environ["ANONYMIZED_TELEMETRY"] = "False"
 
-#Production değerlerinin kopyası (core/config.py ve services/query.py değişirse burası da güncellenmeli)
-COLLECTION_NAME = "langchain"                   #core/config.py: isim verilmediği için LangChain varsayılanı
-MODEL_NAME = "intfloat/multilingual-e5-base"    #core/config.py:20
-QUERY_PREFIX = "query: "                        #services/query.py:30
-SCORE_THRESHOLD = 0.72                          #services/query.py:35
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(PROJECT_ROOT))
+
+from core.settings import get_settings  # noqa: E402
+
+#Production değerleri uygulamayla aynı ayarlardan
+_settings = get_settings()
+COLLECTION_NAME = _settings.collection_name
+MODEL_NAME = _settings.embedding_model
+SCORE_THRESHOLD = _settings.score_threshold
+QUERY_PREFIX = "query: "                        #services/query.py search_in_db ile aynı olmalı
 
 CONSISTENCY_SAMPLE_SIZE = 5
 CONSISTENCY_MIN_COSINE = 0.999

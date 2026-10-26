@@ -2,6 +2,7 @@ import os
 import re
 import asyncio
 import logging
+from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Annotated
 from fastapi import FastAPI, UploadFile, File, HTTPException
@@ -9,19 +10,33 @@ from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, StringConstraints
 from services.ingestion import process_pdf, hash_bytes, hash_pdf, is_file_already_processed
-from core.config import db
+from core.config import get_db, get_llm
+from core.settings import get_settings
 from services.query import prepare_chunks_with_metadata
 from services.usage import get_status, record_usage
 from fastapi.staticfiles import StaticFiles
 
-app = FastAPI(title="Enterprise AI RAG")
+#Tüm ayarlar core/settings.py'den (.env)
+settings = get_settings()
+
+
+#Başlangıçta API key ve DB kontrolü; eksikse uygulama ilk soruyu beklemeden hata verip durur
+#Model ve DB burada yüklendiği için ilk soru da beklemiyor
+@asynccontextmanager
+async def lifespan(app):
+    get_llm()
+    get_db()
+    yield
+
+
+app = FastAPI(title="Enterprise AI RAG", lifespan=lifespan)
 
 #PDF'lerin kaydedileceği ana klasör yolu
-UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "uploaded_pdfs")
+UPLOAD_DIR = str(settings.upload_dir)
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 #Upload sınırları
-MAX_UPLOAD_BYTES = 20 * 1024 * 1024
+MAX_UPLOAD_BYTES = settings.max_upload_bytes
 #Harf (Türkçe dahil), rakam, boşluk ve _ - . ( ) dışındaki karakterleri kabul etmiyoruz
 SAFE_FILENAME = re.compile(r"[\w\- .()]+\.pdf", re.IGNORECASE)
 #Aynı PDF iki sekmeden aynı anda yüklenirse ikisi de duplikasyon kontrolünü geçmesin diye yüklemeleri sıraya alıyoruz
@@ -29,16 +44,21 @@ SAFE_FILENAME = re.compile(r"[\w\- .()]+\.pdf", re.IGNORECASE)
 UPLOAD_LOCK = asyncio.Lock()
 
 #Soru sınırı; frontenddeki MAX_QUESTION_LENGTH ile aynı olmalı (ChatArea.tsx)
-MAX_QUESTION_LENGTH = 500
+MAX_QUESTION_LENGTH = settings.max_question_length
 
 #Frontendin PDF'leri okuyabilmesi için statik yönlendirme
 app.mount("/static-pdfs", StaticFiles(directory=UPLOAD_DIR), name="pdfs")
 
-logging.basicConfig(level=logging.INFO)
+#Tüm modüller "EnterpriseAI" logger'ını kullanıyor; seviye .env'deki LOG_LEVEL'dan
+logging.basicConfig(
+    level=settings.log_level,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
 logger = logging.getLogger("EnterpriseAI")
 
 #Frontend adresleri .env'den okunur; tanımlı değilse localhost:3000 varsayılır
-CORS_ORIGINS = [o.strip() for o in os.getenv("CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000").split(",") if o.strip()]
+CORS_ORIGINS = settings.cors_origins
 
 #Frontend cookie kullanmıyor, credentials kapalı
 app.add_middleware(
@@ -127,7 +147,7 @@ async def upload_pdf(file: UploadFile = File(...)):
             #Embedding CPU yoğun; thread'de çalışınca diğer istekler (sorgu, liste) beklemiyor
             result = await run_in_threadpool(process_pdf, target_file_path)
 
-            logger.info("Pdf dosyası DB'ye başarıyla kaydedildi!!!")
+            logger.info(f"PDF DB'ye kaydedildi: {filename}")
             return result
 
         except Exception:
@@ -157,7 +177,7 @@ def query(request: QueryRequest):
 
         #O anki isteğin token miktarı
         current_token = response.get("token_usage", 0)
-        logger.info(f"Token usage alındı: {current_token}")
+        logger.info(f"Bu sorunun token kullanımı: {current_token}")
 
         #Gerçek tüketimi kaydediyoruz; kırpma yok, son istek sınırı biraz aşabilir
         record_usage(current_token)
@@ -166,7 +186,7 @@ def query(request: QueryRequest):
         #Frontend sayaç ve kilit için kullanımı okuyabilsin diye objeye ekliyoruz
         response["usage"] = usage
 
-        logger.info(f"AI başarıyla yanıtını döndü!!! Güncel Kümülatif Token: {usage['used']}")
+        logger.info(f"Yanıt üretildi. Güncel token kullanımı: {usage['used']}/{usage['limit']}")
         return response
 
     except Exception:

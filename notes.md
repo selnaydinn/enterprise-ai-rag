@@ -325,9 +325,9 @@ PDF yönetmelikleri üzerinde soru-cevap yapan bir RAG uygulaması:
 
 **Sıradaki: Sprint B — Config refactor ve temizlik** (kullanıcıya görünen davranış değişmez)
 - B0: `notes.md` güncellemesi ✅
-- B1: Bağımlılıklar (madde 23, önce madde 38: Python sürümü)
-- B2: Kullanılmayan kod ve deprecated importlar (madde 22, 24, 39) → ardından eval ile sonuçların aynı kaldığını doğrulama
-- B3: Config refactor (madde 18)
+- B1: Bağımlılıklar (madde 23, önce madde 38: Python sürümü) ✅
+- B2: Kullanılmayan kod ve deprecated importlar (madde 22, 24, 39) → ardından eval ile sonuçların aynı kaldığını doğrulama ✅
+- B3: Config refactor (madde 18) ✅
 - B4: Logging (madde 21)
 - B5: DB kurulum script'i (madde 40)
 - Açık kararlar: Docker Python 3.13'e mi çekilsin, config için `pydantic-settings` mi dataclass mı, B5 bu sprintte mi?

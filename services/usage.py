@@ -1,21 +1,15 @@
-import os
 import sqlite3
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
-from dotenv import load_dotenv
+from core.settings import get_settings
 
 #Token kullanımı şimdilik global (kullanıcı bazlı sınır auth ile gelecek); restart'ta kaybolmasın diye SQLite'ta tutuluyor
-load_dotenv()
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-#Göreli yol proje köküne göre çözülür (CHROMA_DIR gibi); sayaç dosyası yoksa ilk kullanımda oluşturulur
-USAGE_DB_PATH = PROJECT_ROOT / (os.getenv("USAGE_DB_PATH") or "usage.db")
-TOKEN_LIMIT = int(os.getenv("TOKEN_LIMIT") or 10000)
-WINDOW_HOURS = int(os.getenv("TOKEN_WINDOW_HOURS") or 6)
-
-#Sınır saate bağlı pencerelerle sıfırlanır (6 saatte: 00:00, 06:00, 12:00, 18:00); pencereler günü tam bölmeli
-if WINDOW_HOURS <= 0 or 24 % WINDOW_HOURS:
-    raise RuntimeError("TOKEN_WINDOW_HOURS 24'ü tam bölmeli (ör. 1, 2, 3, 4, 6, 8, 12, 24).")
+#Değerler core/settings.py'den (.env); sayaç dosyası yoksa ilk kullanımda oluşturulur
+_settings = get_settings()
+USAGE_DB_PATH = _settings.usage_db_path
+TOKEN_LIMIT = _settings.token_limit
+#Sınır saate bağlı pencerelerle sıfırlanır (6 saatte: 00:00, 06:00, 12:00, 18:00); 24'ü bölmesi Settings'te kontrol ediliyor
+WINDOW_HOURS = _settings.token_window_hours
 
 #Türkiye 2016'dan beri yıl boyu UTC+3; zoneinfo Windows'ta ek paket (tzdata) istediği için sabit ofset kullanıyoruz
 TURKEY_TZ = timezone(timedelta(hours=3))
