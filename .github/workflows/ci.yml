@@ -1,0 +1,68 @@
+# main'e açılan her PR'da backend testleri/lint ve frontend statik kontrolleri çalışır
+# (main korumalı, doğrudan push yapılmıyor; bu yüzden push tetikleyicisi yok)
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+# Aynı PR'a yeni commit gelince eski çalıştırma iptal edilir
+concurrency:
+  group: ci-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  backend-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      # Dockerfile ve yerel venv ile aynı sürüm
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: requirements*.txt
+
+      # Dockerfile'daki gibi: önce CPU torch (GPU sürümü birkaç GB), sonra geri kalanı
+      # Torch sürümü requirements.txt'deki ile aynı olmalı
+      - name: Bağımlılıkları kur
+        run: |
+          pip install torch==2.12.1 --index-url https://download.pytorch.org/whl/cpu
+          pip install -r requirements-dev.txt
+
+      # Kural seti ruff.toml'da
+      - name: Ruff
+        run: ruff check .
+
+      # .env yok: Settings varsayılanları kullanılır; Gemini, Chroma ve model testlerde sahte
+      # uploaded_pdfs/ git'te olmadığı için gerçek PDF'e bağlı testler kendini atlar (yerelde çalışır)
+      - name: Unit testler
+        run: python -m unittest discover tests -v
+
+  # Frontend için henüz test yok; tip kontrolü ve lint çalışır
+  frontend-static-test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: rag-frontend
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: rag-frontend/package-lock.json
+
+      - name: Bağımlılıkları kur
+        run: npm ci
+
+      - name: TypeScript
+        run: npx tsc --noEmit
+
+      - name: ESLint
+        run: npm run lint

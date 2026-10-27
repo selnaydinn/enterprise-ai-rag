@@ -10,6 +10,7 @@ usage.db
 *.pyc
 *.pyo
 *.pyd
+.ruff_cache/
 
 # Frontend (Alt klasör altındakileri de yakalar)
 **/node_modules/
