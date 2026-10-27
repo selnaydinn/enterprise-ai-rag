@@ -127,7 +127,8 @@ def run(copy_dir: Path, questions: list, evidence: dict, k: int) -> dict:
         chromadb.api.client.SharedSystemClient.clear_system_cache()
 
     n = len(per_question)
-    count = lambda key: sum(bool(r[key]) for r in per_question)
+    def count(key):
+        return sum(bool(r[key]) for r in per_question)
     ranks = [r["evidence_first_rank"] for r in per_question]
     return {
         "meta": {

@@ -101,8 +101,8 @@ GUNCEL: 18, 38,23,39,21 yapıldı.
 GUNCEL: API yanıtları pydantic şemasına çevrildi
         Frontendde şemalar bir araya getirildi
         Eslint çalıştırılıp frontend kontrolü yapıldı.
-        pdf silme endpointi getirildi
-        Frontendde uygulama hata ve mesajları için alert oluşturuldu
+        pdf silme endpointi getirildi.
+        Frontendde uygulama hata ve mesajları için alert oluşturuldu.
 ---
 
 ## 1. Genel Bakış

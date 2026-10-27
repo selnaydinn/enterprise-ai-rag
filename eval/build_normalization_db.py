@@ -155,7 +155,8 @@ def boundary_stats(page_texts: dict, captured: CaptureDB) -> dict:
 
 def chunk_stats(captured: CaptureDB, page_texts: dict) -> dict:
     lengths = sorted(len(d) for d in captured.documents)
-    pct = lambda p: lengths[min(len(lengths) - 1, int(p * len(lengths)))]
+    def pct(p):
+        return lengths[min(len(lengths) - 1, int(p * len(lengths)))]
     by_file = {}
     for meta in captured.metadatas:
         by_file[meta["source_file"]] = by_file.get(meta["source_file"], 0) + 1

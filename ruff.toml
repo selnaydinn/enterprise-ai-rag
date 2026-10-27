@@ -1,0 +1,6 @@
+# Python linter ayarları (CI'da ve yerelde: ruff check .)
+# Kural seti açıkça sabit: ruff güncellenip varsayılanları değişse de CI etkilenmesin
+# E4/E7/E9: söz dizimi ve temel hatalar · F: tanımsız isimler, kullanılmayan importlar
+# Stil kuralları (import sıralaması vb.) bilerek dahil değil; gerekirse tek tek eklenir
+[lint]
+select = ["E4", "E7", "E9", "F"]
