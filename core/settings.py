@@ -30,6 +30,8 @@ class Settings(BaseSettings):
     llm_model: str = "gemini-2.5-flash"
     llm_temperature: float = 0.2
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
+    #Kimlik doğrulama yokken herkes silebileceği için varsayılan kapalı; açmak bilinçli bir karar olmalı
+    allow_delete: bool = False
 
     #Kodda sabit tutulanlar (.env.example'da yok)
     #Değişirse DB yeniden kurulmalı

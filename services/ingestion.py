@@ -29,15 +29,24 @@ def is_file_already_processed(file_hash):
     existing_docs = get_db().get(where={"pdf_hash": file_hash}, limit=1)
     return len(existing_docs["ids"]) > 0
 
+#Bir dokümanın tüm chunk'larını DB'den siler, silinen chunk sayısını döner
+#source_file ile arıyoruz: aynı adla farklı içerik yüklenemediği için (409) ad tek bir PDF'i gösteriyor
+def delete_document_chunks(pdf_name):
+    db = get_db()
+    ids = db.get(where={"source_file": pdf_name}, include=["metadatas"])["ids"]
+    if ids:
+        db.delete(ids=ids)
+    return len(ids)
+
 #PDF HASH, CHUNKING AND  VEKTORIZATION
 def process_pdf(pdf_path):
 
     # Dosya adını loglar için yoldan ayıklıyoruz
     pdf_name = os.path.basename(pdf_path)
 
+    #Hata sessiz bir sözlük olarak değil exception olarak dönüyor; main.py dosyayı temizleyip 500 veriyor
     if not os.path.exists(pdf_path):
-        logger.error(f"Dosya bulunamadı: {pdf_path}")
-        return {"status": "Hata", "message": "Dosya sistemde bulunamadı."}
+        raise FileNotFoundError(f"Dosya bulunamadı: {pdf_path}")
 
     #Hashing
     #Duplikasyon kontrolü burada değil, main.py'de diske yazmadan önce (UPLOAD_LOCK içinde) yapılıyor
@@ -99,8 +108,9 @@ def process_pdf(pdf_path):
 
     logger.info(f"{pdf_name} vektörize edildi.")
 
+    #Alan adları schemas.py UploadResponse ile aynı
     return {
-        "status": "Success",
+        "filename": pdf_name,
         "total_pages": len(pages),
         "total_chunks": len(chunks),
         "message": f"{pdf_name} başarıyla vektörize edildi."

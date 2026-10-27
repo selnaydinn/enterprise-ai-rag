@@ -1,13 +1,7 @@
+import type { DeleteResponse, DocumentItem, FeaturesResponse, QueryResponse, UploadResponse, UsageStatus } from "@/types/api";
+
 //Backend adresi .env.local'daki NEXT_PUBLIC_API_URL'den gelir (build sırasında koda gömülür)
 export const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
-
-//Backenddeki token kullanım durumu (services/usage.py get_status)
-export interface Usage {
-  used: number;
-  limit: number;
-  resets_at: string;
-  limited: boolean;
-}
 
 //Token sınırı dolunca (429) fırlatılır; sayfa bunu görünce kullanımı yeniden çekip input'u kilitler
 export class TokenLimitError extends Error {}
@@ -15,7 +9,7 @@ export class TokenLimitError extends Error {}
 export const apiService = {
 
   //Var olan dökümanları backendten çekiyoruz
-  async getExistingDocuments(): Promise<Array<{ name: string }>> {
+  async getExistingDocuments(): Promise<DocumentItem[]> {
     const response = await fetch(`${BACKEND_URL}/documents/`);
 
     if (!response.ok) {
@@ -25,7 +19,7 @@ export const apiService = {
   },
 
   //Token sayacı ve kilit durumu için kullanımı backendten çekiyoruz
-  async getUsage(): Promise<Usage> {
+  async getUsage(): Promise<UsageStatus> {
     const response = await fetch(`${BACKEND_URL}/usage/`);
 
     if (!response.ok) {
@@ -34,8 +28,32 @@ export const apiService = {
     return response.json();
   },
 
+  //Silme butonu gösterilsin mi (backend .env ALLOW_DELETE)
+  async getFeatures(): Promise<FeaturesResponse> {
+    const response = await fetch(`${BACKEND_URL}/features/`);
+
+    if (!response.ok) {
+      throw new Error("Özellik bilgisi alınırken backend hatası oluştu.");
+    }
+    return response.json();
+  },
+
+  //Dokümanı ve DB'deki parçalarını siliyoruz
+  async deleteDocument(name: string): Promise<DeleteResponse> {
+    const response = await fetch(`${BACKEND_URL}/documents/${encodeURIComponent(name)}`, {
+      method: "DELETE",
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      const detail = typeof errorData.detail === "string" ? errorData.detail : null;
+      throw new Error(detail || `Sunucu hatası: ${response.status}`);
+    }
+    return response.json();
+  },
+
   //PDF yüklendiği zaman backende istek atıyoruz
-  uploadPdf: async (file: File) => {
+  uploadPdf: async (file: File): Promise<UploadResponse> => {
     const formData = new FormData();
     
     formData.append("file", file);
@@ -54,7 +72,7 @@ export const apiService = {
   },
 
   //Kullanıcı soru sorduğunda backende istek atıyoruz
-  askQuestion: async (question: string) => {
+  askQuestion: async (question: string): Promise<QueryResponse> => {
     const response = await fetch(`${BACKEND_URL}/query/`, {
       method: "POST",
       headers: {

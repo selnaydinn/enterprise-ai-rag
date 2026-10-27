@@ -9,9 +9,10 @@ from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, StringConstraints
-from services.ingestion import process_pdf, hash_bytes, hash_pdf, is_file_already_processed
+from services.ingestion import process_pdf, hash_bytes, hash_pdf, is_file_already_processed, delete_document_chunks
 from core.config import get_db, get_llm
 from core.settings import get_settings
+from schemas import DeleteResponse, DocumentItem, FeaturesResponse, QueryResponse, UploadResponse, UsageStatus
 from services.query import prepare_chunks_with_metadata
 from services.usage import get_status, record_usage
 from fastapi.staticfiles import StaticFiles
@@ -40,6 +41,7 @@ MAX_UPLOAD_BYTES = settings.max_upload_bytes
 #Harf (Türkçe dahil), rakam, boşluk ve _ - . ( ) dışındaki karakterleri kabul etmiyoruz
 SAFE_FILENAME = re.compile(r"[\w\- .()]+\.pdf", re.IGNORECASE)
 #Aynı PDF iki sekmeden aynı anda yüklenirse ikisi de duplikasyon kontrolünü geçmesin diye yüklemeleri sıraya alıyoruz
+#Silme de aynı kilidi kullanıyor: yarım kalmış bir upload'ın chunk'ları silinen dosyadan sonra DB'ye eklenmesin
 #Sorgular bu kilidi beklemiyor
 UPLOAD_LOCK = asyncio.Lock()
 
@@ -65,7 +67,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=CORS_ORIGINS,
     allow_credentials=False,
-    allow_methods=["GET", "POST"],
+    allow_methods=["GET", "POST", "DELETE"],
     allow_headers=["Content-Type"],
 )
 
@@ -78,7 +80,7 @@ class QueryRequest(BaseModel):
 def read_root():
     return {"status": "Enterprise AI projesi ayakta."}
 
-@app.get("/documents/")
+@app.get("/documents/", response_model=list[DocumentItem])
 def list_documents():
     try:
         # Klasördeki tüm dosyaları listele ve sadece .pdf olanları seç
@@ -93,9 +95,14 @@ def list_documents():
         raise HTTPException(status_code=500, detail="Doküman listesi alınırken bir hata oluştu.")
 
 #Frontend sayfa açılışında token sayacını ve kilit durumunu buradan okur
-@app.get("/usage/")
+@app.get("/usage/", response_model=UsageStatus)
 def read_usage():
     return get_status()
+
+#Frontend silme butonunu göstermek için buraya bakar (.env ALLOW_DELETE)
+@app.get("/features/", response_model=FeaturesResponse)
+def read_features():
+    return FeaturesResponse(allow_delete=settings.allow_delete)
 
 
 #Dosya adındaki klasör kısmını atıyoruz (path traversal: "../x.pdf", "..\x.pdf"); güvenli değilse None
@@ -106,7 +113,7 @@ def clean_filename(filename):
         return None
     return name[:-4] + ".pdf"
 
-@app.post("/upload-pdf/")
+@app.post("/upload-pdf/", response_model=UploadResponse)
 async def upload_pdf(file: UploadFile = File(...)):
     filename = clean_filename(file.filename)
     if filename is None:
@@ -147,8 +154,10 @@ async def upload_pdf(file: UploadFile = File(...)):
             #Embedding CPU yoğun; thread'de çalışınca diğer istekler (sorgu, liste) beklemiyor
             result = await run_in_threadpool(process_pdf, target_file_path)
 
+            #Model try içinde kuruluyor: biçim bozuksa da aynı temizlik ve genel 500 mesajı devreye girer
+            response = UploadResponse(**result)
             logger.info(f"PDF DB'ye kaydedildi: {filename}")
-            return result
+            return response
 
         except Exception:
             #İşlem yarıda kaldıysa dosyayı diskte bırakmıyoruz; yoksa /documents/ listesinde hayalet doküman görünür
@@ -158,8 +167,38 @@ async def upload_pdf(file: UploadFile = File(...)):
             raise HTTPException(status_code=500, detail="Dosya işlenirken beklenmeyen bir hata oluştu.")
 
 
+@app.delete("/documents/{name}", response_model=DeleteResponse)
+async def delete_document(name: str):
+    #Kimlik doğrulama yokken herkes silebileceği için .env'de ALLOW_DELETE=true yapılmadıkça kapalı
+    if not settings.allow_delete:
+        raise HTTPException(status_code=403, detail="Doküman silme kapalı.")
+
+    #Upload'daki ad kuralları; temizlenmiş ad istenen adla aynı değilse (ör. "..\\x.pdf") reddediyoruz
+    filename = clean_filename(name)
+    if filename is None or filename != name:
+        raise HTTPException(status_code=400, detail="Geçersiz dosya adı.")
+
+    async with UPLOAD_LOCK:
+        target_file_path = os.path.join(UPLOAD_DIR, filename)
+        file_exists = os.path.exists(target_file_path)
+        try:
+            #Önce chunk'lar, sonra dosya: DB silme başarısız olursa dosya yerinde kalır, sistem tutarlı kalır
+            deleted_chunks = await run_in_threadpool(delete_document_chunks, filename)
+            if file_exists:
+                os.remove(target_file_path)
+        except Exception:
+            logger.exception("Silme hatası")
+            raise HTTPException(status_code=500, detail="Doküman silinirken beklenmeyen bir hata oluştu.")
+
+    if deleted_chunks == 0 and not file_exists:
+        raise HTTPException(status_code=404, detail=f"{filename} bulunamadı.")
+
+    logger.info(f"Doküman silindi: {filename} ({deleted_chunks} parça)")
+    return DeleteResponse(name=filename, deleted_chunks=deleted_chunks)
+
+
 #async değil: FastAPI def endpoint'leri thread'de çalıştırıyor, Gemini çağrısı sürerken diğer istekler donmuyor
-@app.post("/query/")
+@app.post("/query/", response_model=QueryResponse)
 def query(request: QueryRequest):
     #Token sınırı aşım kontrolü; istek hatalı değil, kota dolu olduğu için 429
     #Sınır saate bağlı pencerelerle (Türkiye saati) sıfırlanıyor, kullanıcıya sıfırlanma saatini gösteriyoruz
@@ -183,11 +222,12 @@ def query(request: QueryRequest):
         record_usage(current_token)
         usage = get_status()
 
-        #Frontend sayaç ve kilit için kullanımı okuyabilsin diye objeye ekliyoruz
-        response["usage"] = usage
+        #Frontend sayaç ve kilit için kullanımı da yanıta ekliyoruz
+        #Model try içinde kuruluyor: biçim bozuksa genel 500 mesajı döner; modelde olmayan alanlar yanıta girmez
+        result = QueryResponse(**response, usage=usage)
 
         logger.info(f"Yanıt üretildi. Güncel token kullanımı: {usage['used']}/{usage['limit']}")
-        return response
+        return result
 
     except Exception:
         logger.exception("Query hatası")
