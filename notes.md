@@ -45,7 +45,7 @@
 | 26 | API tasarımı. Soru uzunluk sınırı, düz `usage` objesi; response modelleri, silme endpoint'i yok | ✅ |
 | 27 | Prompt / LLM katmanı | ❌ | 
 | 28 | Tekrarlanan frontend tipleri | ✅ | 
-| 29 | `catch (error: any)` | ❌ | 
+| 29 | `catch (error: any)` | ✅ | 
 | 30 | Sahte upload progress bar | ❌ | 
 | 31 | Kaynakta sayfaya atlama | ❌ | 
 | 32 | Markdown render | ❌ | |
@@ -62,12 +62,12 @@
 
 ## İlerleme Notları (GUNCEL)
 
-GUNCEL: Madde 11 ve 14 yapıldı.
+GUNCEL1: Madde 11 ve 14 yapıldı.
         Madde 11 incelendi, passage ön eki anlamlı bir retriaval kalitesi sağlamadı.
         Madde 14 teki 10 soruluk golden st 25 soruya çıkartıldı.  (tamamı meb_yonetmelik.pdf)(negatif soru yok)
         Chunking kalitesini iyileştirmek için pdflere boşluk karakteri eklendi. Bu işlem Normalization olarak adlandırıldı. Db bu işlemle tekrar oluşturuldu. Hit@3 23/25'ten 24/25'e çıktı. Buna karşılık evidence MRR 0.787'den 0.766'ya, evidence@1 de 17'den 16'ya hafifçe düştü. 
 
-GUNCEL: 1,2,3,7,15 ve 17. maddeler yapıldı. 
+GUNCEL2: 1,2,3,7,15 ve 17. maddeler yapıldı. 
         Artık path traversal önlemek için pdf ismi geçerli olanları alıyoruz.
         Farklı adla aynı pdf yüklerse 409(conflict) veriyor. 
         Aynı adla farklı pdf yüklerse yine 409 veriyor. 
@@ -76,7 +76,7 @@ GUNCEL: 1,2,3,7,15 ve 17. maddeler yapıldı.
         Frontend artık `status`'a bakmadan dokümanı listeye eklemiyor.
         `<input type="file">`'ın değeri her yükleme sonrasında sıfırlanıyor. Hatalı yükleme olsa bile.
 
-GUNCEL: Madde 5,6 ve 16 yapıldı.
+GUNCEL3: Madde 5,6 ve 16 yapıldı.
         Madde 5 CORS ayarları güncellendi.
         Madde 6 `HTTPException(detail=str(e)) silindi. Mesajlar istemciye sızmıyor.
         Input alanında shift+enter ve alt satıra doğru genişleme aktif.
@@ -84,25 +84,29 @@ GUNCEL: Madde 5,6 ve 16 yapıldı.
         Madde 16, artık soru yanıtlanırken başka soru sorulamıyor.
 
 
-GUNCEL: Madde 8,9,10 ve 19 yapıldı.
+GUNCEL4: Madde 8,9,10 ve 19 yapıldı.
         Token limiti artık 6 saatlik aralıklarla sıfırlanıyor.
         Token sayımı tahminş değil gerçek usage ile yapılıyor.
         Yeni bir /usage endpointi var. Uygulamanın başında ve her token kullanımında + sıfırlanmada çalıştırılıyor.
         API'ın donmaması için dosya yüklemesi ayrı bir threadde yapılıyor. Dosya yüklenirken baska bir dosya yüklenemiyor.
         Sabit yollar artık ortam değişkeninden okunuyor.
 
-GUNCEL: 18, 38,23,39,21 yapıldı.
+GUNCEL5: 18, 38,23,39,21 yapıldı.
         Sürüm farkları ve gereksiz importlar gitti.
-        Bütün ayarlar core/settings dosyasında toplandı. Confic dosyasındaki model çağrıları get methodlarına dönüştürükdü. Böylece import sırasında çalıştırılmayacaklar.
+        Bütün ayarlar core/settings dosyasında toplandı. Config dosyasındaki model çağrıları get methodlarına dönüştürüldü. Böylece import sırasında çalıştırılmayacaklar.
         Embedding modeli, llm modeli ve db lifespan ile sadece uygulama başlarken 1 kere çağırılıyor.
         Printler temizlendi.
         Loglar düzenlenip tarih damgası kondu.
 
-GUNCEL: API yanıtları pydantic şemasına çevrildi
+GUNCEL6: 29, 26, 28, 24
+        API yanıtları pydantic şemasına çevrildi
         Frontendde şemalar bir araya getirildi
         Eslint çalıştırılıp frontend kontrolü yapıldı.
         pdf silme endpointi getirildi.
         Frontendde uygulama hata ve mesajları için alert oluşturuldu.
+        CI pipelineı kuruldu. Ruff + pytest + eslint çalışıyor.
+        Yeni testler eklendi(test_guards). Bu testler testler sırasında gerçek ChromaDB, Gemini API veya embedding modeli kullanılmadığını onaylar. Sadece localhosta bağlanılmasını onaylar.
+        Readme güncellendi.
 ---
 
 ## 1. Genel Bakış
