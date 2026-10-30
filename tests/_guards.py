@@ -3,6 +3,7 @@ import socket
 from langchain_chroma import Chroma
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_huggingface import HuggingFaceEmbeddings
+from sentence_transformers import CrossEncoder
 
 #Testler Gemini'ye, gerçek Chroma DB'ye, embedding modeline ve ağa dokunmamalı (CI'da .env, DB ve model yok)
 #Bunlardan biri yanlışlıkla kullanılırsa test açık bir hatayla patlar; tests/__init__.py tüm testlerden önce kuruyor
@@ -35,6 +36,8 @@ def install():
         "Chroma bağlantısı", "get_db'yi mock'layın (bkz. tests/test_upload.py).")
     HuggingFaceEmbeddings.__init__ = _blocked_init(
         "embedding modeli", "get_db / get_embeddings'i mock'layın.")
+    CrossEncoder.__init__ = _blocked_init(
+        "reranker modeli", "get_reranker'ı mock'layın (bkz. tests/test_query.py).")
 
     real_connect = socket.socket.connect
     real_connect_ex = socket.socket.connect_ex

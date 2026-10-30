@@ -4,6 +4,7 @@ import unittest
 from langchain_chroma import Chroma
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_huggingface import HuggingFaceEmbeddings
+from sentence_transformers import CrossEncoder
 
 from core import config
 from tests._guards import RealServiceUsedInTest
@@ -15,7 +16,8 @@ class GuardTests(unittest.TestCase):
     def test_real_service_objects_cannot_be_created(self):
         for create in (lambda: ChatGoogleGenerativeAI(model="x", google_api_key="x"),
                        lambda: Chroma(persist_directory="yok"),
-                       lambda: HuggingFaceEmbeddings(model_name="x")):
+                       lambda: HuggingFaceEmbeddings(model_name="x"),
+                       lambda: CrossEncoder("x")):
             with self.subTest(create=create), self.assertRaises(RealServiceUsedInTest):
                 create()
 
@@ -33,6 +35,12 @@ class GuardTests(unittest.TestCase):
         self.addCleanup(config.get_embeddings.cache_clear)
         with self.assertRaises(RealServiceUsedInTest):
             config.get_embeddings()
+
+    def test_reranker_factory_cannot_create_real_model(self):
+        config.get_reranker.cache_clear()
+        self.addCleanup(config.get_reranker.cache_clear)
+        with self.assertRaises(RealServiceUsedInTest):
+            config.get_reranker()
 
     def test_external_network_is_blocked(self):
         #203.0.113.0/24 belgeleme için ayrılmış adres; koruma bağlantıdan önce durduruyor

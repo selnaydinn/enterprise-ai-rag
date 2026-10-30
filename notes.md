@@ -29,8 +29,8 @@
 | 10 | Event loop bloklanması Threadpool + upload kilidi; arka plan görevi yok | ✅ | 
 | 11 | E5 ön ekleri denendi, kaliteyi artırmadı, uygulanmadı  | ✅ |
 | 12 | Skor barajı kalibrasyonu | ❌ | 
-| 13 | Retrieval kalitesi. Normalization yapıldı; `k`, reranker, madde bazlı chunking yok | ◐ |
-| 14 | Golden set 25 soru hepsi `meb_yonetmelik.pdf`, negatif soru yok | ◐ | 
+| 13 | Retrieval kalitesi. Normalization ve reranker (10 aday → ilk 3) yapıldı; madde bazlı chunking, hibrit arama yok | ◐ |
+| 14 | Golden set 25 soru hepsi `meb_yonetmelik.pdf`, negatif soru yok | ✅ | 
 | 15 | Tekrar yüklenen dosya listede | ✅ | 
 | 16 | Çift gönderim koruması | ✅ |
 | 17 | Aynı dosya tekrar seçilince upload | ✅ | 
@@ -57,6 +57,8 @@
 | 38 | Python sürüm farkı | ✅ | 
 | 39 | `process_pdf`'teki gereksiz kontrol | ✅ |
 | 40 | DB kurulum script'i | ❌ | 
+| 41 | HNSW indeksi her açılışta yeniden kuruluyor, arama ara sıra en yakın parçayı kaçırıyor | ❌ | 
+| 42 | Docker'da model önbelleği için volume (e5 + reranker) | ✅ | 
 
 ---
 
@@ -107,6 +109,16 @@ GUNCEL6: 29, 26, 28, 24
         CI pipelineı kuruldu. Ruff + pytest + eslint çalışıyor.
         Yeni testler eklendi(test_guards). Bu testler testler sırasında gerçek ChromaDB, Gemini API veya embedding modeli kullanılmadığını onaylar. Sadece localhosta bağlanılmasını onaylar.
         Readme güncellendi.
+
+GUNCEL7: Golden set 56 soruya çıkarıldı.(meb->25,isg->10,kan->11,acil->10)
+         Golden set testleri güncellendi.
+         Negatif sorular üretildi. 10 tane. (burada yapılan denemeler daha sonra tresholdun(0.72) değerini belirleyecek)
+         Negatif soru testleri oluşturuldu.
+         Yeni golden set üzerinden baseline hesaplandı. Hit@3 = 51/56
+         Reranker mekanizması test edildi. (2 farklı rerank modeli çalıştırıldı, büyük olan çok uzun sürdüğü için küçük modelle devam edildi)
+         Reranker mekanizması anlamlı bir iyileşme sağladı. Hit@3 = 55/56 (reranker için verilen değer sayısı 10a sabitlendi --> 20 çok uzattı)
+         Reranker mekanizması productiona entegre edildi
+         Reranker modeli ve embedding modeli dockera named volume ile yüklendi. yüklendikten sonra offline yapıldı yani artık intarnete bağlanmıyor.
 ---
 
 ## 1. Genel Bakış
@@ -280,6 +292,17 @@ PDF yönetmelikleri üzerinde soru-cevap yapan bir RAG uygulaması:
 
 40. **Chroma DB'yi sıfırdan kuran bir script yok**
     Uygulama artık DB yoksa başlamıyor (`CHROMA_DIR` kontrolü, boş DB açılmıyor). `chroma_db_normalization/` gitignore ve dockerignore'da olduğu için yeni bir makinede DB klasörü elle kopyalanmalı. `uploaded_pdfs/` içindeki PDF'lerden DB'yi bilinçli olarak kuran ayrı bir kurulum script'i yazılmalı; uygulama kendi kendine DB oluşturmamalı.
+
+41. **HNSW indeksi her açılışta yeniden kuruluyor; arama ara sıra gerçek en yakın parçayı kaçırıyor** — `chroma_db_normalization/`, `services/query.py` `search_in_db`
+    - Diskteki indeks dosyasında (`data_level0.bin`) 638 parçanın yalnızca 100'ü kayıtlı; kalan 538 parça DB her açıldığında Chroma'nın günlüğünden indekse yeniden ekleniyor ve indeks yapısı her açılışta biraz farklı oluyor.
+    - Yaklaşık arama (`ef_search=100`) bazı açılışlarda gerçek ilk sonuçlardan birini döndürmüyor. Ölçüm: 4 ayrı açılış × 56 soruda 1 kaçırma; q21'de gerçekte 3. sıradaki parça (`h_f6958101_p3_c25`, kanıt değil) ilk 10'a girmedi. Tam sıralama her açılışta aynı.
+    - Etkisi: aynı soru uygulama yeniden başlatılınca farklı parçalarla cevaplanabilir; doküman sayısı arttıkça risk artar, reranker kapalıyken (k=3) daha büyük. `eval/evaluate_evidence.py` bu durumda "full ranking does not match evaluate_question top 10" hatasıyla sonuç kaydetmeden duruyor (kontrol doğru çalışıyor, gevşetilmemeli).
+    - Öneri: koleksiyonun `ef_search` değerini parça sayısının üstüne çekmek (ör. 1000; 638 parçada pratikte tam arama, ek maliyet milisaniye düzeyinde, DB yeniden kurulmaz) veya indeksin tamamının diske yazılmasını sağlamak (`sync_threshold`/`batch_size`, DB yeniden kurulabilir). Sonrasında çok sayıda açılışla tekrar ölçülmeli.
+
+42. **Modeller Docker'a verilmiyor; konteyner her yeniden oluşturulduğunda internetten indiriliyor** — `Dockerfile`, `docker-compose.yml`
+    - Image'da model yok, compose'da HF önbelleği için volume yok. Açılışta e5 (~1.1 GB) ve reranker (~470 MB, `cross-encoder/mmarco-mMiniLMv2-L12-H384-v1`) konteyner içine (`/root/.cache/huggingface`) indiriliyor; yeniden başlatmada kalıyor, `docker compose up --build` / `down` + `up` sonrası tekrar iniyor. İnternet yoksa uygulama açılmıyor.
+    - Öneri: compose'a named volume (`hf_cache:/root/.cache/huggingface`); model bir kez iner, yeniden build'lerde korunur. İnternetsiz/sabit sürüm gerekirse modeller Dockerfile'da `COPY . .`'dan önce bir `RUN` adımıyla image'a gömülebilir (image ~1.6 GB büyür); madde 25'teki dev/prod ayrımıyla birlikte düşünülmeli.
+    - Aynı adımda kontrol edilmeli: konteynerde 3 GB RAM sınırı (e5 + reranker + torch sınıra yaklaşabilir, aşılırsa OOM) ve 2 CPU sınırı (rerank süresi yerelde ölçülen ~2.1 sn'den uzun olur). Önce yerelde iki model yüklüyken RAM ölçülmeli; doğrulama: log'da iki modelin yüklendiği, `docker stats`, konteyner yeniden oluşturulunca modelin tekrar inmediği.
 ---
 
 ## 3. Test, Kalite ve Süreç

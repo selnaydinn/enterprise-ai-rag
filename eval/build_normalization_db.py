@@ -28,7 +28,7 @@ os.environ["ANONYMIZED_TELEMETRY"] = "False"
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from evaluate_retrieval import COLLECTION_NAME, MODEL_NAME, cosine, fingerprint  # noqa: E402
+from common import COLLECTION_NAME, MODEL_NAME, cosine, fingerprint, remove_temp_dir  # noqa: E402
 
 CONSISTENCY_SAMPLE_SIZE = 5
 
@@ -276,7 +276,7 @@ def main():
                 client = None
                 release_chroma()
         finally:
-            shutil.rmtree(verify_root, ignore_errors=True)
+            remove_temp_dir(verify_root)
         log("4/4 doğrulama", str({k: v for k, v in verification.items() if "configuration" not in k}))
         problems = [k for k in ("ids_match", "documents_match", "page_and_source_match", "hnsw_match_reference") if not verification[k]]
         if verification["count"] != len(planned.ids) or verification["searchable"] != len(planned.ids):
@@ -307,7 +307,7 @@ def main():
         error = exc
     finally:
         if temp_root is not None:
-            shutil.rmtree(temp_root, ignore_errors=True)
+            remove_temp_dir(temp_root)
         ref_unchanged = fingerprint(reference) == before_ref
         also_unchanged = before_also is None or fingerprint(also) == before_also
         log("son", f"{reference.name} değişmedi: {ref_unchanged} | {also.name} değişmedi: {also_unchanged}")

@@ -10,7 +10,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 GOLDEN_PATH = PROJECT_ROOT / "eval" / "golden_set.jsonl"
 PDF_DIR = PROJECT_ROOT / "uploaded_pdfs"
 
-EXPECTED_COUNT = 25
+EXPECTED_COUNT = 56
 FIELDS = {"id": str, "topic": str, "question": str, "file": str, "pages": list, "article": str, "note": str}
 
 
@@ -47,6 +47,40 @@ EVIDENCE = {
     "q23": "en geç on iş günü içinde karara bağlar",
     "q24": "Haftada üç gün işletmede beceri eğitimi",
     "q25": "kayıtları okullarında saklı tutulur",
+    #AcilSaglikHizmetleri.pdf
+    "q26": "ücretsiz aranabilen 112 numaralı telefon",
+    "q27": "bütün ses kayıtları üç ay süre ile saklanır",
+    "q28": "hedef nüfusun azami elli bin kişi olması",
+    "q29": "Ekip içerisinde hekim bulunanlar (A1) tipi istasyon",
+    "q30": "Değerlendirme yetkisi çağrıyı alan tabibe aittir",
+    "q31": "Merkeze periyodik şekilde, aylık olarak gerekli bildirimi",
+    "q32": "Sosyal güvencesi olmayıp ödeme gücü olmayanlardan ücret talep edilmez",
+    "q33": "günün belirlenen saatlerinde sadece ambulans hizmeti verilen",
+    "q34": "olay yerine ilk ulaşan ambulans ekibinin görevli hekimi",
+    "q35": "en az üç oda, eğitim salonu",
+    #isg.pdf
+    "q36": "en az 15 yıl süreyle çalışanların kişisel sağlık dosyalarını",
+    "q37": "onaylayarak bir ay içerisinde gönderir",
+    "q38": "12 metrekareden az olmamak üzere bir ilkyardım",
+    "q39": "en az 10 metrekarelik bir muayene odası",
+    "q40": "kuruldukları il ve sınır komşusu illerde",
+    "q41": "beş yılda bir vize ettirilmesi zorunludur",
+    "q42": "toplam yedi üyeden oluşan komisyonu",
+    "q43": "çalışanlara mali yük getirmeyecek şekilde sunulur",
+    "q44": "Genel Müdürlükçe en geç on iş günü içinde incelenir",
+    "q45": "30 gün içinde yetki belgelerinin asıllarını",
+    #KanMerkezleriYonetmelik.pdf
+    "q46": "Bağışçıların temel test sonuçları elektronik ortamda 30 yıl saklanır",
+    "q47": "toplam sekiz kişiden oluşur. Üyeler iki yıllığına seçilir",
+    "q48": "yılda en az dört defa olağan toplantı yapar",
+    "q49": "en az 3 yıl çalışmış olmak şartı aranır",
+    "q50": "Bağışçıya uygulanacak temel laboratuvar testleri",
+    "q51": "Envanter kayıtları tutulur ve en az 10 yıl",
+    "q52": "ruhsatlarını 5 yılda bir yenilemek zorundadır",
+    "q53": "yılda en az iki kez Bakanlık tarafından denetlenir",
+    "q54": "için en fazla bir yıl, diğer birimler için en fazla üç ay",
+    "q55": "il sağlık müdürlüğünce 7 gün içerisinde değerlendirilir",
+    "q56": "Vücut Ağırlığı ≥50 kg",  #EK-5 tablosu
 }
 
 #Cevap ifadesinin "pages" dışında da geçtiği ama bilerek doğru kabul edilmeyen sayfalar (çeldirici)
@@ -70,11 +104,11 @@ def squash(text: str) -> str:
     return re.sub(r"\s+", "", text)
 
 
-#eval script'i import edilirken ortam değişkenlerini (HF offline vb.) değiştiriyor; testi etkilemesin diye geri alıyoruz
+#eval/common.py import edilirken ortam değişkenlerini (HF offline vb.) değiştiriyor; testi etkilemesin diye geri alıyoruz
 def load_eval_module():
     saved = dict(os.environ)
     try:
-        spec = importlib.util.spec_from_file_location("evaluate_retrieval", PROJECT_ROOT / "eval" / "evaluate_retrieval.py")
+        spec = importlib.util.spec_from_file_location("eval_common", PROJECT_ROOT / "eval" / "common.py")
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
         return module

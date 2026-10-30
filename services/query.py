@@ -1,7 +1,7 @@
 import logging
 from functools import lru_cache
 from langchain_core.prompts import PromptTemplate
-from core.config import get_db, get_llm
+from core.config import get_db, get_llm, get_reranker
 from core.settings import get_settings
 
 logger = logging.getLogger("EnterpriseAI")
@@ -45,8 +45,26 @@ def search_in_db(user_query):
     logger.info(f"Vektör veritabanında arama yapılıyor: {user_query}")
     #e5 modeli için gerekli olan 'query' ön ekini ekliyoruz
     optimized_query = f"query: {user_query}"
-    results = get_db().similarity_search_with_relevance_scores(optimized_query, k=get_settings().retrieval_k)
+    settings = get_settings()
+    #Reranker açıksa yeniden sıralanmak üzere daha fazla aday çekiyoruz
+    k = settings.rerank_candidate_k if settings.reranker_enabled else settings.retrieval_k
+    results = get_db().similarity_search_with_relevance_scores(optimized_query, k=k)
     return results
+
+# RERANKING
+#Soru-parça çiftlerinin cross-encoder skorları; eval/evaluate_evidence.py de aynı fonksiyonu kullanıyor
+#'query:' ön eki e5'e özgü; reranker'a soru ön eksiz veriliyor
+def rerank_scores(reranker, user_query, texts):
+    return [float(s) for s in reranker.predict([(user_query, t) for t in texts])]
+
+#Barajı geçen parçaları cross-encoder ile yeniden sıralayıp ilk retrieval_k parçayı döner; kapalıysa e5 sırası kalır
+def rerank_chunks(user_query, chunks):
+    settings = get_settings()
+    if settings.reranker_enabled and len(chunks) > 1:
+        scores = rerank_scores(get_reranker(), user_query, [doc.page_content for doc, _ in chunks])
+        #Eşit skorda e5 sırası korunur (sorted kararlı)
+        chunks = [c for c, _ in sorted(zip(chunks, scores), key=lambda x: -x[1])]
+    return chunks[:settings.retrieval_k]
 
 def prepare_chunks_with_metadata(user_input):
     context_text = ""
@@ -55,14 +73,18 @@ def prepare_chunks_with_metadata(user_input):
 
     #Gelen sorguyla DBdeki metin parçalarını eşleştirdik
     matched_chunks = search_in_db(user_input)
-    valid_chunks = []
+    passed_chunks = []
 
+    #Skor kontrolü (e5 benzerlik skoru); reranker'dan önce yapılıyor, böylece reranker daha az parça işliyor
     for idx, (doc, score) in enumerate(matched_chunks, 1):
-        #Skor kontrolü
         if score < score_threshold:
             logger.debug(f"Parça {idx} elendi (benzerlik skoru barajın altında: {round(score, 2)})")
             continue
-            
+        passed_chunks.append((doc, score))
+
+    valid_chunks = []
+
+    for doc, score in rerank_chunks(user_input, passed_chunks):
         #Metadatayı çektik
         #Sayfa numarası ingestion'da her chunk'a yazılıyor; yoksa 0 (yanıt modelinde page sayı olmalı)
         source_name = doc.metadata.get("source_file", "bilinmiyor")

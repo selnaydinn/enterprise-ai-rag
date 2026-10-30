@@ -20,9 +20,9 @@ The Docker image uses Python 3.13 like the local venv and CI.
 |---|---|---|
 | API | `main.py`, `schemas.py` | Endpoints, request/response models, startup checks (`lifespan`) |
 | Settings | `core/settings.py` | All settings in one `pydantic-settings` class |
-| Model / DB / LLM | `core/config.py` | Created lazily once (`get_embeddings`, `get_db`, `get_llm`), loaded at startup |
+| Model / DB / LLM | `core/config.py` | Created lazily once (`get_embeddings`, `get_db`, `get_llm`, `get_reranker`), loaded at startup |
 | Ingestion | `services/ingestion.py` | PDF → chunks → ChromaDB, document deletion |
-| Query | `services/query.py` | Retrieval, threshold, prompt, real token counting (`usage_metadata`) |
+| Query | `services/query.py` | Retrieval, threshold, reranking (`rerank_chunks`, shared `rerank_scores` with eval), prompt, real token counting (`usage_metadata`) |
 | Token limit | `services/usage.py` | Global token counter stored in SQLite |
 | Frontend | `rag-frontend/` | `app/`, `components/`, `services/api.ts`, `types/` |
 | Evaluation | `eval/` | See [`eval/README.md`](../eval/README.md) |
@@ -42,9 +42,10 @@ npm run lint                           # ESLint
 ```
 
 - **No real services in tests.** `tests/_guards.py` (installed by `tests/__init__.py`) blocks creating the real
-  Gemini client, ChromaDB connection or embedding model, and any network access outside localhost. The guard raises a
-  `BaseException`, so it cannot be swallowed by an `except Exception` block and turned into a passing `500` test.
-  Mock `get_db` / `get_llm` / `get_qa_chain` instead (see `tests/test_upload.py`, `tests/test_query.py`).
+  Gemini client, ChromaDB connection, embedding model or reranker model, and any network access outside localhost. The
+  guard raises a `BaseException`, so it cannot be swallowed by an `except Exception` block and turned into a passing
+  `500` test. Mock `get_db` / `get_llm` / `get_qa_chain` / `get_reranker` instead (see `tests/test_upload.py`,
+  `tests/test_query.py`).
 - **PDF-based tests** read the real `uploaded_pdfs/meb_yonetmelik.pdf` and are skipped when it is missing (e.g. in CI).
 - **Frontend:** there are no unit tests yet; the frontend is checked with TypeScript and ESLint.
 

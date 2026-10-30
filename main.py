@@ -10,7 +10,7 @@ from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, StringConstraints
 from services.ingestion import process_pdf, hash_bytes, hash_pdf, is_file_already_processed, delete_document_chunks
-from core.config import get_db, get_llm
+from core.config import get_db, get_llm, get_reranker
 from core.settings import get_settings
 from schemas import DeleteResponse, DocumentItem, FeaturesResponse, QueryResponse, UploadResponse, UsageStatus
 from services.query import prepare_chunks_with_metadata
@@ -27,6 +27,8 @@ settings = get_settings()
 async def lifespan(app):
     get_llm()
     get_db()
+    if settings.reranker_enabled:
+        get_reranker()
     yield
 
 

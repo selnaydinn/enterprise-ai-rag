@@ -310,14 +310,15 @@ class CorsTests(unittest.TestCase):
 class ConcurrencyTests(unittest.TestCase):
 
     #TestClient "with" ile açılıyor: eş istekler aynı event loop'ta çalışsın (UPLOAD_LOCK tek bir loop'a bağlanır)
-    #"with" lifespan'ı da çalıştırıyor; gerçek model/Gemini yüklenmesin diye get_llm ve get_db sahte
+    #"with" lifespan'ı da çalıştırıyor; gerçek model/Gemini yüklenmesin diye get_llm, get_db ve get_reranker sahte
     def setUp(self):
         self.main = import_main()
         self.upload_dir = Path(tempfile.mkdtemp(prefix="upload_test_"))
         self.addCleanup(shutil.rmtree, self.upload_dir, True)
         for patch in (mock.patch.object(self.main, "UPLOAD_DIR", str(self.upload_dir)),
                       mock.patch.object(self.main, "get_llm"),
-                      mock.patch.object(self.main, "get_db")):
+                      mock.patch.object(self.main, "get_db"),
+                      mock.patch.object(self.main, "get_reranker")):
             patch.start()
             self.addCleanup(patch.stop)
         self.client = TestClient(self.main.app)

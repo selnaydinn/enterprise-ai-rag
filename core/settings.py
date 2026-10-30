@@ -40,8 +40,14 @@ class Settings(BaseSettings):
     chunk_size: int = 1200
     chunk_overlap: int = 300
     #Değişirse eval ile ölçülmeli
+    #Gemini'ye gönderilen en fazla parça sayısı
     retrieval_k: int = 3
     score_threshold: float = 0.72
+    #Reranker (cross-encoder): e5'in ilk rerank_candidate_k adayından barajı geçenler yeniden sıralanır, ilk retrieval_k Gemini'ye gider
+    #Kapalıyken e5 sırası kullanılır ve yalnızca retrieval_k aday çekilir (eval: eval/results/rerank_mminilm_c10_k10.json)
+    reranker_enabled: bool = True
+    reranker_model: str = "cross-encoder/mmarco-mMiniLMv2-L12-H384-v1"
+    rerank_candidate_k: int = 10
     #Frontend'deki değerlerle aynı kalmalı (page.tsx MAX_UPLOAD_BYTES, ChatArea.tsx MAX_QUESTION_LENGTH)
     max_upload_mb: int = 20
     max_question_length: int = 500

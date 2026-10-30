@@ -3,6 +3,7 @@ from functools import lru_cache
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_chroma import Chroma
 from langchain_google_genai import ChatGoogleGenerativeAI
+from sentence_transformers import CrossEncoder
 from core.settings import get_settings
 
 logger = logging.getLogger("EnterpriseAI")
@@ -41,6 +42,16 @@ def get_embeddings():
     )
     logger.info("Embedding modeli yüklendi.")
     return embeddings
+
+
+#Reranker modeli (cross-encoder); sadece reranker_enabled açıkken kullanılır
+@lru_cache
+def get_reranker():
+    settings = get_settings()
+    logger.info(f"Reranker modeli yükleniyor ({settings.reranker_model})...")
+    reranker = CrossEncoder(settings.reranker_model, device="cpu")
+    logger.info("Reranker modeli yüklendi.")
+    return reranker
 
 
 #DB bağlantısı
