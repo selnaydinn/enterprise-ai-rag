@@ -37,8 +37,37 @@ blank-line normalization); it also checks that ingestion without normalization r
 
 - `golden_set.jsonl`: 56 answerable questions: `meb_yonetmelik.pdf` 25 (q01–q25), `AcilSaglikHizmetleri.pdf` 10
   (q26–q35), `isg.pdf` 10 (q36–q45), `KanMerkezleriYonetmelik.pdf` 11 (q46–q56).
-- `negative_set.jsonl`: 10 questions the documents cannot answer (near-domain and out-of-domain), for calibrating the
-  score threshold. They are checked by `tests/test_negative_set.py`; there is no evaluation script for them yet.
+- `negative_set.jsonl`: 40 questions the documents cannot answer, for calibrating the score threshold: 29 near-domain
+  (close to a document's topic, often with a misleading phrase; 7–8 per document) and 11 out-of-domain.
+  They are checked by `tests/test_negative_set.py`.
+
+## Score thresholds
+
+```bash
+python eval/evaluate_negative.py --out eval/results/<name>.json
+```
+
+Runs the golden and negative questions through the app's retrieval (10 candidates, reranker scores) and records the
+best e5 score and the best reranker score per question. It prints how many unanswerable questions would reach Gemini
+and how many answerable questions would be rejected for a range of thresholds; it does not choose a threshold.
+
+| Best score per question | Answerable (lowest) | Near-domain unanswerable (highest) |
+|---|---|---|
+| e5 | 0.768 | 0.819 |
+| Reranker | −1.78 (q16) | −0.40 (n19) |
+
+The e5 scores overlap widely, the reranker scores only slightly. The app therefore keeps e5 ≥ 0.72 as a coarse filter
+(it blocks all 11 out-of-domain questions and no answerable one) and adds `rerank_score_threshold = -2.0`:
+
+| Reaches Gemini | e5 ≥ 0.72 only | + reranker ≥ −2.0 (app default) |
+|---|---|---|
+| Near-domain unanswerable | 29/29 | 5/29 (n03, n19, n24, n29, n30) |
+| Out-of-domain unanswerable | 0/11 | 0/11 |
+| Answerable | 56/56 | 56/56 |
+
+Result files: `negative_mminilm_c10.json` (before the reranker threshold), `negative_mminilm_c10_gate.json` (app flow).
+The margin is small (q16 at −1.78), and the thresholds were chosen on the questions they are reported on, so new
+questions should be added before tightening them. Reranker scores are raw model outputs; re-measure if the model changes.
 
 ## Current results
 
@@ -64,8 +93,8 @@ on CPU.
 
 ## Limits of these numbers
 
-- The 0.72 threshold is not calibrated: negative questions are not measured yet, and on the golden set almost all
-  10 candidates pass it (9.96 on average).
+- The e5 threshold (0.72) lets almost all 10 candidates of answerable questions through (9.96 on average); the
+  decision whether a question is answerable is made by the reranker threshold (see "Score thresholds").
 - The approximate vector index can occasionally miss a near result after the database is reopened (`notes.md` item 41).
   The script then stops with "full ranking does not match evaluate_question top k" and saves nothing; run it again.
 - Rerank times are from a local 8-core CPU; the Docker container is limited to 2 CPUs.

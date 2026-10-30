@@ -48,6 +48,9 @@ class Settings(BaseSettings):
     reranker_enabled: bool = True
     reranker_model: str = "cross-encoder/mmarco-mMiniLMv2-L12-H384-v1"
     rerank_candidate_k: int = 10
+    #Soru düzeyinde baraj: barajı geçen parçaların en iyi reranker skoru bunun altındaysa Gemini çağrılmaz
+    #Ham logit, modele özgü; model değişirse yeniden ölçülmeli (eval/evaluate_negative.py, eval/results/negative_mminilm_c10.json)
+    rerank_score_threshold: float = -2.0
     #Frontend'deki değerlerle aynı kalmalı (page.tsx MAX_UPLOAD_BYTES, ChatArea.tsx MAX_QUESTION_LENGTH)
     max_upload_mb: int = 20
     max_question_length: int = 500

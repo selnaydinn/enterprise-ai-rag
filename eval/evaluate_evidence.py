@@ -8,17 +8,14 @@
 #tüm metrikler yeni sıraya göre hesaplanır (aday listesine girmeyen kanıt ıskalama sayılır).
 
 import argparse
-import gc
 import hashlib
 import json
 import importlib.util
 import math
 import os
 import re
-import shutil
 import statistics
 import sys
-import tempfile
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -135,12 +132,17 @@ def evaluate(db, embeddings, item, evidence, k, chunk_count, reranker=None, cand
     #Sayfa alanları son sıradan hesaplanır; reranker yokken evaluate_question ile aynıdır (same_top kontrolü)
     first_page_top = next((x for x in top if x["is_page_hit"]), None)
     #Gemini'ye giden parçalar production akışıyla (services/query.py prepare_chunks_with_metadata):
-    #reranker yokken ilk retrieval_k aday barajdan geçirilir; varken önce baraj, sonra reranker sırası, sonra ilk retrieval_k
+    #reranker yokken ilk retrieval_k aday barajdan geçirilir; varken önce e5 barajı, sonra reranker barajı (en iyi skor),
+    #sonra reranker sırası, sonra ilk retrieval_k
     #Skorlar soru-parça başına bağımsız ve sıralama kararlı olduğu için yeniden sıralanmış listeyi süzmek aynı sonucu verir
     if reranker is None:
         llm_chunks = [x for x in ranked[:common.PRODUCTION_K] if x["score"] >= common.SCORE_THRESHOLD]
     else:
-        llm_chunks = [x for x in final if x["score"] >= common.SCORE_THRESHOLD][:common.PRODUCTION_K]
+        llm_chunks = [x for x in final if x["score"] >= common.SCORE_THRESHOLD]
+        #Soru düzeyinde reranker barajı (services/query.py rerank_chunks)
+        if llm_chunks and max(x["rerank_score"] for x in llm_chunks) < common.RERANK_SCORE_THRESHOLD:
+            llm_chunks = []
+        llm_chunks = llm_chunks[:common.PRODUCTION_K]
     rerank_fields = {}
     if reranker is not None:
         non_evidence = [x["rerank_score"] for x in final if not x["is_evidence"]]
@@ -182,7 +184,6 @@ def run(copy_dir: Path, questions: list, evidence: dict, k: int, rerank_model=No
     import chromadb
     import sentence_transformers
     from langchain_huggingface import HuggingFaceEmbeddings
-    from langchain_chroma import Chroma
 
     embeddings = CachedQueryEmbeddings(HuggingFaceEmbeddings(model_name=common.MODEL_NAME, model_kwargs={"device": "cpu"}))
     reranker = None
@@ -192,23 +193,14 @@ def run(copy_dir: Path, questions: list, evidence: dict, k: int, rerank_model=No
         reranker.predict([("ısınma", "ısınma")])
     db = None
     try:
-        db = Chroma(collection_name=common.COLLECTION_NAME, persist_directory=str(copy_dir), embedding_function=embeddings)
-        chunk_count = db._collection.count()
-        if chunk_count == 0:
-            raise RuntimeError(f"Collection '{common.COLLECTION_NAME}' is empty or missing in the copy")
-        indexed = common.check_index_completeness(db, embeddings, chunk_count)
-        configuration = db._collection.configuration_json
-        min_cosine = common.check_consistency(db, embeddings)
-        print(f"Collection '{common.COLLECTION_NAME}': {chunk_count} chunks | consistency (no prefix) min cosine {min_cosine:.6f}")
-        if min_cosine < common.CONSISTENCY_MIN_COSINE:
-            raise RuntimeError("Stored vectors do not match this environment's model output (no prefix)")
+        db, db_info = common.open_checked_db(copy_dir, embeddings)
+        chunk_count = db_info["chunk_count"]
         if reranker is not None and candidate_k > chunk_count:
             raise RuntimeError(f"--candidate-k ({candidate_k}) exceeds the collection size ({chunk_count})")
         per_question = [evaluate(db, embeddings, item, evidence[item["id"]], k, chunk_count, reranker, candidate_k) for item in questions]
     finally:
         db = None
-        gc.collect()
-        chromadb.api.client.SharedSystemClient.clear_system_cache()
+        common.close_db()
 
     summary = summarize(per_question, k)
     summary["per_file"] = {
@@ -225,12 +217,12 @@ def run(copy_dir: Path, questions: list, evidence: dict, k: int, rerank_model=No
             "created_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
             "description": "Evidence-level evaluation: a hit must be the expected file+page AND contain the golden evidence phrase",
             "rerank_model": rerank_model, "candidate_k": candidate_k if rerank_model else None,
-            "model": common.MODEL_NAME, "collection": common.COLLECTION_NAME, "chunk_count": chunk_count, "indexed_count": indexed,
-            "hnsw": configuration["hnsw"], "query_prefix": common.QUERY_PREFIX, "passage_prefix": None,
+            "model": common.MODEL_NAME, "collection": common.COLLECTION_NAME, "chunk_count": chunk_count, "indexed_count": db_info["indexed_count"],
+            "hnsw": db_info["hnsw"], "query_prefix": common.QUERY_PREFIX, "passage_prefix": None,
             "score_threshold": common.SCORE_THRESHOLD, "production_k": common.PRODUCTION_K, "k": k,
             #Ölçülen kurulumun production ayarlarıyla (core/settings.py) aynı olup olmadığı görülebilsin
             "production_reranker": {"enabled": common.RERANKER_ENABLED, "model": common.RERANKER_MODEL, "candidate_k": common.RERANK_CANDIDATE_K},
-            "consistency_min_cosine": round(min_cosine, 6),
+            "consistency_min_cosine": db_info["consistency_min_cosine"],
             "evidence_source": Path(os.path.relpath(EVIDENCE_MODULE)).as_posix(),
             "evidence_source_sha256": hashlib.sha256(EVIDENCE_MODULE.read_bytes()).hexdigest(),
             "chromadb_version": chromadb.__version__, "sentence_transformers_version": sentence_transformers.__version__,
@@ -282,30 +274,13 @@ def main():
     evidence = load_evidence()
     if set(evidence) != {q["id"] for q in questions}:
         sys.exit("ERROR: evidence phrases do not cover exactly the golden set ids")
-    before = common.fingerprint(db_dir)
-    temp_root, report, error = None, None, None
-    try:
-        temp_root = Path(tempfile.mkdtemp(prefix="chroma_evidence_eval_"))
-        shutil.copytree(db_dir, temp_root / "db")
-        if common.fingerprint(temp_root / "db") != before:
-            raise RuntimeError("Copy does not match the DB")
-        report = run(temp_root / "db", questions, evidence, args.k, args.rerank_model, args.candidate_k)
-    except Exception as exc:
-        error = exc
-    finally:
-        if temp_root is not None:
-            common.remove_temp_dir(temp_root)
-        unchanged = common.fingerprint(db_dir) == before
-        print(f"{db_dir.name} unchanged: {unchanged}")
-    if error is not None:
-        print(f"ERROR: {error}")
-        sys.exit(1)
-    if not unchanged:
-        sys.exit("ERROR: the Chroma directory changed during the run. Results not saved.")
+    #Hata olursa veya DB değişirse run_on_copy sonucu kaydetmeden çıkar
+    report = common.run_on_copy(db_dir, "chroma_evidence_eval_",
+                                lambda copy_dir: run(copy_dir, questions, evidence, args.k, args.rerank_model, args.candidate_k))
 
     report["meta"]["chroma_dir"] = Path(os.path.relpath(db_dir)).as_posix()
     report["meta"]["golden_set"] = Path(os.path.relpath(golden_path)).as_posix()
-    report["meta"]["db_unchanged"] = unchanged
+    report["meta"]["db_unchanged"] = True
     s = report["summary"]
     reranked = args.rerank_model is not None
     #Reranker varken kanıtın vektör sırası (önce) ve reranker sırası (sonra) yan yana gösterilir

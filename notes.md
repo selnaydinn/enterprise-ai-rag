@@ -28,7 +28,7 @@
 | 9 | Token sayımı gerçek `usage_metadata`| ✅ | 
 | 10 | Event loop bloklanması Threadpool + upload kilidi; arka plan görevi yok | ✅ | 
 | 11 | E5 ön ekleri denendi, kaliteyi artırmadı, uygulanmadı  | ✅ |
-| 12 | Skor barajı kalibrasyonu | ❌ | 
+| 12 | Skor barajı kalibrasyonu. 40 negatif soruyla ölçüldü; e5 0.72 ön eleme + soru düzeyinde reranker barajı (−2.0): dokümana yakın negatiflerde Gemini'ye giden 29/29 → 5/29, cevaplı soru kaybı yok | ✅ | 
 | 13 | Retrieval kalitesi. Normalization ve reranker (10 aday → ilk 3) yapıldı; madde bazlı chunking, hibrit arama yok | ◐ |
 | 14 | Golden set 25 soru hepsi `meb_yonetmelik.pdf`, negatif soru yok | ✅ | 
 | 15 | Tekrar yüklenen dosya listede | ✅ | 
@@ -294,10 +294,24 @@ PDF yönetmelikleri üzerinde soru-cevap yapan bir RAG uygulaması:
     Uygulama artık DB yoksa başlamıyor (`CHROMA_DIR` kontrolü, boş DB açılmıyor). `chroma_db_normalization/` gitignore ve dockerignore'da olduğu için yeni bir makinede DB klasörü elle kopyalanmalı. `uploaded_pdfs/` içindeki PDF'lerden DB'yi bilinçli olarak kuran ayrı bir kurulum script'i yazılmalı; uygulama kendi kendine DB oluşturmamalı.
 
 41. **HNSW indeksi her açılışta yeniden kuruluyor; arama ara sıra gerçek en yakın parçayı kaçırıyor** — `chroma_db_normalization/`, `services/query.py` `search_in_db`
-    - Diskteki indeks dosyasında (`data_level0.bin`) 638 parçanın yalnızca 100'ü kayıtlı; kalan 538 parça DB her açıldığında Chroma'nın günlüğünden indekse yeniden ekleniyor ve indeks yapısı her açılışta biraz farklı oluyor.
-    - Yaklaşık arama (`ef_search=100`) bazı açılışlarda gerçek ilk sonuçlardan birini döndürmüyor. Ölçüm: 4 ayrı açılış × 56 soruda 1 kaçırma; q21'de gerçekte 3. sıradaki parça (`h_f6958101_p3_c25`, kanıt değil) ilk 10'a girmedi. Tam sıralama her açılışta aynı.
+    - Parçaların hepsi (metin, metadata, vektör) `chroma.sqlite3`'te; diskteki HNSW indeksi ise boş (`header.bin`: kapasite 100, kayıtlı parça 0). Chroma indeksi diske ancak `sync_threshold` (Chroma varsayılanı 1000) değişiklik birikince yazıyor; DB toplam 794 değişiklik gördü (716 ekleme, 78 silme), eşiğe hiç ulaşılmadı.
+    - Bu yüzden DB her açıldığında 794 değişiklik kayıt defterinden (`embeddings_queue`) oynatılıyor ve indeks bellekte sıfırdan kuruluyor. Ekleme paralel yapıldığı için (`num_threads` = çekirdek sayısı) indeks her açılışta biraz farklı çıkıyor; yaklaşık arama bazı açılışlarda gerçek ilk 10'daki bir parçayı hiç bulamıyor.
+    - Distance değerleri değişmiyor, eşit skorlu parçaların yer değiştirmesi de değil: aynı parçanın distance'ı her açılışta birebir aynı, soru vektörü her seferinde aynı, kaçan parçaların distance'ı komşularından açıkça farklı, aynı metinli parça yok. Değişen tek şey bir parçanın listeye hiç girmemesi (q21: 3. sıradaki `h_f6958101_p3_c25`, 0.347484, bir açılışta yok; kanıt değil).
     - Etkisi: aynı soru uygulama yeniden başlatılınca farklı parçalarla cevaplanabilir; doküman sayısı arttıkça risk artar, reranker kapalıyken (k=3) daha büyük. `eval/evaluate_evidence.py` bu durumda "full ranking does not match evaluate_question top 10" hatasıyla sonuç kaydetmeden duruyor (kontrol doğru çalışıyor, gevşetilmemeli).
-    - Öneri: koleksiyonun `ef_search` değerini parça sayısının üstüne çekmek (ör. 1000; 638 parçada pratikte tam arama, ek maliyet milisaniye düzeyinde, DB yeniden kurulmaz) veya indeksin tamamının diske yazılmasını sağlamak (`sync_threshold`/`batch_size`, DB yeniden kurulabilir). Sonrasında çok sayıda açılışla tekrar ölçülmeli.
+    - Denemeler (geçici kopyalarda; her biri 20 açılış × 56 soru, sonuç numpy ile hesaplanan tam sıralamayla karşılaştırıldı):
+
+      | Deneme | İndekste kayıtlı | Kaçırma olan açılış | Her açılışta aynı sonuç |
+      |---|---|---|---|
+      | Bugünkü DB (`ef_search=100`) | 0/638 | 2/20 | Hayır |
+      | Sadece `ef_search=1000` | 0/638 | 1/20 | Hayır |
+      | Yeniden kurulum, eşik 100 | 600/638 | 0/20 | Evet |
+      | Yeniden kurulum, eşik 10 (tamamı yazıldı) | 638/638 | 20/20 (her seferinde q42, 10. sıra) | Evet |
+      | Yeniden kurulum, eşik 10 + `ef_search=1000` | 638/638 | 0/20 | Evet |
+
+      Sorgu süresi hepsinde ~2 ms. `ef_search=10` ile 5 açılışın 5'inde 121 kaçırma çıktı, yani ayar gerçekten uygulanıyor.
+    - Sonuç: `ef_search` tek başına yetmiyor. İndeksi tam kaydetmek sonuçları her açılışta aynı yapıyor ama kaydedilen indeks de kusurlu olabiliyor (q42) ve sonradan yüklenen PDF'ler eşik dolana kadar yine her açılışta yeniden ekleniyor; eşiği kalıcı olarak küçültmek sık disk yazımı demek. Bu yüzden yeniden kurulum yapılmadı.
+    - Kapsam dışı sorularda daha sık görülüyor: `eval/evaluate_negative.py` iki çalıştırması arasında 4 kapsam dışı soruda (n09, n10, n38, n40) aday listesi değişti, n10'un en iyi reranker skoru 2.65 oynadı. Bu sorular hiçbir parçaya yakın olmadığı için yaklaşık arama daha çok şaşırıyor; hiçbir adayları e5 barajını geçmediği için sonuç değişmedi.
+    - Karar (2026-10-30): şimdilik dokunulmuyor; etki küçük (224 aramada 1 kaçırma, kanıt değil; reranker 10 aday aldığı için cevap nadiren değişir). Kalıcı çözüm tam arama: `search_in_db`'de yaklaşık harita yerine tüm vektörlere bakmak (bu ölçekte ~1–2 ms; ya Chroma'dan tüm sıralamayı isteyip ilk k'yı almak, ya da vektörleri belleğe alıp mesafeyi kendimiz hesaplamak, yükleme/silmede güncelleyerek). Doküman sayısı ciddi artarsa veya "aynı soru farklı cevap" görülürse ele alınmalı.
 
 42. **Modeller Docker'a verilmiyor; konteyner her yeniden oluşturulduğunda internetten indiriliyor** — `Dockerfile`, `docker-compose.yml`
     - Image'da model yok, compose'da HF önbelleği için volume yok. Açılışta e5 (~1.1 GB) ve reranker (~470 MB, `cross-encoder/mmarco-mMiniLMv2-L12-H384-v1`) konteyner içine (`/root/.cache/huggingface`) indiriliyor; yeniden başlatmada kalıyor, `docker compose up --build` / `down` + `up` sonrası tekrar iniyor. İnternet yoksa uygulama açılmıyor.

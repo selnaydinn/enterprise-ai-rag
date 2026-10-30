@@ -58,10 +58,14 @@ def rerank_scores(reranker, user_query, texts):
     return [float(s) for s in reranker.predict([(user_query, t) for t in texts])]
 
 #Barajı geçen parçaları cross-encoder ile yeniden sıralayıp ilk retrieval_k parçayı döner; kapalıysa e5 sırası kalır
+#En iyi reranker skoru rerank_score_threshold'un altındaysa soru dokümanlarda cevaplanamıyor sayılır ve boş liste döner
 def rerank_chunks(user_query, chunks):
     settings = get_settings()
-    if settings.reranker_enabled and len(chunks) > 1:
+    if settings.reranker_enabled and chunks:
         scores = rerank_scores(get_reranker(), user_query, [doc.page_content for doc, _ in chunks])
+        if max(scores) < settings.rerank_score_threshold:
+            logger.debug(f"Tüm parçalar elendi (en iyi reranker skoru barajın altında: {round(max(scores), 2)})")
+            return []
         #Eşit skorda e5 sırası korunur (sorted kararlı)
         chunks = [c for c, _ in sorted(zip(chunks, scores), key=lambda x: -x[1])]
     return chunks[:settings.retrieval_k]

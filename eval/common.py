@@ -2,12 +2,14 @@
 #Tek başına çalıştırılmaz. Import edildiğinde model indirmeyi ve Chroma telemetrisini kapatır,
 #ayarları uygulamayla aynı yerden (core/settings.py) okur; Gemini çağrılmaz, GEMINI_API_KEY gerekmez.
 
+import gc
 import hashlib
 import json
 import math
 import os
 import shutil
 import sys
+import tempfile
 import time
 from pathlib import Path
 
@@ -33,6 +35,7 @@ PRODUCTION_K = _settings.retrieval_k
 RERANKER_ENABLED = _settings.reranker_enabled
 RERANKER_MODEL = _settings.reranker_model
 RERANK_CANDIDATE_K = _settings.rerank_candidate_k
+RERANK_SCORE_THRESHOLD = _settings.rerank_score_threshold
 QUERY_PREFIX = "query: "                        #services/query.py search_in_db ile aynı olmalı
 
 CONSISTENCY_SAMPLE_SIZE = 5
@@ -58,6 +61,57 @@ def remove_temp_dir(path: Path, attempts: int = 5, wait_seconds: float = 1.0) ->
             time.sleep(wait_seconds)
     print(f"WARNING: could not delete temporary copy {path} (outside the project, safe to delete manually)")
     return False
+
+
+#DB'yi geçici bir kopyada açıp fn(kopya_klasörü)'nü çalıştırır; kopya parmak iziyle doğrulanır, sonunda silinir
+#Hata olursa veya orijinal klasör değiştiyse sonuç kaydedilmeden çıkılır
+def run_on_copy(db_dir: Path, prefix: str, fn):
+    before = fingerprint(db_dir)
+    temp_root, result, error = None, None, None
+    try:
+        temp_root = Path(tempfile.mkdtemp(prefix=prefix))
+        shutil.copytree(db_dir, temp_root / "db")
+        if fingerprint(temp_root / "db") != before:
+            raise RuntimeError("Copy does not match the DB")
+        result = fn(temp_root / "db")
+    except Exception as exc:
+        error = exc
+    finally:
+        if temp_root is not None:
+            remove_temp_dir(temp_root)
+        unchanged = fingerprint(db_dir) == before
+        print(f"{db_dir.name} unchanged: {unchanged}")
+    if error is not None:
+        print(f"ERROR: {error}")
+        sys.exit(1)
+    if not unchanged:
+        sys.exit("ERROR: the Chroma directory changed during the run. Results not saved.")
+    return result
+
+
+#Kopyadaki koleksiyonu açar ve ölçümden önce kontrol eder: boş değil, tüm parçalar aranabilir,
+#kayıtlı vektörler bu ortamdaki modelle tutarlı. DB nesnesi ve meta'ya yazılacak bilgiler döner
+def open_checked_db(copy_dir: Path, embeddings):
+    from langchain_chroma import Chroma
+    db = Chroma(collection_name=COLLECTION_NAME, persist_directory=str(copy_dir), embedding_function=embeddings)
+    chunk_count = db._collection.count()
+    if chunk_count == 0:
+        raise RuntimeError(f"Collection '{COLLECTION_NAME}' is empty or missing in the copy")
+    indexed = check_index_completeness(db, embeddings, chunk_count)
+    min_cosine = check_consistency(db, embeddings)
+    print(f"Collection '{COLLECTION_NAME}': {chunk_count} chunks | consistency (no prefix) min cosine {min_cosine:.6f}")
+    if min_cosine < CONSISTENCY_MIN_COSINE:
+        raise RuntimeError("Stored vectors do not match this environment's model output (no prefix)")
+    info = {"chunk_count": chunk_count, "indexed_count": indexed,
+            "hnsw": db._collection.configuration_json["hnsw"], "consistency_min_cosine": round(min_cosine, 6)}
+    return db, info
+
+
+#Açık Chroma bağlantılarını bırakır; çağıran taraf DB nesnesine referansı önce bırakmalı (db = None)
+def close_db():
+    import chromadb
+    gc.collect()
+    chromadb.api.client.SharedSystemClient.clear_system_cache()
 
 
 #Klasördeki her dosyanın boyutu ve SHA-256 parmak izi (sadece okuma)

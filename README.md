@@ -13,7 +13,7 @@ Upload:  PDF ─► validation ─► PyPDFLoader (per page) ─► blank-line n
              ─► RecursiveCharacterTextSplitter (1200 / 300 chars) ─► e5 embeddings ─► ChromaDB
 
 Query:   question ─► "query: " prefix ─► similarity search (10 candidates) ─► score threshold (0.72)
-             ─► cross-encoder reranker ─► top 3 chunks in one prompt ─► Gemini 2.5 Flash ─► answer + sources
+             ─► cross-encoder reranker (best score ≥ −2.0) ─► top 3 chunks in one prompt ─► Gemini 2.5 Flash ─► answer + sources
 ```
 
 A single FastAPI service (`main.py`, `core/`, `services/`) and a separate Next.js frontend (`rag-frontend/`).
@@ -70,7 +70,8 @@ CI runs these checks on every pull request to `main`.
 
 On a 56-question golden set over 4 documents, with the reranker: **Evidence Hit@1 51/56**, **Evidence MRR 0.944**, and
 the chunk with the answer reaches Gemini for **55/56** questions (vector search alone: 39/56, 0.808, 51/56).
-Unanswerable questions are not measured yet. Details in [eval/README.md](eval/README.md).
+Of 40 unanswerable questions, 5 still reach Gemini (all close to a document's topic); without the reranker threshold
+it was 29. Details in [eval/README.md](eval/README.md).
 
 ## Known limitations
 
@@ -79,8 +80,8 @@ Unanswerable questions are not measured yet. Details in [eval/README.md](eval/RE
 - **Data leaves the machine;** questions and retrieved chunks are sent to the Gemini API.
 - **Synchronous uploads;** large PDFs are processed during the upload request.
 - **No database setup script;** a new environment needs a copy of the ChromaDB folder.
-- **Retrieval tuning;** the 0.72 threshold is not calibrated with negative questions yet, and the reranker adds about
-  2 s per question on CPU.
+- **Retrieval tuning;** the thresholds were chosen on the same questions they are evaluated on (56 answerable,
+  40 unanswerable), so the results are somewhat optimistic; the reranker adds about 2 s per question on CPU.
 - **Search after restart;** the approximate vector index is rebuilt when the database is opened and can occasionally
   miss a near chunk ([notes.md](notes.md) item 41).
 - **Development Docker setup** (`--reload`, full bind mount, root user); not production-ready.

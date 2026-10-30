@@ -34,6 +34,7 @@ These live in `core/settings.py` with defaults and are intentionally not in `.en
 | `reranker_enabled` | `true` | Reranks the candidates with a cross-encoder; when `false`, only `retrieval_k` chunks are retrieved in vector order |
 | `reranker_model` | `cross-encoder/mmarco-mMiniLMv2-L12-H384-v1` | Should be measured with the eval scripts |
 | `rerank_candidate_k` | `10` | Candidates retrieved for the reranker; more candidates are slower (15: about 3.7 s per question on CPU) |
+| `rerank_score_threshold` | `-2.0` | If the best reranker score of the chunks that passed `score_threshold` is below this, Gemini is not called. Raw model score; measured with `eval/evaluate_negative.py`, re-measure when the model changes |
 | `max_upload_mb` | `20` | Must match the frontend (`page.tsx`) |
 | `max_question_length` | `500` | Must match the frontend (`ChatArea.tsx`) |
 | `upload_dir` | `uploaded_pdfs` | Tied to the Docker bind mount |

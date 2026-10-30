@@ -102,6 +102,38 @@ class PrepareChunksTests(unittest.TestCase):
         result = self.ask(AIMessage(content="Cevap", usage_metadata=USAGE), chunks)
         self.assertEqual(self.texts(result), ["A", "B", "C"])
 
+    def test_llm_is_not_called_when_best_rerank_score_is_below_threshold(self):
+        #Parçalar e5 barajını geçse de en alakalısı reranker barajının altındaysa soru cevaplanamıyor sayılır
+        chunks = [chunk(0.80, "A"), chunk(0.79, "B")]
+        self.reranker.predict.side_effect = lambda pairs: [-3.0, -2.5]
+        get_qa_chain = mock.Mock()
+        with mock.patch.object(self.query, "get_settings", return_value=self.settings_with(rerank_score_threshold=-2.0)), \
+             mock.patch.object(self.query, "search_in_db", return_value=chunks), \
+             mock.patch.object(self.query, "get_qa_chain", get_qa_chain):
+            result = self.query.prepare_chunks_with_metadata(QUESTION)
+        get_qa_chain.assert_not_called()
+        self.assertEqual(result["status"], "no_result")
+        self.assertEqual(result["token_usage"], 0)
+
+    def test_rerank_threshold_is_inclusive_and_checks_the_best_score(self):
+        #Tek bir parçanın barajı geçmesi yeterli; en iyi skor tam baraj değerindeyse soru geçer
+        chunks = [chunk(0.80, "A"), chunk(0.79, "B")]
+        self.reranker.predict.side_effect = lambda pairs: [-5.0, -2.0]
+        with mock.patch.object(self.query, "get_settings", return_value=self.settings_with(rerank_score_threshold=-2.0)):
+            result = self.ask(AIMessage(content="Cevap", usage_metadata=USAGE), chunks)
+        self.assertEqual(result["status"], "success")
+        self.assertEqual(self.texts(result), ["B", "A"])
+
+    def test_single_chunk_is_also_checked_by_reranker(self):
+        #Barajı geçen tek parça da reranker'dan geçer; sıralama gerekmese de baraj uygulanmalı
+        self.reranker.predict.side_effect = lambda pairs: [-5.0]
+        with mock.patch.object(self.query, "get_settings", return_value=self.settings_with(rerank_score_threshold=-2.0)), \
+             mock.patch.object(self.query, "get_qa_chain") as get_qa_chain:
+            with mock.patch.object(self.query, "search_in_db", return_value=[chunk(0.80)]):
+                result = self.query.prepare_chunks_with_metadata(QUESTION)
+        get_qa_chain.assert_not_called()
+        self.assertEqual(result["status"], "no_result")
+
     def test_reranker_is_not_used_when_disabled(self):
         chunks = [chunk(0.80, "A"), chunk(0.79, "B"), chunk(0.78, "C"), chunk(0.77, "D")]
         settings = self.settings_with(reranker_enabled=False, retrieval_k=3)

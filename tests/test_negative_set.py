@@ -8,7 +8,7 @@ NEGATIVE_PATH = PROJECT_ROOT / "eval" / "negative_set.jsonl"
 GOLDEN_PATH = PROJECT_ROOT / "eval" / "golden_set.jsonl"
 PDF_DIR = PROJECT_ROOT / "uploaded_pdfs"
 
-EXPECTED_COUNT = 10
+EXPECTED_COUNT = 40
 FIELDS = {"id": str, "topic": str, "kind": str, "question": str, "absent_terms": list, "note": str}
 #near_domain: dokümanların konusuna yakın ama cevabı yok (zor); out_of_domain: tamamen kapsam dışı (kolay)
 KINDS = {"near_domain", "out_of_domain"}
