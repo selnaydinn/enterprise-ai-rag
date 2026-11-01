@@ -22,7 +22,7 @@ The Docker image uses Python 3.13 like the local venv and CI.
 | Settings | `core/settings.py` | All settings in one `pydantic-settings` class |
 | Model / DB / LLM | `core/config.py` | Created lazily once (`get_embeddings`, `get_db`, `get_llm`, `get_reranker`), loaded at startup |
 | Ingestion | `services/ingestion.py` | PDF → chunks → ChromaDB, document deletion |
-| Query | `services/query.py` | Retrieval, threshold, reranking (`rerank_chunks`, shared `rerank_scores` with eval), prompt, real token counting (`usage_metadata`) |
+| Query | `services/query.py` | Retrieval, threshold, reranking (`rerank_chunks`, shared `rerank_scores` with eval), prompt, real token counting (`usage_metadata`), startup warm-up (`warm_up`), per-question timing log (`Süreler: ...`) |
 | Token limit | `services/usage.py` | Global token counter stored in SQLite |
 | Frontend | `rag-frontend/` | `app/`, `components/`, `services/api.ts`, `types/` |
 | Evaluation | `eval/` | See [`eval/README.md`](../eval/README.md) |

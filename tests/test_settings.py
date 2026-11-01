@@ -67,6 +67,16 @@ class SettingsTests(unittest.TestCase):
         with self.assertRaises(ValidationError):
             make_settings(LOG_LEVEL="VERBOSE")
 
+    def test_thinking_budget_defaults_to_model_default(self):
+        self.assertIsNone(make_settings().llm_thinking_budget)
+        for value, expected in (("-1", -1), ("0", 0), ("256", 256)):
+            with self.subTest(value=value):
+                self.assertEqual(make_settings(LLM_THINKING_BUDGET=value).llm_thinking_budget, expected)
+
+    def test_thinking_budget_below_dynamic_is_rejected(self):
+        with self.assertRaises(ValidationError):
+            make_settings(LLM_THINKING_BUDGET="-5")
+
     def test_invalid_number_is_rejected(self):
         with self.assertRaises(ValidationError):
             make_settings(TOKEN_LIMIT="on bin")
@@ -96,6 +106,22 @@ class FactoryTests(unittest.TestCase):
         #Boş bir DB açılmamalı ve model boşuna yüklenmemeli
         self.assertFalse(missing.exists())
         embeddings.assert_not_called()
+
+    #Gemini istemcisi sahte; düşünme bütçesi yalnızca ayarlandıysa gönderilmeli (yoksa model varsayılanı kalır)
+    def llm_kwargs(self, **env):
+        with mock.patch.object(config, "get_settings", return_value=make_settings(GEMINI_API_KEY="x", **env)), \
+             mock.patch.object(config, "ChatGoogleGenerativeAI") as client:
+            config.get_llm()
+        return client.call_args.kwargs
+
+    def test_thinking_budget_is_not_sent_by_default(self):
+        self.assertNotIn("thinking_budget", self.llm_kwargs())
+
+    def test_thinking_budget_is_sent_when_set(self):
+        for value, expected in (("0", 0), ("256", 256), ("-1", -1)):
+            with self.subTest(value=value):
+                config.get_llm.cache_clear()
+                self.assertEqual(self.llm_kwargs(LLM_THINKING_BUDGET=value)["thinking_budget"], expected)
 
 
 if __name__ == "__main__":

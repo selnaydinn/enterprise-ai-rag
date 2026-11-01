@@ -24,6 +24,9 @@ services:
       #Açılışta HuggingFace'e sürüm kontrolü isteği atılmaz; modeller yalnızca volume'dan okunur (internetsiz de açılır)
       #Volume boşken (ilk kurulum, volume silindiğinde, model değiştiğinde) modeller inemez: geçici olarak 0 yapın, bir kez açın, sonra geri 1
       - HF_HUB_OFFLINE=1
+      #Torch (embedding + reranker) iş parçacığı sayısı aşağıdaki cpus sınırıyla aynı olmalı; tanımlı değilse torch
+      #fiziksel çekirdek sayısı kadar (bu makinede 4) iş parçacığı açar ve 2 çekirdeklik kotada birbirini bekler
+      - OMP_NUM_THREADS=2
 
     #Gemini API bağlantı sorunlarını ve retrying hatalarını çözen DNS ayarı
     dns:

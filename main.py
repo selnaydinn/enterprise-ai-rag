@@ -13,7 +13,7 @@ from services.ingestion import process_pdf, hash_bytes, hash_pdf, is_file_alread
 from core.config import get_db, get_llm, get_reranker
 from core.settings import get_settings
 from schemas import DeleteResponse, DocumentItem, FeaturesResponse, QueryResponse, UploadResponse, UsageStatus
-from services.query import prepare_chunks_with_metadata
+from services.query import prepare_chunks_with_metadata, warm_up
 from services.usage import get_status, record_usage
 from fastapi.staticfiles import StaticFiles
 
@@ -29,6 +29,8 @@ async def lifespan(app):
     get_db()
     if settings.reranker_enabled:
         get_reranker()
+    #Arama ve reranker bir kez çalıştırılır; ilk soru ısınmayı beklemez. Hata verirse uygulama başlamaz
+    warm_up()
     yield
 
 

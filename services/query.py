@@ -1,4 +1,5 @@
 import logging
+import time
 from functools import lru_cache
 from langchain_core.prompts import PromptTemplate
 from core.config import get_db, get_llm, get_reranker
@@ -70,13 +71,69 @@ def rerank_chunks(user_query, chunks):
         chunks = [c for c, _ in sorted(zip(chunks, scores), key=lambda x: -x[1])]
     return chunks[:settings.retrieval_k]
 
+# WARM-UP
+#Açılışta (main.py lifespan) sahte bir soruyla arama ve rerank bir kez çalıştırılır: ilk kullanıcı sorusu modellerin
+#ilk çağrı hazırlığını ve Chroma indeksinin kurulmasını beklemez. Gemini çağrılmaz, token harcanmaz
+#Soru içeriği önemli değil; dokümanlara uygun, tipik uzunlukta bir soru (reranker gerçek parçalarla ısınsın diye)
+WARM_UP_QUESTION = "Yönetmelikte belirtilen başvuru şartları nelerdir?"
+
+def warm_up():
+    step = time.perf_counter()
+    results = search_in_db(WARM_UP_QUESTION)
+    search_seconds = time.perf_counter() - step
+    rerank_part = "rerank yok"
+    if get_settings().reranker_enabled:
+        step = time.perf_counter()
+        texts = [doc.page_content for doc, _ in results] or [WARM_UP_QUESTION]
+        rerank_scores(get_reranker(), WARM_UP_QUESTION, texts)
+        rerank_part = f"rerank {time.perf_counter() - step:.2f} sn"
+    logger.info(f"Isınma tamamlandı (arama {search_seconds:.2f} sn · {rerank_part}).")
+
+# TIMING
+#Sorgu başına tek satır: arama (embedding + Chroma), rerank ve Gemini süreleri; soru metni yazılmaz
+#Çalışmayan aşama "yok" (Gemini için "çağrılmadı") yazılır; Gemini çağrıldıysa token dağılımı da eklenir
+def log_timings(timings, total, tokens=None):
+    parts = []
+    for name, seconds in timings.items():
+        if seconds is not None:
+            parts.append(f"{name} {seconds:.2f} sn")
+        else:
+            parts.append(f"{name} çağrılmadı" if name == "Gemini" else f"{name} yok")
+    line = f"Süreler: {' · '.join(parts)} · toplam {total:.2f} sn"
+    if tokens:
+        line += " | Gemini token: " + " · ".join(f"{name} {count}" for name, count in tokens.items())
+    logger.info(line)
+
+#Gemini'nin token dağılımı; output_tokens düşünme (thinking) token'larını da içeriyor, cevap = çıktı - düşünme
+#usage_metadata gelmezse boş döner (count_tokens o durumda tahmin kullanıyor)
+def gemini_token_breakdown(llm_message):
+    usage = llm_message.usage_metadata
+    if not usage:
+        return {}
+    reasoning = (usage.get("output_token_details") or {}).get("reasoning", 0)
+    return {"girdi": usage.get("input_tokens", 0), "düşünme": reasoning, "cevap": usage.get("output_tokens", 0) - reasoning}
+
+#Süreler hata olsa da (ör. Gemini hata verirse) o ana kadar ölçüldüğü kadarıyla loglanır
 def prepare_chunks_with_metadata(user_input):
+    timings = {"arama": None, "rerank": None, "Gemini": None}
+    tokens = {}
+    start = time.perf_counter()
+    try:
+        return answer_question(user_input, timings, tokens)
+    finally:
+        log_timings(timings, time.perf_counter() - start, tokens)
+
+def answer_question(user_input, timings, tokens):
     context_text = ""
     #Optimized treshold değeri (core/settings.py)
     score_threshold = get_settings().score_threshold
 
     #Gelen sorguyla DBdeki metin parçalarını eşleştirdik
-    matched_chunks = search_in_db(user_input)
+    step = time.perf_counter()
+    try:
+        matched_chunks = search_in_db(user_input)
+    finally:
+        timings["arama"] = time.perf_counter() - step
     passed_chunks = []
 
     #Skor kontrolü (e5 benzerlik skoru); reranker'dan önce yapılıyor, böylece reranker daha az parça işliyor
@@ -88,7 +145,15 @@ def prepare_chunks_with_metadata(user_input):
 
     valid_chunks = []
 
-    for doc, score in rerank_chunks(user_input, passed_chunks):
+    #Reranker kapalıysa veya hiçbir parça barajı geçmediyse rerank aşaması çalışmaz
+    step = time.perf_counter()
+    try:
+        ranked_chunks = rerank_chunks(user_input, passed_chunks)
+    finally:
+        if get_settings().reranker_enabled and passed_chunks:
+            timings["rerank"] = time.perf_counter() - step
+
+    for doc, score in ranked_chunks:
         #Metadatayı çektik
         #Sayfa numarası ingestion'da her chunk'a yazılıyor; yoksa 0 (yanıt modelinde page sayı olmalı)
         source_name = doc.metadata.get("source_file", "bilinmiyor")
@@ -123,7 +188,12 @@ def prepare_chunks_with_metadata(user_input):
         "single_context": context_text,
         "question": user_input
     }
-    llm_message = get_qa_chain().invoke(chain_input)
+    step = time.perf_counter()
+    try:
+        llm_message = get_qa_chain().invoke(chain_input)
+    finally:
+        timings["Gemini"] = time.perf_counter() - step
+    tokens.update(gemini_token_breakdown(llm_message))
 
     #.text, content liste halinde gelse de düz metni verir (StrOutputParser'ın yaptığı gibi)
     final_llm_response = llm_message.text.strip()

@@ -134,6 +134,77 @@ class PrepareChunksTests(unittest.TestCase):
         get_qa_chain.assert_not_called()
         self.assertEqual(result["status"], "no_result")
 
+    #Sorgu başına tek süre satırı; soru metni loglanmamalı
+    def timing_lines(self, logs):
+        lines = [line for line in logs.output if "Süreler:" in line]
+        self.assertEqual(len(lines), 1)
+        self.assertNotIn(QUESTION, lines[0])
+        return lines[0]
+
+    def test_timings_are_logged_for_all_stages(self):
+        with self.assertLogs("EnterpriseAI", level="INFO") as logs:
+            self.ask(AIMessage(content="Cevap", usage_metadata=USAGE), [chunk(0.80, "A"), chunk(0.79, "B")])
+        line = self.timing_lines(logs)
+        for stage in ("arama", "rerank", "Gemini", "toplam"):
+            self.assertRegex(line, rf"{stage} \d+\.\d\d sn")
+
+    def test_token_breakdown_separates_thinking_from_answer(self):
+        #output_tokens düşünme token'larını da içeriyor; cevap = çıktı - düşünme
+        usage = {"input_tokens": 1450, "output_tokens": 620, "total_tokens": 2070,
+                 "output_token_details": {"reasoning": 400}}
+        with self.assertLogs("EnterpriseAI", level="INFO") as logs:
+            self.ask(AIMessage(content="Cevap", usage_metadata=usage))
+        self.assertIn("Gemini token: girdi 1450 · düşünme 400 · cevap 220", self.timing_lines(logs))
+
+    def test_token_breakdown_without_thinking(self):
+        with self.assertLogs("EnterpriseAI", level="INFO") as logs:
+            self.ask(AIMessage(content="Cevap", usage_metadata=USAGE))
+        self.assertIn("Gemini token: girdi 1450 · düşünme 0 · cevap 620", self.timing_lines(logs))
+
+    def test_no_token_part_when_gemini_is_not_called(self):
+        with self.assertLogs("EnterpriseAI", level="INFO") as logs, \
+             mock.patch.object(self.query, "search_in_db", return_value=[chunk(0.5)]):
+            self.query.prepare_chunks_with_metadata(QUESTION)
+        self.assertNotIn("Gemini token", self.timing_lines(logs))
+
+    def test_timings_show_gemini_not_called_when_no_chunk_passes(self):
+        with self.assertLogs("EnterpriseAI", level="INFO") as logs, \
+             mock.patch.object(self.query, "search_in_db", return_value=[chunk(0.5)]):
+            self.query.prepare_chunks_with_metadata(QUESTION)
+        line = self.timing_lines(logs)
+        self.assertIn("rerank yok", line)
+        self.assertIn("Gemini çağrılmadı", line)
+
+    def test_timings_are_logged_when_gemini_fails(self):
+        #Hata olsa da Gemini'ye kadar geçen süre görülmeli
+        failing = RunnableLambda(lambda _: (_ for _ in ()).throw(RuntimeError("Gemini hatası")))
+        with self.assertLogs("EnterpriseAI", level="INFO") as logs, \
+             mock.patch.object(self.query, "search_in_db", return_value=[chunk(0.80)]), \
+             mock.patch.object(self.query, "get_qa_chain", return_value=failing), \
+             self.assertRaises(RuntimeError):
+            self.query.prepare_chunks_with_metadata(QUESTION)
+        self.assertRegex(self.timing_lines(logs), r"Gemini \d+\.\d\d sn")
+
+    def test_warm_up_runs_search_and_reranker_but_not_gemini(self):
+        get_qa_chain = mock.Mock()
+        with mock.patch.object(self.query, "search_in_db", return_value=[chunk(0.80, "A"), chunk(0.70, "B")]) as search, \
+             mock.patch.object(self.query, "get_qa_chain", get_qa_chain), \
+             self.assertLogs("EnterpriseAI", level="INFO") as logs:
+            self.query.warm_up()
+        search.assert_called_once_with(self.query.WARM_UP_QUESTION)
+        #Reranker baraj uygulanmadan, aramanın döndürdüğü gerçek parçalarla çalışır
+        self.reranker.predict.assert_called_once_with([(self.query.WARM_UP_QUESTION, "A"), (self.query.WARM_UP_QUESTION, "B")])
+        get_qa_chain.assert_not_called()
+        self.assertTrue(any("Isınma tamamlandı" in line for line in logs.output))
+
+    def test_warm_up_skips_reranker_when_disabled(self):
+        with mock.patch.object(self.query, "get_settings", return_value=self.settings_with(reranker_enabled=False)), \
+             mock.patch.object(self.query, "search_in_db", return_value=[chunk(0.80)]), \
+             self.assertLogs("EnterpriseAI", level="INFO") as logs:
+            self.query.warm_up()
+        self.reranker.predict.assert_not_called()
+        self.assertTrue(any("rerank yok" in line for line in logs.output))
+
     def test_reranker_is_not_used_when_disabled(self):
         chunks = [chunk(0.80, "A"), chunk(0.79, "B"), chunk(0.78, "C"), chunk(0.77, "D")]
         settings = self.settings_with(reranker_enabled=False, retrieval_k=3)

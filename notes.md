@@ -123,6 +123,9 @@ GUNCEL7: Golden set 56 soruya çıkarıldı.(meb->25,isg->10,kan->11,acil->10)
 GUNCEL 8: 42 ve 12
          Reranker modeli ve embedding modeli dockera named volume ile yüklendi. yüklendikten sonra offline yapıldı yani artık internete bağlanmıyor.
          Retriaval tresholdu ve reranker tresholdu belirlendi. Mevcut durumda gemini'a iletilen negatif soru sayısı = 5/29, iletilmeyen pozitif soru sayısı= 0/56
+
+
+GUNCEL 9: Dockera ayrılan 1.86 gb ve çekirdek yetersiz olduğundan yanıt dönmesi 28sn'ye yakın dönüyordu. Dockersız çalıştırmada 9sn'ye indi. %70'i gemini'dan kaynaklı.
 ---
 
 ## 1. Genel Bakış

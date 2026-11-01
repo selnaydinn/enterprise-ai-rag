@@ -51,6 +51,9 @@ class Settings(BaseSettings):
     #Soru düzeyinde baraj: barajı geçen parçaların en iyi reranker skoru bunun altındaysa Gemini çağrılmaz
     #Ham logit, modele özgü; model değişirse yeniden ölçülmeli (eval/evaluate_negative.py, eval/results/negative_mminilm_c10.json)
     rerank_score_threshold: float = -2.0
+    #Gemini'nin düşünme (thinking) bütçesi, token: None gönderilmez (model varsayılanı, dinamik), -1 dinamik, 0 kapalı,
+    #N üst sınır. Süreyi ve token kullanımını azaltır ama cevap kalitesini etkileyebilir; değişirse uçtan uca ölçülmeli
+    llm_thinking_budget: int | None = None
     #Frontend'deki değerlerle aynı kalmalı (page.tsx MAX_UPLOAD_BYTES, ChatArea.tsx MAX_QUESTION_LENGTH)
     max_upload_mb: int = 20
     max_question_length: int = 500
@@ -67,6 +70,14 @@ class Settings(BaseSettings):
     def strip_api_key(cls, value):
         if isinstance(value, str):
             return value.strip() or None
+        return value
+
+    #-1 (dinamik) en küçük geçerli değer; daha küçüğü uygulamayı başlatmaz
+    @field_validator("llm_thinking_budget")
+    @classmethod
+    def thinking_budget_not_below_dynamic(cls, value):
+        if value is not None and value < -1:
+            raise ValueError("LLM_THINKING_BUDGET -1 (dinamik), 0 (kapalı) veya pozitif bir token sayısı olmalı.")
         return value
 
     #"debug" da kabul edilir; listede olmayan bir seviye uygulamayı başlatmaz

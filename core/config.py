@@ -21,11 +21,15 @@ def get_llm():
         raise RuntimeError("GEMINI_API_KEY tanımlı değil. .env.example dosyasına bakın.")
     logger.info("Key etkinleştirildi.")
 
-    logger.info(f"LLM modeli yükleniyor ({settings.llm_model})...")
+    #Düşünme bütçesi yalnızca ayarlandıysa gönderiliyor; yoksa model kendi varsayılanını (dinamik) kullanıyor
+    budget = settings.llm_thinking_budget
+    extra = {} if budget is None else {"thinking_budget": budget}
+    logger.info(f"LLM modeli yükleniyor ({settings.llm_model}, düşünme bütçesi: {'model varsayılanı' if budget is None else budget})...")
     llm = ChatGoogleGenerativeAI(
         model = settings.llm_model,
         google_api_key = settings.gemini_api_key.get_secret_value(),
-        temperature = settings.llm_temperature
+        temperature = settings.llm_temperature,
+        **extra
     )
     logger.info("LLM modeli yüklendi.")
     return llm
