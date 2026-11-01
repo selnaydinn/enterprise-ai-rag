@@ -118,7 +118,11 @@ GUNCEL7: Golden set 56 soruya çıkarıldı.(meb->25,isg->10,kan->11,acil->10)
          Reranker mekanizması test edildi. (2 farklı rerank modeli çalıştırıldı, büyük olan çok uzun sürdüğü için küçük modelle devam edildi)
          Reranker mekanizması anlamlı bir iyileşme sağladı. Hit@3 = 55/56 (reranker için verilen değer sayısı 10a sabitlendi --> 20 çok uzattı)
          Reranker mekanizması productiona entegre edildi
-         Reranker modeli ve embedding modeli dockera named volume ile yüklendi. yüklendikten sonra offline yapıldı yani artık intarnete bağlanmıyor.
+        
+
+GUNCEL 8: 42 ve 12
+         Reranker modeli ve embedding modeli dockera named volume ile yüklendi. yüklendikten sonra offline yapıldı yani artık internete bağlanmıyor.
+         Retriaval tresholdu ve reranker tresholdu belirlendi. Mevcut durumda gemini'a iletilen negatif soru sayısı = 5/29, iletilmeyen pozitif soru sayısı= 0/56
 ---
 
 ## 1. Genel Bakış
