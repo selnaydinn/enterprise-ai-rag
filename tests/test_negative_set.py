@@ -8,7 +8,10 @@ NEGATIVE_PATH = PROJECT_ROOT / "eval" / "negative_set.jsonl"
 GOLDEN_PATH = PROJECT_ROOT / "eval" / "golden_set.jsonl"
 PDF_DIR = PROJECT_ROOT / "uploaded_pdfs"
 
-EXPECTED_COUNT = 40
+EXPECTED_COUNT = 39
+#Çıkarılan sorular; numaraları sonuç dosyalarında geçtiği için yeniden kullanılmaz
+#n19 (OSGB yetki belgesi harcı): isg.pdf s.10 "Bakanlıkça belirlenen belge veya vize bedeli" diyor, yani kısmi cevabı var
+REMOVED_IDS = {"n19"}
 FIELDS = {"id": str, "topic": str, "kind": str, "question": str, "absent_terms": list, "note": str}
 #near_domain: dokümanların konusuna yakın ama cevabı yok (zor); out_of_domain: tamamen kapsam dışı (kolay)
 KINDS = {"near_domain", "out_of_domain"}
@@ -40,8 +43,10 @@ class NegativeSetFormatTests(unittest.TestCase):
         self.assertEqual(len(read_records()), EXPECTED_COUNT)
 
     def test_ids_are_unique_and_sequential(self):
+        #Sıralı; yalnızca çıkarılan soruların numaraları boş kalır
         ids = [r["id"] for r in read_records()]
-        self.assertEqual(ids, [f"n{i:02d}" for i in range(1, EXPECTED_COUNT + 1)])
+        expected = [f"n{i:02d}" for i in range(1, EXPECTED_COUNT + len(REMOVED_IDS) + 1)]
+        self.assertEqual(ids, [i for i in expected if i not in REMOVED_IDS])
 
     def test_records_have_exactly_the_schema_fields(self):
         for r in read_records():

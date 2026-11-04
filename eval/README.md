@@ -37,8 +37,10 @@ blank-line normalization); it also checks that ingestion without normalization r
 
 - `golden_set.jsonl`: 56 answerable questions: `meb_yonetmelik.pdf` 25 (q01–q25), `AcilSaglikHizmetleri.pdf` 10
   (q26–q35), `isg.pdf` 10 (q36–q45), `KanMerkezleriYonetmelik.pdf` 11 (q46–q56).
-- `negative_set.jsonl`: 40 questions the documents cannot answer, for calibrating the score threshold: 29 near-domain
-  (close to a document's topic, often with a misleading phrase; 7–8 per document) and 11 out-of-domain.
+- `negative_set.jsonl`: 39 questions the documents cannot answer, for calibrating the score threshold: 28 near-domain
+  (close to a document's topic, often with a misleading phrase; 7–8 per document) and 11 out-of-domain. n19 was
+  removed: `isg.pdf` p.10 says the fee is "Bakanlıkça belirlenen belge veya vize bedeli", a partial answer; its id is
+  not reused.
   They are checked by `tests/test_negative_set.py`.
 
 ## Score thresholds
@@ -53,19 +55,22 @@ and how many answerable questions would be rejected for a range of thresholds; i
 
 | Best score per question | Answerable (lowest) | Near-domain unanswerable (highest) |
 |---|---|---|
-| e5 | 0.768 | 0.819 |
-| Reranker | −1.78 (q16) | −0.40 (n19) |
+| e5 | 0.768 | 0.804 |
+| Reranker | −1.78 (q16) | −1.24 (n03) |
 
 The e5 scores overlap widely, the reranker scores only slightly. The app therefore keeps e5 ≥ 0.72 as a coarse filter
 (it blocks all 11 out-of-domain questions and no answerable one) and adds `rerank_score_threshold = -2.0`:
 
 | Reaches Gemini | e5 ≥ 0.72 only | + reranker ≥ −2.0 (app default) |
 |---|---|---|
-| Near-domain unanswerable | 29/29 | 5/29 (n03, n19, n24, n29, n30) |
+| Near-domain unanswerable | 28/28 | 4/28 (n03, n24, n29, n30) |
 | Out-of-domain unanswerable | 0/11 | 0/11 |
 | Answerable | 56/56 | 56/56 |
 
-Result files: `negative_mminilm_c10.json` (before the reranker threshold), `negative_mminilm_c10_gate.json` (app flow).
+Result files: `negative_mminilm_c10_gate_39neg.json` (app flow, current set). `negative_mminilm_c10.json` (before the
+reranker threshold) and `negative_mminilm_c10_gate.json` still include n19 (40 questions); the threshold was chosen on
+those runs. For the questions that do reach Gemini, the prompt asks it to reply `BILGI_YOK` when the chunks contain
+nothing relevant; the app then returns the same `no_result` response (checked by hand for n29).
 The margin is small (q16 at −1.78), and the thresholds were chosen on the questions they are reported on, so new
 questions should be added before tightening them. Reranker scores are raw model outputs; re-measure if the model changes.
 

@@ -28,7 +28,7 @@
 | 9 | Token sayımı gerçek `usage_metadata`| ✅ | 
 | 10 | Event loop bloklanması Threadpool + upload kilidi; arka plan görevi yok | ✅ | 
 | 11 | E5 ön ekleri denendi, kaliteyi artırmadı, uygulanmadı  | ✅ |
-| 12 | Skor barajı kalibrasyonu. 40 negatif soruyla ölçüldü; e5 0.72 ön eleme + soru düzeyinde reranker barajı (−2.0): dokümana yakın negatiflerde Gemini'ye giden 29/29 → 5/29, cevaplı soru kaybı yok | ✅ | 
+| 12 | Skor barajı kalibrasyonu. Negatif sorularla ölçüldü; e5 0.72 ön eleme + soru düzeyinde reranker barajı (−2.0): dokümana yakın negatiflerde Gemini'ye giden 28/28 → 4/28, cevaplı soru kaybı yok (n19 kısmi cevabı olduğu için çıkarıldı, set 39 soru). Gemini'ye giden negatiflerde model BILGI_YOK yazıyor, kullanıcı aynı "bilgi bulunamadı" yanıtını görüyor | ✅ | 
 | 13 | Retrieval kalitesi. Normalization ve reranker (10 aday → ilk 3) yapıldı; madde bazlı chunking, hibrit arama yok | ◐ |
 | 14 | Golden set 25 soru hepsi `meb_yonetmelik.pdf`, negatif soru yok | ✅ | 
 | 15 | Tekrar yüklenen dosya listede | ✅ | 
@@ -43,7 +43,7 @@
 | 24 | Kullanılmayan kod.Kopyalama döngüsü kaldırıldı; `os`, `ChatOllama`, `api.ts` boş satırları duruyor| ✅ |  
 | 25 | Docker yapılandırması | ❌ | 
 | 26 | API tasarımı. Soru uzunluk sınırı, düz `usage` objesi; response modelleri, silme endpoint'i yok | ✅ |
-| 27 | Prompt / LLM katmanı | ❌ | 
+| 27 | Prompt / LLM katmanı. Kurallar sistem mesajında, belgeler ve soru `<belge>`/`<soru>` etiketleri arasında, metindeki bu etiketler siliniyor (injection zorlaştırıldı, engellenmedi); zaman aşımı/yeniden deneme, hata türleri, streaming yok | ◐ | 
 | 28 | Tekrarlanan frontend tipleri | ✅ | 
 | 29 | `catch (error: any)` | ✅ | 
 | 30 | Sahte upload progress bar | ❌ | 
@@ -122,10 +122,19 @@ GUNCEL7: Golden set 56 soruya çıkarıldı.(meb->25,isg->10,kan->11,acil->10)
 
 GUNCEL 8: 42 ve 12
          Reranker modeli ve embedding modeli dockera named volume ile yüklendi. yüklendikten sonra offline yapıldı yani artık internete bağlanmıyor.
-         Retriaval tresholdu ve reranker tresholdu belirlendi. Mevcut durumda gemini'a iletilen negatif soru sayısı = 5/29, iletilmeyen pozitif soru sayısı= 0/56
+         Retriaval tresholdu ve reranker tresholdu belirlendi. Mevcut durumda gemini'a iletilen negatif soru sayısı = 4/28, iletilmeyen pozitif soru sayısı= 0/56
 
 
-GUNCEL 9: Dockera ayrılan 1.86 gb ve çekirdek yetersiz olduğundan yanıt dönmesi 28sn'ye yakın dönüyordu. Dockersız çalıştırmada 9sn'ye indi. %70'i gemini'dan kaynaklı.
+GUNCEL 9: Dockera ayrılan 1.86 gb ve çekirdek yetersiz olduğundan yanıt dönmesi 28sn'ye yakın dönüyordu.
+          Dockersız çalıştırmada 9sn'ye indi. 
+          9 sn'nin %70'i gemini'dan kaynaklı. Gemini thinking token ayarı geldi ama denenmedi.
+
+GUNCEL 10:  Artık gemini'a soruyu ve belge mesajlarını ayırtıcı kullanarak  veriyoruz. Belge ve soru mesajlarının içindeki talimatlarını
+            uygulamamasını söylüyoruz. 
+            Eğer soruyla alakalı verilen belgelerde bilgi yoksa BILGI_YOK yazmasını istiyoruz.
+            Metinlerdeki tüm "belge" ve "soru" etiketlerini siliyoruz ki model yanlış anlamasın. Prompt injectionı önlemeye çalışıyoruz böylece.
+
+GUNCEL 11: 
 ---
 
 ## 1. Genel Bakış

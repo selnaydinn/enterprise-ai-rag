@@ -70,8 +70,8 @@ CI runs these checks on every pull request to `main`.
 
 On a 56-question golden set over 4 documents, with the reranker: **Evidence Hit@1 51/56**, **Evidence MRR 0.944**, and
 the chunk with the answer reaches Gemini for **55/56** questions (vector search alone: 39/56, 0.808, 51/56).
-Of 40 unanswerable questions, 5 still reach Gemini (all close to a document's topic); without the reranker threshold
-it was 29. Details in [eval/README.md](eval/README.md).
+Of 39 unanswerable questions, 4 still reach Gemini (all close to a document's topic); without the reranker threshold
+it was 28. For those, Gemini is asked to reply `BILGI_YOK`, and the app shows the same "no information" answer. Details in [eval/README.md](eval/README.md).
 
 ## Known limitations
 
@@ -81,7 +81,7 @@ it was 29. Details in [eval/README.md](eval/README.md).
 - **Synchronous uploads;** large PDFs are processed during the upload request.
 - **No database setup script;** a new environment needs a copy of the ChromaDB folder.
 - **Retrieval tuning;** the thresholds were chosen on the same questions they are evaluated on (56 answerable,
-  40 unanswerable), so the results are somewhat optimistic; the reranker adds about 2 s per question on CPU.
+  39 unanswerable), so the results are somewhat optimistic; the reranker adds about 2 s per question on CPU.
 - **Search after restart;** the approximate vector index is rebuilt when the database is opened and can occasionally
   miss a near chunk ([notes.md](notes.md) item 41).
 - **Development Docker setup** (`--reload`, full bind mount, root user); not production-ready.

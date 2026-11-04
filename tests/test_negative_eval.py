@@ -79,7 +79,7 @@ class SweepTests(unittest.TestCase):
 
     def test_real_negative_set_loads(self):
         items = self.module.load_negative(EVAL_DIR / "negative_set.jsonl")
-        self.assertEqual(len(items), 40)
+        self.assertEqual(len(items), 39)
 
 
 if __name__ == "__main__":

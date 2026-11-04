@@ -23,7 +23,7 @@ class Source(BaseModel):
     raw_text: str
 
 
-#success: cevap üretildi · no_result: hiçbir parça barajı geçmedi, LLM çağrılmadı
+#success: cevap üretildi · no_result: hiçbir parça barajı geçmedi (LLM çağrılmadı) veya LLM dokümanlarda cevap bulamadı
 class QueryResponse(BaseModel):
     status: Literal["success", "no_result"]
     message: str
