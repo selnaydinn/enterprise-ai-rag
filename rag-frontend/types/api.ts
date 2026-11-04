@@ -16,7 +16,7 @@ export interface Source {
   raw_text: string;
 }
 
-//success: cevap üretildi · no_result: hiçbir parça barajı geçmedi, LLM çağrılmadı
+//success: cevap üretildi · no_result: hiçbir parça barajı geçmedi (LLM çağrılmadı) veya LLM dokümanlarda cevap bulamadı
 export interface QueryResponse {
   status: "success" | "no_result";
   message: string;

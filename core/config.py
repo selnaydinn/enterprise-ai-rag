@@ -3,6 +3,7 @@ from functools import lru_cache
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_chroma import Chroma
 from langchain_google_genai import ChatGoogleGenerativeAI
+from sentence_transformers import CrossEncoder
 from core.settings import get_settings
 
 logger = logging.getLogger("EnterpriseAI")
@@ -20,11 +21,15 @@ def get_llm():
         raise RuntimeError("GEMINI_API_KEY tanımlı değil. .env.example dosyasına bakın.")
     logger.info("Key etkinleştirildi.")
 
-    logger.info(f"LLM modeli yükleniyor ({settings.llm_model})...")
+    #Düşünme bütçesi yalnızca ayarlandıysa gönderiliyor; yoksa model kendi varsayılanını (dinamik) kullanıyor
+    budget = settings.llm_thinking_budget
+    extra = {} if budget is None else {"thinking_budget": budget}
+    logger.info(f"LLM modeli yükleniyor ({settings.llm_model}, düşünme bütçesi: {'model varsayılanı' if budget is None else budget})...")
     llm = ChatGoogleGenerativeAI(
         model = settings.llm_model,
         google_api_key = settings.gemini_api_key.get_secret_value(),
-        temperature = settings.llm_temperature
+        temperature = settings.llm_temperature,
+        **extra
     )
     logger.info("LLM modeli yüklendi.")
     return llm
@@ -41,6 +46,16 @@ def get_embeddings():
     )
     logger.info("Embedding modeli yüklendi.")
     return embeddings
+
+
+#Reranker modeli (cross-encoder); sadece reranker_enabled açıkken kullanılır
+@lru_cache
+def get_reranker():
+    settings = get_settings()
+    logger.info(f"Reranker modeli yükleniyor ({settings.reranker_model})...")
+    reranker = CrossEncoder(settings.reranker_model, device="cpu")
+    logger.info("Reranker modeli yüklendi.")
+    return reranker
 
 
 #DB bağlantısı

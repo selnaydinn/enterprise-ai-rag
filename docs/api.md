@@ -28,8 +28,10 @@ Response models are defined in `schemas.py`; the matching frontend types are in 
 }
 ```
 
-`status` is `success` (answer generated) or `no_result` (no chunk passed the score threshold; Gemini was not called
-and `token_usage` is 0).
+`status` is `success` (answer generated) or `no_result`. `no_result` has the same `message`, `answer` and empty
+`sources` in both of its cases: no chunk passed the score thresholds (Gemini was not called, `token_usage` is 0), or
+Gemini was called but found no answer in the chunks (it replied `BILGI_YOK`; `token_usage` is the tokens spent). The
+server log tells the cases apart (`Sonuç yok: ...`).
 
 **`POST /upload-pdf/`**: `{"filename", "total_pages", "total_chunks", "message"}`. `filename` is the name the file was
 saved under (e.g. `Rapor.PDF` becomes `Rapor.pdf`).
