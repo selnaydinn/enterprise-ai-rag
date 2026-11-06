@@ -24,11 +24,15 @@ def get_llm():
     #Düşünme bütçesi yalnızca ayarlandıysa gönderiliyor; yoksa model kendi varsayılanını (dinamik) kullanıyor
     budget = settings.llm_thinking_budget
     extra = {} if budget is None else {"thinking_budget": budget}
-    logger.info(f"LLM modeli yükleniyor ({settings.llm_model}, düşünme bütçesi: {'model varsayılanı' if budget is None else budget})...")
+    logger.info(f"LLM modeli yükleniyor ({settings.llm_model}, düşünme bütçesi: {'model varsayılanı' if budget is None else budget}, "
+                f"zaman aşımı: {settings.llm_timeout_seconds} sn, deneme: {settings.llm_max_attempts})...")
+    #max_retries kütüphanede toplam deneme sayısı (HttpRetryOptions attempts); timeout her deneme için ayrı uygulanıyor
     llm = ChatGoogleGenerativeAI(
         model = settings.llm_model,
         google_api_key = settings.gemini_api_key.get_secret_value(),
         temperature = settings.llm_temperature,
+        timeout = settings.llm_timeout_seconds,
+        max_retries = settings.llm_max_attempts,
         **extra
     )
     logger.info("LLM modeli yüklendi.")

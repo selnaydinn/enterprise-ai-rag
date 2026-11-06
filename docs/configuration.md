@@ -35,6 +35,8 @@ These live in `core/settings.py` with defaults and are intentionally not in `.en
 | `reranker_model` | `cross-encoder/mmarco-mMiniLMv2-L12-H384-v1` | Should be measured with the eval scripts |
 | `rerank_candidate_k` | `10` | Candidates retrieved for the reranker; more candidates are slower (15: about 3.7 s per question on CPU) |
 | `llm_thinking_budget` | not set | Gemini thinking budget in tokens: not set = model default (dynamic), `-1` dynamic, `0` off, `N` upper limit. Lowers latency and token use but may change answer quality; measure end to end before changing. For a quick test: `$env:LLM_THINKING_BUDGET = "0"` before `uvicorn main:app` |
+| `llm_timeout_seconds` | `20` | Timeout for each Gemini attempt (the library has none by default) |
+| `llm_max_attempts` | `2` | Total Gemini attempts, `1` = no retry (the library default is 6). Worst case wait ≈ attempts × timeout. After the last attempt the API returns `504` (timeout) or `503` (quota, server or connection error), see [api.md](api.md#errors) |
 | `rerank_score_threshold` | `-2.0` | If the best reranker score of the chunks that passed `score_threshold` is below this, Gemini is not called. Raw model score; measured with `eval/evaluate_negative.py`, re-measure when the model changes |
 | `max_upload_mb` | `20` | Must match the frontend (`page.tsx`) |
 | `max_question_length` | `500` | Must match the frontend (`ChatArea.tsx`) |

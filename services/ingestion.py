@@ -4,10 +4,16 @@ import hashlib
 import logging
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+from pypdf.errors import PyPdfError
 from core.config import get_db
 from core.settings import get_settings
 
 logger = logging.getLogger("EnterpriseAI")
+
+#PDF kullanıcı kaynaklı bir nedenle işlenemediğinde fırlatılır (bozuk, şifreli, metinsiz)
+#Mesaj kullanıcıya gösterilir; main.py dosyayı diskten silip 422 döner
+class PdfUnreadableError(Exception):
+    pass
 
 #PDFleri hashledik aynı pdf yüklenmesin diye
 #Format (md5'in ilk 8 karakteri) DB'deki pdf_hash değerleriyle aynı kalmalı
@@ -44,7 +50,8 @@ def process_pdf(pdf_path):
     # Dosya adını loglar için yoldan ayıklıyoruz
     pdf_name = os.path.basename(pdf_path)
 
-    #Hata sessiz bir sözlük olarak değil exception olarak dönüyor; main.py dosyayı temizleyip 500 veriyor
+    #Hata sessiz bir sözlük olarak değil exception olarak dönüyor; main.py dosyayı temizleyip
+    #PdfUnreadableError'da 422, diğer hatalarda 500 veriyor
     if not os.path.exists(pdf_path):
         raise FileNotFoundError(f"Dosya bulunamadı: {pdf_path}")
 
@@ -56,8 +63,14 @@ def process_pdf(pdf_path):
     logger.info(f"{pdf_name} analiz ediliyor...")
 
     #PDFi sayfa sayfa döküman objesi yaptık
+    #"%PDF-" ile başlayıp okunamayan dosyalar (bozuk, şifreli, boş) burada yakalanıyor
+    #pypdf'in tüm okuma hataları PyPdfError'dan türüyor (PdfReadError, FileNotDecryptedError, EmptyFileError...)
     loader = PyPDFLoader(pdf_path)
-    pages = loader.load()
+    try:
+        pages = loader.load()
+    except PyPdfError as exc:
+        logger.warning(f"{pdf_name} okunamadı ({type(exc).__name__}).")
+        raise PdfUnreadableError("Dosya okunamadı; bozuk veya şifreli olabilir.") from exc
     for page in pages:
         page.page_content = normalize_blank_lines(page.page_content)
 
@@ -70,6 +83,12 @@ def process_pdf(pdf_path):
     chunks = splitter.split_documents(pages)
 
     logger.info(f"{pdf_name}: {len(pages)} sayfa okundu, {len(chunks)} parçaya bölündü.")
+
+    #Taranmış (görüntü) PDF'lerde metin çıkmıyor; 0 parçayla "başarılı" dönmek yerine reddediyoruz
+    #DB'ye yazmadan önce kontrol ediliyor; yarım kayıt kalmıyor
+    if not chunks:
+        logger.warning(f"{pdf_name}: okunabilir metin bulunamadı.")
+        raise PdfUnreadableError("PDF'te okunabilir metin bulunamadı (taranmış olabilir).")
 
     final_chunks = []
     chunk_ids = []

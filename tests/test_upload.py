@@ -170,6 +170,18 @@ class UploadEndpointTests(unittest.TestCase):
         #Detay kullanıcıya gitmiyor ama logda kalıyor
         self.assertIn("C:\\gizli\\yol embedding hatası", "\n".join(logs.output))
 
+    #Bozuk, şifreli veya metinsiz PDF kullanıcı kaynaklı: 500 değil 422, mesaj ingestion.py'deki haliyle
+    def test_unreadable_pdf_returns_422_and_removes_file(self):
+        from services.ingestion import PdfUnreadableError
+        for message in ["Dosya okunamadı; bozuk veya şifreli olabilir.",
+                        "PDF'te okunabilir metin bulunamadı (taranmış olabilir)."]:
+            with self.subTest(message=message):
+                self.process.side_effect = PdfUnreadableError(message)
+                response = self.upload("rapor.pdf")
+                self.assertEqual(response.status_code, 422)
+                self.assertEqual(response.json()["detail"], message)
+                self.assertEqual(self.files(), [])
+
 
 class InternalErrorTests(unittest.TestCase):
 
@@ -191,6 +203,25 @@ class InternalErrorTests(unittest.TestCase):
              self.assertLogs("EnterpriseAI", level="ERROR") as logs:
             response = self.client.post("/query/", json={"question": "soru"})
         self.assert_hidden(response, logs, "Sorunuz yanıtlanırken beklenmeyen bir hata oluştu.")
+
+    #Geçici Gemini hataları: kendi kodu ve mesajı; 429 asla dönmez (frontend 429'da girişi kilitliyor), token kaydedilmez
+    def test_temporary_llm_errors_have_own_status_and_message(self):
+        from services.query import LLMUnavailableError
+        expected = {
+            "timeout": (504, "Yanıt zamanında alınamadı. Lütfen tekrar deneyin."),
+            "quota": (503, "Yapay zekâ servisinin kullanım sınırı doldu. Lütfen daha sonra tekrar deneyin."),
+            "server": (503, "Yapay zekâ servisi şu an yanıt vermiyor. Lütfen biraz sonra tekrar deneyin."),
+            "connection": (503, "Yapay zekâ servisi şu an yanıt vermiyor. Lütfen biraz sonra tekrar deneyin."),
+        }
+        for kind, (status_code, detail) in expected.items():
+            with self.subTest(kind=kind), \
+                 mock.patch.object(self.main, "get_status", return_value=OPEN_USAGE), \
+                 mock.patch.object(self.main, "record_usage") as record_usage, \
+                 mock.patch.object(self.main, "prepare_chunks_with_metadata", side_effect=LLMUnavailableError(kind)):
+                response = self.client.post("/query/", json={"question": "soru"})
+            self.assertEqual(response.status_code, status_code)
+            self.assertEqual(response.json()["detail"], detail)
+            record_usage.assert_not_called()
 
     def test_documents_error_is_hidden(self):
         with mock.patch.object(self.main.os, "listdir", side_effect=OSError(self.SECRET)), \

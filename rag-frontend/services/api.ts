@@ -65,7 +65,9 @@ export const apiService = {
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.detail || `Sunucu hatası: ${response.status}`);
+      //Bizim hatalarımızda detail metin, Pydantic 422'sinde liste; ekranda [object Object] görünmesin
+      const detail = typeof errorData.detail === "string" ? errorData.detail : null;
+      throw new Error(detail || `Sunucu hatası: ${response.status}`);
     }
 
     return await response.json();

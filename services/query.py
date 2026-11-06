@@ -2,6 +2,8 @@ import logging
 import re
 import time
 from functools import lru_cache
+import httpx
+from google.genai import errors as genai_errors
 from langchain_core.prompts import ChatPromptTemplate
 from core.config import get_db, get_llm, get_reranker
 from core.settings import get_settings
@@ -46,16 +48,31 @@ def strip_prompt_tags(text):
 def is_no_answer(answer):
     return NO_ANSWER_MARKER in answer.upper().replace("İ", "I")
 
+NO_RESULT_ANSWER = "Sorunuzla ilgili yüklü dokümanlarda yeterli bilgi bulunamadı. Lütfen sorunuzu dokümanların kapsamına göre yeniden yazın."
+
+#Gemini boş cevap döndüğünde (engellenen soru, güvenlik filtresi, yalnızca düşünüp cevap yazmadan biten MAX_TOKENS)
+#"Dokümanlarda yok" demiyoruz: soru filtreye takılmış olabilir, bilgi dokümanlarda olabilir
+EMPTY_ANSWER = "Bu soruya yanıt üretilemedi. Lütfen sorunuzu farklı şekilde yazın."
+
+#Metin var ama Gemini cevabı normal bitirmedi (MAX_TOKENS, SAFETY, RECITATION...); cevap gösteriliyor, sonuna eklenir
+INCOMPLETE_NOTE = "(Yanıt tamamlanamadı; eksik olabilir.)"
+
 #Baraj elemesi ve Gemini'nin cevap bulamaması için aynı yanıt (kullanıcı ikisini ayırt etmez; ayrım log'da)
+#Gemini boş cevap döndüğünde de aynı biçim, farklı mesajla kullanılıyor
 #Alan adları schemas.py QueryResponse ile aynı
-def no_result_response(token_usage):
+def no_result_response(token_usage, answer=NO_RESULT_ANSWER, message="Soru için 0 adet alakalı doküman parçası bulundu."):
     return {
         "status": "no_result",
-        "message": "Soru için 0 adet alakalı doküman parçası bulundu.",
-        "answer": "Sorunuzla ilgili yüklü dokümanlarda yeterli bilgi bulunamadı. Lütfen sorunuzu dokümanların kapsamına göre yeniden yazın.",
+        "message": message,
+        "answer": answer,
         "sources": [],
         "token_usage": token_usage
     }
+
+#Gemini'nin cevabı neden bitirdiği (STOP, MAX_TOKENS, SAFETY, RECITATION...); LangChain response_metadata'ya adıyla yazıyor
+#Soru engellendiğinde (aday cevap yok) alan hiç gelmiyor: None
+def get_finish_reason(llm_message):
+    return (llm_message.response_metadata or {}).get("finish_reason")
 
 #Kaynak dosya adı upload'da doğrulanıyor (main.py SAFE_FILENAME: tırnak ve < > içeremez), sayfa sayı
 def format_document(source_name, page, text):
@@ -65,6 +82,35 @@ def format_document(source_name, page, text):
 @lru_cache
 def get_qa_chain():
     return prompt | get_llm()
+
+# LLM ERRORS
+#Gemini'ye geçici olarak ulaşılamadığında fırlatılır; main.py türüne göre 503/504 döner
+#kind: "timeout", "quota" (429), "server" (5xx), "connection"
+class LLMUnavailableError(Exception):
+    def __init__(self, kind):
+        super().__init__(kind)
+        self.kind = kind
+
+#Yeniden denemeler bitince Google SDK'sı son hatayı olduğu gibi fırlatıyor; 4xx hatalarını LangChain kendi hatasıyla
+#sarıyor (asıl Google hatası __cause__'da). Zincirde asıl hatayı arıyoruz
+#None: geçici değil (geçersiz key, yanlış model adı, bilinmeyen hata); bugünkü genel 500 ile ele alınır
+def classify_llm_error(exc):
+    seen = set()
+    while exc is not None and id(exc) not in seen:
+        seen.add(id(exc))
+        #TimeoutException da TransportError'ın alt sınıfı; önce kontrol ediliyor
+        if isinstance(exc, httpx.TimeoutException):
+            return "timeout"
+        if isinstance(exc, httpx.TransportError):
+            return "connection"
+        if isinstance(exc, genai_errors.APIError):
+            if exc.code == 429:
+                return "quota"
+            if exc.code and exc.code >= 500:
+                return "server"
+            return None
+        exc = exc.__cause__ or exc.__context__
+    return None
 
 #Gerçek token sayısı (Gemini'nin thinking token'ları dahil)
 #usage_metadata gelmezse kota 0 sayılmasın diye karakter sayısından tahmin ediyoruz
@@ -224,6 +270,13 @@ def answer_question(user_input, timings, tokens):
     step = time.perf_counter()
     try:
         llm_message = get_qa_chain().invoke(chain_input)
+    except Exception as exc:
+        kind = classify_llm_error(exc)
+        if kind is None:
+            raise
+        #Ham hata metni loglanmıyor (Google mesajları kota ve model ayrıntısı içeriyor); tür ve sınıf yeterli
+        logger.warning(f"Gemini çağrısı başarısız ({kind}, {type(exc).__name__}).")
+        raise LLMUnavailableError(kind) from exc
     finally:
         timings["Gemini"] = time.perf_counter() - step
     tokens.update(gemini_token_breakdown(llm_message))
@@ -231,12 +284,27 @@ def answer_question(user_input, timings, tokens):
     #.text, content liste halinde gelse de düz metni verir (StrOutputParser'ın yaptığı gibi)
     final_llm_response = llm_message.text.strip()
     token_usage = count_tokens(llm_message, prompt.format(**chain_input))
+    finish_reason = get_finish_reason(llm_message)
+
+    #Boş cevap: hata fırlatılmıyor, LangChain boş mesaj dönüyor (soru engellendiyse yalnızca kendi WARNING'ini yazıyor)
+    #Ham metin loglanmıyor; finish_reason ve token yeterli. Harcanan token kotaya yazılır, yeniden denenmez
+    #(güvenlik ve alıntı filtreleri aynı soruda büyük ihtimalle tekrar eder)
+    if not final_llm_response:
+        logger.warning(f"Gemini boş cevap döndü (finish_reason: {finish_reason or 'yok'}, {token_usage} token harcandı).")
+        return no_result_response(token_usage, answer=EMPTY_ANSWER, message="Yanıt üretilemedi.")
 
     #Gemini cevap bulamadıysa kullanıcı baraj elemesiyle aynı yanıtı görür; harcanan token yine kotaya yazılır
     #Kaynaklar gösterilmez: model "cevap yok" dediği parçaları kaynak olarak sunmak yanıltıcı olur
     if is_no_answer(final_llm_response):
         logger.info(f"Sonuç yok: Gemini dokümanlarda cevap bulamadı ({NO_ANSWER_MARKER}, {token_usage} token harcandı).")
         return no_result_response(token_usage)
+
+    #Yarım cevap: metin var ama Gemini normal bitirmedi; cevap ve kaynaklar gösterilir, sonuna not eklenir
+    #finish_reason hiç gelmediyse normal sayılıyor (alanın yokluğu tek başına hata işareti değil)
+    #BILGI_YOK kontrolünden sonra: yarıda kesilmiş bir BILGI_YOK yine no_result
+    if finish_reason and finish_reason != "STOP":
+        logger.warning(f"Gemini cevabı tamamlanmadı (finish_reason: {finish_reason}, {token_usage} token harcandı).")
+        final_llm_response = f"{final_llm_response}\n\n{INCOMPLETE_NOTE}"
 
     return {
         "status": "success",

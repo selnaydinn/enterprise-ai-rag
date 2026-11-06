@@ -33,6 +33,13 @@ Response models are defined in `schemas.py`; the matching frontend types are in 
 Gemini was called but found no answer in the chunks (it replied `BILGI_YOK`; `token_usage` is the tokens spent). The
 server log tells the cases apart (`Sonuç yok: ...`).
 
+Gemini can also return an empty answer without an error (the question was blocked, a safety filter stopped the answer,
+or the token limit was used up by thinking). This is also `no_result` with empty `sources`, but with its own `message`
+and `answer` ("Bu soruya yanıt üretilemedi..."), because the information may be in the documents. `token_usage` is the
+tokens spent. If Gemini returns text but does not finish normally (`finish_reason` other than `STOP`, e.g.
+`MAX_TOKENS`, `SAFETY`, `RECITATION`), the answer is `success` with its sources, and the `answer` ends with
+"(Yanıt tamamlanamadı; eksik olabilir.)". Both cases are logged as `WARNING` with the `finish_reason`.
+
 **`POST /upload-pdf/`**: `{"filename", "total_pages", "total_chunks", "message"}`. `filename` is the name the file was
 saved under (e.g. `Rapor.PDF` becomes `Rapor.pdf`).
 
@@ -53,6 +60,8 @@ Errors are returned as HTTP status codes with `{"detail": "..."}`:
 | `404` | Document not found |
 | `409` | Duplicate upload (same content under another name, or same name with different content) |
 | `413` | File larger than 20 MB |
-| `422` | Empty or too long question |
-| `429` | Token limit reached (the message includes the reset time) |
-| `500` | Internal error (details are logged, never returned to the client) |
+| `422` | Empty or too long question. `/upload-pdf/`: the file is a PDF but cannot be processed (corrupted, encrypted, or no extractable text such as a scanned PDF) |
+| `429` | Token limit reached (the message includes the reset time). Only the app's own limit; the frontend locks the input on `429` |
+| `500` | Internal error (details are logged, never returned to the client). Also used for non-temporary Gemini errors such as an invalid API key or model name. Errors not handled by an endpoint return `{"detail": "Beklenmeyen bir hata oluştu."}` with CORS headers, so the frontend can read the message |
+| `503` | `/query/`: Gemini is temporarily unavailable. Separate messages for Gemini's own quota or rate limit (Google `429`) and for server or connection errors (Google `5xx`, network) |
+| `504` | `/query/`: Gemini did not answer within `llm_timeout_seconds` on any attempt |

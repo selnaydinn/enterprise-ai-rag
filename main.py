@@ -5,15 +5,16 @@ import logging
 from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Annotated
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, UploadFile, File, HTTPException, Request
 from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, StringConstraints
-from services.ingestion import process_pdf, hash_bytes, hash_pdf, is_file_already_processed, delete_document_chunks
+from services.ingestion import PdfUnreadableError, process_pdf, hash_bytes, hash_pdf, is_file_already_processed, delete_document_chunks
 from core.config import get_db, get_llm, get_reranker
 from core.settings import get_settings
 from schemas import DeleteResponse, DocumentItem, FeaturesResponse, QueryResponse, UploadResponse, UsageStatus
-from services.query import prepare_chunks_with_metadata, warm_up
+from services.query import LLMUnavailableError, prepare_chunks_with_metadata, warm_up
 from services.usage import get_status, record_usage
 from fastapi.staticfiles import StaticFiles
 
@@ -49,6 +50,15 @@ SAFE_FILENAME = re.compile(r"[\w\- .()]+\.pdf", re.IGNORECASE)
 #Sorgular bu kilidi beklemiyor
 UPLOAD_LOCK = asyncio.Lock()
 
+#Gemini'ye geçici olarak ulaşılamadığında dönen kod ve mesaj (services/query.py classify_llm_error)
+#429 kullanılmıyor: frontend 429'u bizim token sınırımız sayıp girişi kilitliyor (services/api.ts TokenLimitError)
+LLM_ERRORS = {
+    "timeout": (504, "Yanıt zamanında alınamadı. Lütfen tekrar deneyin."),
+    "quota": (503, "Yapay zekâ servisinin kullanım sınırı doldu. Lütfen daha sonra tekrar deneyin."),
+    "server": (503, "Yapay zekâ servisi şu an yanıt vermiyor. Lütfen biraz sonra tekrar deneyin."),
+    "connection": (503, "Yapay zekâ servisi şu an yanıt vermiyor. Lütfen biraz sonra tekrar deneyin."),
+}
+
 #Soru sınırı; frontenddeki MAX_QUESTION_LENGTH ile aynı olmalı (ChatArea.tsx)
 MAX_QUESTION_LENGTH = settings.max_question_length
 
@@ -74,6 +84,22 @@ app.add_middleware(
     allow_methods=["GET", "POST", "DELETE"],
     allow_headers=["Content-Type"],
 )
+
+#GLOBAL HATA YAKALAYICI
+#Hiçbir yerde yakalanmayan hatalar düz metin "Internal Server Error" yerine JSON 500 olarak döner
+#HTTPException (400/403/404/409/413/429/503/504) ve 422 doğrulama hataları kendi yakalayıcılarında kalıyor
+#Bu yakalayıcı Starlette'in en dış katmanında (ServerErrorMiddleware) çalışıyor; CORS middleware'inin dışında
+#kaldığı için başlığı elle ekliyoruz, yoksa tarayıcı yanıtı engeller ve frontend yalnızca "Failed to fetch" görür
+#Starlette yanıttan sonra hatayı yeniden fırlatıyor; Uvicorn da traceback'i ayrıca logluyor (bilinçli olarak kabul edildi)
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    logger.exception(f"Beklenmeyen hata ({request.method} {request.url.path})", exc_info=exc)
+    headers = {}
+    origin = request.headers.get("origin")
+    if origin in CORS_ORIGINS:
+        headers["Access-Control-Allow-Origin"] = origin
+        headers["Vary"] = "Origin"
+    return JSONResponse(status_code=500, content={"detail": "Beklenmeyen bir hata oluştu."}, headers=headers)
 
 #Pydantic modeli - Frontendden gelen jsonı karşıladı
 #Boş, sadece boşluk veya sınırdan uzun sorular endpoint çalışmadan 422 alır; LLM çağrılmaz, token harcanmaz
@@ -116,6 +142,11 @@ def clean_filename(filename):
     if name.startswith(".") or not SAFE_FILENAME.fullmatch(name):
         return None
     return name[:-4] + ".pdf"
+
+#İşlem yarıda kaldıysa dosyayı diskte bırakmıyoruz; yoksa /documents/ listesinde hayalet doküman görünür
+def remove_if_exists(path):
+    if os.path.exists(path):
+        os.remove(path)
 
 @app.post("/upload-pdf/", response_model=UploadResponse)
 async def upload_pdf(file: UploadFile = File(...)):
@@ -163,10 +194,14 @@ async def upload_pdf(file: UploadFile = File(...)):
             logger.info(f"PDF DB'ye kaydedildi: {filename}")
             return response
 
+        #Dosya PDF ama işlenemiyor (bozuk, şifreli, metinsiz); kullanıcı kaynaklı olduğu için 500 değil 422
+        #Mesaj ingestion.py'de kullanıcıya gösterilecek biçimde yazılı; log orada WARNING
+        except PdfUnreadableError as e:
+            remove_if_exists(target_file_path)
+            raise HTTPException(status_code=422, detail=str(e))
+
         except Exception:
-            #İşlem yarıda kaldıysa dosyayı diskte bırakmıyoruz; yoksa /documents/ listesinde hayalet doküman görünür
-            if os.path.exists(target_file_path):
-                os.remove(target_file_path)
+            remove_if_exists(target_file_path)
             logger.exception("Upload hatası")
             raise HTTPException(status_code=500, detail="Dosya işlenirken beklenmeyen bir hata oluştu.")
 
@@ -232,6 +267,11 @@ def query(request: QueryRequest):
 
         logger.info(f"Yanıt üretildi. Güncel token kullanımı: {usage['used']}/{usage['limit']}")
         return result
+
+    #Geçici Gemini hataları (log services/query.py'de WARNING); başarısız istekte token kaydedilmiyor
+    except LLMUnavailableError as e:
+        status_code, detail = LLM_ERRORS[e.kind]
+        raise HTTPException(status_code=status_code, detail=detail)
 
     except Exception:
         logger.exception("Query hatası")
