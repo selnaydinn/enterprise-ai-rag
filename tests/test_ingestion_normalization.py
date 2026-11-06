@@ -89,7 +89,9 @@ class ProcessPdfAppliesNormalizationTests(unittest.TestCase):
              mock.patch.object(ingestion.os.path, "exists", return_value=True):
             loader.return_value.load.return_value = [page]
             #process_pdf'in INFO logları test çıktısına karışmasın diye yakalıyoruz
-            with self.assertLogs("EnterpriseAI", level="INFO"):
+            #Sahte splitter boş liste döndüğü için 0 parça kontrolü PdfUnreadableError fırlatıyor (DB'ye yazmadan önce)
+            with self.assertLogs("EnterpriseAI", level="INFO"), \
+                 self.assertRaises(ingestion.PdfUnreadableError):
                 ingestion.process_pdf("sahte.pdf")
 
         self.assertEqual(captured["texts"], ["MADDE 1 - (1) Amaç \n\n(2) Kapsam"])

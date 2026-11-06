@@ -3,6 +3,9 @@ import re
 import unittest
 from unittest import mock
 
+import httpx
+from google.genai import errors as genai_errors
+from langchain_google_genai.chat_models import ChatGoogleGenerativeAIError
 from langchain_core.documents import Document
 from langchain_core.messages import AIMessage
 from langchain_core.runnables import RunnableLambda
@@ -14,6 +17,21 @@ USAGE = {"input_tokens": 1450, "output_tokens": 620, "total_tokens": 2070}
 #Model, DB ve LLM artık import anında yüklenmiyor (core/config.py); services.query doğrudan import edilebiliyor
 def import_query():
     return importlib.import_module("services.query")
+
+
+def google_error(cls, code, status):
+    return cls(code, {"error": {"code": code, "message": "ayrıntı", "status": status}})
+
+
+#LangChain 4xx hatalarını kendi hatasıyla sarıyor (raise ... from e); gerçekteki zinciri kuruyoruz
+def wrapped(cause):
+    try:
+        try:
+            raise cause
+        except Exception as e:
+            raise ChatGoogleGenerativeAIError("Error calling model") from e
+    except ChatGoogleGenerativeAIError as outer:
+        return outer
 
 
 def chunk(score, text="Devamsızlık süresi özürsüz 10 günü aşan öğrenciler başarısız sayılır."):
@@ -267,6 +285,53 @@ class PrepareChunksTests(unittest.TestCase):
         result = self.ask(AIMessage(content="Dokümanlarda harç tutarı belirtilmemiştir.", usage_metadata=USAGE))
         self.assertEqual(result["status"], "success")
 
+    #Gemini boş cevap: hata yok, LangChain boş mesaj dönüyor; kullanıcı "dokümanlarda yok" değil kendi mesajını görür
+    #Soru engellendiğinde finish_reason hiç gelmiyor; filtre ve token sınırında adıyla geliyor
+    def test_empty_answer_returns_no_result_with_own_message(self):
+        for metadata in ({}, {"finish_reason": "SAFETY"}, {"finish_reason": "MAX_TOKENS"}, {"finish_reason": "STOP"}):
+            for content in ("", "  \n "):
+                with self.subTest(metadata=metadata, content=content):
+                    message = AIMessage(content=content, usage_metadata=USAGE, response_metadata=metadata)
+                    with self.assertLogs("EnterpriseAI", level="WARNING") as logs:
+                        result = self.ask(message)
+                    self.assertEqual(result["status"], "no_result")
+                    self.assertEqual(result["answer"], self.query.EMPTY_ANSWER)
+                    self.assertNotEqual(result["answer"], self.query.NO_RESULT_ANSWER)
+                    self.assertEqual(result["sources"], [])
+                    #Harcanan token kotaya yazılıyor
+                    self.assertEqual(result["token_usage"], 2070)
+                    self.assertIn(f"finish_reason: {metadata.get('finish_reason', 'yok')}", "\n".join(logs.output))
+
+    #Yarım cevap: gösteriliyor, kaynaklar duruyor, sonuna not ekleniyor; ham metin loglanmıyor
+    def test_incomplete_answer_is_shown_with_note(self):
+        for reason in ("MAX_TOKENS", "SAFETY", "RECITATION", "OTHER"):
+            with self.subTest(reason=reason):
+                message = AIMessage(content="Sınır 10", usage_metadata=USAGE, response_metadata={"finish_reason": reason})
+                with self.assertLogs("EnterpriseAI", level="WARNING") as logs:
+                    result = self.ask(message)
+                self.assertEqual(result["status"], "success")
+                self.assertEqual(result["answer"], f"Sınır 10\n\n{self.query.INCOMPLETE_NOTE}")
+                self.assertEqual(len(result["sources"]), 1)
+                warnings = "\n".join(logs.output)
+                self.assertIn(f"finish_reason: {reason}", warnings)
+                self.assertNotIn("Sınır 10", warnings)
+
+    #Normal biten ya da finish_reason gelmeyen cevap olduğu gibi döner; uyarı yok
+    def test_complete_answer_has_no_note(self):
+        for metadata in ({"finish_reason": "STOP"}, {}):
+            with self.subTest(metadata=metadata):
+                message = AIMessage(content="Sınır 10 gündür.", usage_metadata=USAGE, response_metadata=metadata)
+                with self.assertNoLogs("EnterpriseAI", level="WARNING"):
+                    result = self.ask(message)
+                self.assertEqual(result["answer"], "Sınır 10 gündür.")
+
+    #BILGI_YOK kontrolü yarım cevap kontrolünden önce: yarıda kesilmiş BILGI_YOK yine no_result
+    def test_no_answer_marker_wins_over_incomplete(self):
+        message = AIMessage(content="BILGI_YOK", usage_metadata=USAGE, response_metadata={"finish_reason": "MAX_TOKENS"})
+        result = self.ask(message)
+        self.assertEqual(result["status"], "no_result")
+        self.assertEqual(result["answer"], self.query.NO_RESULT_ANSWER)
+
     def test_prompt_tells_model_to_use_the_marker(self):
         self.assertIn(self.query.NO_ANSWER_MARKER, self.query.system_prompt)
 
@@ -286,6 +351,48 @@ class PrepareChunksTests(unittest.TestCase):
         self.assertEqual(len(reranker_lines), 1)
         self.assertIn("-3.00 < -2.0", reranker_lines[0])
         self.assertFalse(any("benzerlik barajını geçmedi" in line for line in logs.output))
+
+    def test_llm_errors_are_classified(self):
+        cases = [
+            (wrapped(google_error(genai_errors.ClientError, 429, "RESOURCE_EXHAUSTED")), "quota"),
+            (google_error(genai_errors.ServerError, 503, "UNAVAILABLE"), "server"),
+            (google_error(genai_errors.ServerError, 500, "INTERNAL"), "server"),
+            (httpx.ReadTimeout("zaman aşımı"), "timeout"),
+            (httpx.ConnectError("bağlantı yok"), "connection"),
+            #Geçici olmayan hatalar (geçersiz key, yetki, yanlış model) genel 500'e bırakılır
+            (wrapped(google_error(genai_errors.ClientError, 400, "INVALID_ARGUMENT")), None),
+            (wrapped(google_error(genai_errors.ClientError, 403, "PERMISSION_DENIED")), None),
+            (wrapped(google_error(genai_errors.ClientError, 404, "NOT_FOUND")), None),
+            (ValueError("başka hata"), None),
+        ]
+        for exc, kind in cases:
+            with self.subTest(exc=type(exc).__name__, kind=kind):
+                self.assertEqual(self.query.classify_llm_error(exc), kind)
+
+    def ask_failing(self, exc):
+        def chain(_):
+            raise exc
+        with mock.patch.object(self.query, "search_in_db", return_value=[chunk(0.80)]), \
+             mock.patch.object(self.query, "get_qa_chain", return_value=RunnableLambda(chain)):
+            return self.query.prepare_chunks_with_metadata(QUESTION)
+
+    def test_temporary_llm_error_is_raised_with_kind_and_logged(self):
+        with self.assertLogs("EnterpriseAI", level="INFO") as logs, \
+             self.assertRaises(self.query.LLMUnavailableError) as raised:
+            self.ask_failing(httpx.ReadTimeout("zaman aşımı"))
+        self.assertEqual(raised.exception.kind, "timeout")
+        self.assertTrue(any("WARNING" in line and "timeout" in line for line in logs.output))
+        #Süre satırı hata durumunda da yazılıyor
+        self.assertRegex(self.timing_lines(logs), r"Gemini \d+\.\d\d sn")
+
+    def test_raw_google_message_is_not_logged(self):
+        with self.assertLogs("EnterpriseAI", level="INFO") as logs, self.assertRaises(self.query.LLMUnavailableError):
+            self.ask_failing(wrapped(google_error(genai_errors.ClientError, 429, "RESOURCE_EXHAUSTED")))
+        self.assertFalse(any("ayrıntı" in line for line in logs.output))
+
+    def test_other_llm_errors_are_not_converted(self):
+        with self.assertLogs("EnterpriseAI", level="INFO"), self.assertRaises(ChatGoogleGenerativeAIError):
+            self.ask_failing(wrapped(google_error(genai_errors.ClientError, 400, "INVALID_ARGUMENT")))
 
     def test_reranker_is_not_used_when_disabled(self):
         chunks = [chunk(0.80, "A"), chunk(0.79, "B"), chunk(0.78, "C"), chunk(0.77, "D")]

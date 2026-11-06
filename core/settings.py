@@ -54,6 +54,10 @@ class Settings(BaseSettings):
     #Gemini'nin düşünme (thinking) bütçesi, token: None gönderilmez (model varsayılanı, dinamik), -1 dinamik, 0 kapalı,
     #N üst sınır. Süreyi ve token kullanımını azaltır ama cevap kalitesini etkileyebilir; değişirse uçtan uca ölçülmeli
     llm_thinking_budget: int | None = None
+    #Gemini çağrısı: her deneme için zaman aşımı (sn) ve toplam deneme sayısı (1 = yeniden deneme yok)
+    #En kötü durumda bekleme yaklaşık deneme × zaman aşımı; kütüphane varsayılanı zaman aşımı yok, 6 deneme
+    llm_timeout_seconds: float = 20
+    llm_max_attempts: int = 2
     #Frontend'deki değerlerle aynı kalmalı (page.tsx MAX_UPLOAD_BYTES, ChatArea.tsx MAX_QUESTION_LENGTH)
     max_upload_mb: int = 20
     max_question_length: int = 500
@@ -78,6 +82,21 @@ class Settings(BaseSettings):
     def thinking_budget_not_below_dynamic(cls, value):
         if value is not None and value < -1:
             raise ValueError("LLM_THINKING_BUDGET -1 (dinamik), 0 (kapalı) veya pozitif bir token sayısı olmalı.")
+        return value
+
+    @field_validator("llm_timeout_seconds")
+    @classmethod
+    def timeout_is_positive(cls, value):
+        if value <= 0:
+            raise ValueError("LLM_TIMEOUT_SECONDS 0'dan büyük olmalı.")
+        return value
+
+    #Kütüphaneye max_retries olarak gidiyor ve orada toplam deneme sayısı anlamına geliyor; 0 "Google varsayılanı" demek
+    @field_validator("llm_max_attempts")
+    @classmethod
+    def attempts_at_least_one(cls, value):
+        if value < 1:
+            raise ValueError("LLM_MAX_ATTEMPTS en az 1 olmalı (1 = yeniden deneme yok).")
         return value
 
     #"debug" da kabul edilir; listede olmayan bir seviye uygulamayı başlatmaz

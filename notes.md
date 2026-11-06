@@ -43,7 +43,7 @@
 | 24 | Kullanılmayan kod.Kopyalama döngüsü kaldırıldı; `os`, `ChatOllama`, `api.ts` boş satırları duruyor| ✅ |  
 | 25 | Docker yapılandırması | ❌ | 
 | 26 | API tasarımı. Soru uzunluk sınırı, düz `usage` objesi; response modelleri, silme endpoint'i yok | ✅ |
-| 27 | Prompt / LLM katmanı. Kurallar sistem mesajında, belgeler ve soru `<belge>`/`<soru>` etiketleri arasında, metindeki bu etiketler siliniyor (injection zorlaştırıldı, engellenmedi); zaman aşımı/yeniden deneme, hata türleri, streaming yok | ◐ | 
+| 27 | Prompt / LLM katmanı. Kurallar sistem mesajında, belgeler ve soru `<belge>`/`<soru>` etiketleri arasında, metindeki bu etiketler siliniyor (injection zorlaştırıldı, engellenmedi). Cevap yoksa BILGI_YOK → no_result. Zaman aşımı 20 sn, 2 deneme; geçici Gemini hataları 503 (kota / sunucu, ayrı mesajlar) ve 504 (zaman aşımı). Boş cevap (engellenen soru, güvenlik filtresi) → no_result, kendi mesajıyla; yarım cevap (finish_reason STOP değil) → notla gösteriliyor, WARNING loglanıyor.| ✅ | 
 | 28 | Tekrarlanan frontend tipleri | ✅ | 
 | 29 | `catch (error: any)` | ✅ | 
 | 30 | Sahte upload progress bar | ❌ | 
@@ -59,6 +59,7 @@
 | 40 | DB kurulum script'i | ❌ | 
 | 41 | HNSW indeksi her açılışta yeniden kuruluyor, arama ara sıra en yakın parçayı kaçırıyor | ❌ | 
 | 42 | Docker'da model önbelleği için volume (e5 + reranker) | ✅ | 
+| 43 | Streaming eklenecek. | ❌ | 
 
 ---
 
@@ -134,7 +135,11 @@ GUNCEL 10:  Artık gemini'a soruyu ve belge mesajlarını ayırtıcı kullanarak
             Eğer soruyla alakalı verilen belgelerde bilgi yoksa BILGI_YOK yazmasını istiyoruz.
             Metinlerdeki tüm "belge" ve "soru" etiketlerini siliyoruz ki model yanlış anlamasın. Prompt injectionı önlemeye çalışıyoruz böylece.
 
-GUNCEL 11: 
+GUNCEL 11:  Geminidan dönen hatalar yakalandı.
+            PDF ile ilgili bazı hatalar (şifreli,boş) ayrıca yakalandı. 
+            Global hata ayıklayıcı eklendi. Bu tarz globale düşen hatalara header eklenmediği için kendimiz ekledik.
+            Gemini boş yanıt dönerse-- 200 dönecek ama no_result olacak detail kısmı
+            Geminiın yanıtı yarıda kalırsa--- 200 success+tamamlanamadı notu
 ---
 
 ## 1. Genel Bakış

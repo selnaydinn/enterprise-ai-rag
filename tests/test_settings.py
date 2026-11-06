@@ -77,6 +77,15 @@ class SettingsTests(unittest.TestCase):
         with self.assertRaises(ValidationError):
             make_settings(LLM_THINKING_BUDGET="-5")
 
+    def test_llm_timeout_and_attempts(self):
+        s = make_settings()
+        self.assertEqual((s.llm_timeout_seconds, s.llm_max_attempts), (20, 2))
+        s = make_settings(LLM_TIMEOUT_SECONDS="7.5", LLM_MAX_ATTEMPTS="1")
+        self.assertEqual((s.llm_timeout_seconds, s.llm_max_attempts), (7.5, 1))
+        for env in ({"LLM_TIMEOUT_SECONDS": "0"}, {"LLM_TIMEOUT_SECONDS": "-3"}, {"LLM_MAX_ATTEMPTS": "0"}):
+            with self.subTest(env=env), self.assertRaises(ValidationError):
+                make_settings(**env)
+
     def test_invalid_number_is_rejected(self):
         with self.assertRaises(ValidationError):
             make_settings(TOKEN_LIMIT="on bin")
@@ -116,6 +125,13 @@ class FactoryTests(unittest.TestCase):
 
     def test_thinking_budget_is_not_sent_by_default(self):
         self.assertNotIn("thinking_budget", self.llm_kwargs())
+
+    def test_timeout_and_attempts_are_sent(self):
+        kwargs = self.llm_kwargs()
+        self.assertEqual((kwargs["timeout"], kwargs["max_retries"]), (20, 2))
+        config.get_llm.cache_clear()
+        kwargs = self.llm_kwargs(LLM_TIMEOUT_SECONDS="5", LLM_MAX_ATTEMPTS="1")
+        self.assertEqual((kwargs["timeout"], kwargs["max_retries"]), (5, 1))
 
     def test_thinking_budget_is_sent_when_set(self):
         for value, expected in (("0", 0), ("256", 256), ("-1", -1)):
