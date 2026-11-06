@@ -1,7 +1,9 @@
 #Chunk (kanıt) düzeyinde retrieval değerlendirmesi (salt okunur).
 #Bir sonucun başarılı sayılması için doğru dosya + beklenen sayfa + cevap ifadesini (tests/test_golden_set.py EVIDENCE)
 #içermesi gerekir; yalnızca sayfa eşleşmesi başarı sayılmaz, ayrıca "kaynak/sayfa doğruluğu" olarak raporlanır.
-#Sayfa düzeyi alanlar common.evaluate_question ile birebir aynı şekilde üretilir (önceki raporlarla tutarlılık için).
+#Sayfa düzeyi alanlar önceki raporlarla aynı adlarla ve anlamlarla üretilir.
+#Sıralama tam sıralamadır (common.exact_ranking: tüm vektörlerle mesafe, her çalıştırmada aynı sonuç). Production'daki
+#HNSW araması aynı soru vektörüyle ayrıca yapılır; kaçırdığı parçalar recall olarak raporlanır, metrikleri etkilemez.
 #DB geçici bir kopyada açılır; hiçbir Chroma klasörüne yazılmaz.
 #Retrieval ölçümünün tek giriş noktası budur; ortak fonksiyonlar eval/common.py'de.
 #--rerank-model verilirse: e5 ile ilk --candidate-k aday çekilir, cross-encoder ile yeniden sıralanır ve
@@ -42,8 +44,13 @@ def parse_args():
     #Production ile aynı ölçüm için: --rerank-model <core/settings.py reranker_model> (--candidate-k varsayılanı production'dan)
     parser.add_argument("--rerank-model", help=f"e.g. {common.RERANKER_MODEL} (omit for plain vector ranking)")
     parser.add_argument("--candidate-k", type=int, default=common.RERANK_CANDIDATE_K, help="Candidates passed to the reranker")
+    #HNSW recall'unun ölçüleceği derinlik; verilmezse production'ın HNSW'den çektiği aday sayısı
+    #(reranker varken --candidate-k, yokken retrieval_k). Metrikleri etkilemez
+    parser.add_argument("--recall-depth", type=int, help="Depth for HNSW recall (default: production candidate depth)")
     args = parser.parse_args()
     common.check_k(parser, args.k)
+    if args.recall_depth is not None and args.recall_depth < 1:
+        parser.error("--recall-depth must be at least 1")
     #Reranker yalnızca aday listesini sıralar; raporlanan derinlik aday sayısını aşamaz
     if args.rerank_model and args.k > args.candidate_k:
         parser.error(f"--k ({args.k}) must not exceed --candidate-k ({args.candidate_k}) when reranking")
@@ -69,8 +76,8 @@ def is_evidence(item, evidence, source, page, text) -> bool:
     return phrase is not None and squash(phrase) in squash(text)
 
 
-#Soru vektörü bir kez hesaplanır: evaluate_question (LangChain içinden) ve tam sıralama aynı vektörü kullanır
-#İki ayrı hesaplama CPU'daki paralel toplama yüzünden son hanelerde farklı çıkıp same_top kontrolünü bozabiliyor
+#Bir sorunun vektörü çalıştırma boyunca tek: exact_ranking ve hnsw_ranking aynı vektörü kullanır
+#(aynı metnin iki ayrı embedding'i CPU'daki paralel toplama yüzünden son hanelerde farklı çıkabiliyor)
 class CachedQueryEmbeddings:
     def __init__(self, inner):
         self.inner = inner
@@ -99,50 +106,80 @@ def rerank(reranker, question, candidates) -> tuple:
     return reordered, seconds
 
 
-def evaluate(db, embeddings, item, evidence, k, chunk_count, reranker=None, candidate_k=None) -> dict:
-    page_level = common.evaluate_question(db, item, k)
-    query_vector = embeddings.embed_query(common.QUERY_PREFIX + item["question"])
-    #Tüm koleksiyon sıralaması: ilk k evaluate_question ile aynı olmalı; cevap chunk'ının tam sırası buradan gelir
-    full = db._collection.query(query_embeddings=[query_vector], n_results=chunk_count, include=["documents", "metadatas", "distances"])
-    ranked = [
-        {"rank": r, "id": cid, "source_file": m.get("source_file"), "page": m.get("page_number"),
-         "score": 1.0 - d / math.sqrt(2), "text": doc}
-        for r, (cid, doc, m, d) in enumerate(zip(full["ids"][0], full["documents"][0], full["metadatas"][0], full["distances"][0]), 1)
-    ]
-    same_top = [(x["source_file"], x["page"], round(x["score"], 4)) for x in ranked[:k]] == \
-        [(x["source_file"], x["page"], x["score"]) for x in page_level["retrieved"]]
-    if not same_top:
-        raise RuntimeError(f"{item['id']}: full ranking does not match evaluate_question top {k}")
+#Production'ın HNSW'den aday çektiği derinlik (services/query.py search_in_db): reranker varken candidate_k, yokken retrieval_k
+#HNSW recall'u bu derinlikte ölçülür: bu derinlikte kaçırılan parça reranker'a / Gemini'ye hiç ulaşamaz
+def hnsw_depth(reranker, candidate_k) -> int:
+    return candidate_k if reranker is not None else common.PRODUCTION_K
 
-    for x in ranked:
-        x["vector_rank"] = x["rank"]
-        x["is_page_hit"] = x["source_file"] == item["file"] and x["page"] in item["pages"]
-        x["is_evidence"] = is_evidence(item, evidence, x["source_file"], x["page"], x["text"])
+
+#Gemini'ye giden parçalar production akışıyla (services/query.py prepare_chunks_with_metadata)
+#candidates: vektör sırasındaki adaylar (reranker varken her birinde rerank_score)
+#Reranker yokken ilk retrieval_k aday e5 barajından geçirilir; varken e5 barajı → reranker barajı (en iyi skor) →
+#reranker sırası (eşitlikte vektör sırası, sorted kararlı) → ilk retrieval_k
+#Tam sıralamanın ve HNSW'nin adaylarına aynı fonksiyon uygulanır
+def production_llm_chunks(candidates: list, reranked: bool) -> list:
+    if not reranked:
+        return [x for x in candidates[:common.PRODUCTION_K] if x["score"] >= common.SCORE_THRESHOLD]
+    passed = [x for x in candidates if x["score"] >= common.SCORE_THRESHOLD]
+    #Soru düzeyinde reranker barajı (services/query.py rerank_chunks)
+    if passed and max(x["rerank_score"] for x in passed) < common.RERANK_SCORE_THRESHOLD:
+        return []
+    return sorted(passed, key=lambda x: -x["rerank_score"])[:common.PRODUCTION_K]
+
+
+#Metrikler tam sıralamadan (exact_ranking, her çalıştırmada aynı); HNSW aynı soru vektörüyle production derinliğinde
+#ayrıca aranır: mesafeler tam sıralamayla karşılaştırılır (formül uyuşmazsa durur), kaçırdığı parçalar recall olarak
+#raporlanır ve "production'da (HNSW ile) kanıt Gemini'ye ulaşır mıydı" ayrıca hesaplanır
+#recall_depth: recall'un ölçüleceği derinlik (verilmezse production derinliği). "HNSW ile Gemini'ye ulaşır mıydı" her zaman
+#production derinliğindeki adaylarla hesaplanır. HNSW tek sorguyla max(ikisi) kadar aranır: ef_search (100) k'dan büyük
+#olduğu sürece daha büyük k aramayı değiştirmez, ilk sonuçlar küçük k ile yapılan aramanınkiyle aynıdır
+def evaluate(db, collection, embeddings, item, evidence, k, reranker=None, candidate_k=None, recall_depth=None) -> dict:
+    query_vector = embeddings.embed_query(common.QUERY_PREFIX + item["question"])
+    exact = common.exact_ranking(collection, query_vector)
+    depth = hnsw_depth(reranker, candidate_k)
+    recall_k = recall_depth or depth
+    hnsw = common.hnsw_ranking(db, query_vector, max(depth, recall_k))
+    max_distance_difference = common.check_distance_agreement(exact, hnsw)
+    recall = common.recall_at_k(exact, hnsw, recall_k)
+
+    def chunk(r):
+        source, page = r["metadata"].get("source_file"), r["metadata"].get("page_number")
+        return {"rank": r["rank"], "id": r["id"], "source_file": source, "page": page, "score": r["score"], "text": r["text"],
+                "vector_rank": r["rank"], "is_page_hit": source == item["file"] and page in item["pages"],
+                "is_evidence": is_evidence(item, evidence, source, page, r["text"])}
+
+    ranked = [chunk(r) for r in exact]
     vector_first_ev = next((x for x in ranked if x["is_evidence"]), None)
 
     #Reranker yoksa sıra tüm koleksiyonun vektör sırasıdır; varsa yalnızca ilk candidate_k aday yeniden sıralanır
     rerank_seconds = None
     final = ranked
+    candidates = ranked[:depth]
     if reranker is not None:
-        final, rerank_seconds = rerank(reranker, item["question"], [dict(x) for x in ranked[:candidate_k]])
+        candidates = [dict(x) for x in ranked[:candidate_k]]
+        final, rerank_seconds = rerank(reranker, item["question"], candidates)
 
     first_ev = next((x for x in final if x["is_evidence"]), None)
     top = final[:k]
     first_ev_top = next((x for x in top if x["is_evidence"]), None)
-    #Sayfa alanları son sıradan hesaplanır; reranker yokken evaluate_question ile aynıdır (same_top kontrolü)
+    #Sayfa alanları son sıradan hesaplanır
     first_page_top = next((x for x in top if x["is_page_hit"]), None)
-    #Gemini'ye giden parçalar production akışıyla (services/query.py prepare_chunks_with_metadata):
-    #reranker yokken ilk retrieval_k aday barajdan geçirilir; varken önce e5 barajı, sonra reranker barajı (en iyi skor),
-    #sonra reranker sırası, sonra ilk retrieval_k
-    #Skorlar soru-parça başına bağımsız ve sıralama kararlı olduğu için yeniden sıralanmış listeyi süzmek aynı sonucu verir
-    if reranker is None:
-        llm_chunks = [x for x in ranked[:common.PRODUCTION_K] if x["score"] >= common.SCORE_THRESHOLD]
-    else:
-        llm_chunks = [x for x in final if x["score"] >= common.SCORE_THRESHOLD]
-        #Soru düzeyinde reranker barajı (services/query.py rerank_chunks)
-        if llm_chunks and max(x["rerank_score"] for x in llm_chunks) < common.RERANK_SCORE_THRESHOLD:
-            llm_chunks = []
-        llm_chunks = llm_chunks[:common.PRODUCTION_K]
+    #rerank() adayları sıraladığı için production akışına vektör sırasındaki aday listesi veriliyor
+    llm_chunks = production_llm_chunks(sorted(candidates, key=lambda x: x["vector_rank"]), reranker is not None)
+
+    #Aynı akış HNSW'nin adaylarıyla; bir parçanın reranker skoru yalnızca soruya ve parçaya bağlı olduğu için
+    #tam sıralamada skorlanmış adayların skoru yeniden kullanılır, yalnızca HNSW'ye özgü adaylar skorlanır
+    hnsw_candidates = [chunk(r) for r in hnsw[:depth]]
+    if reranker is not None:
+        known = {x["id"]: x["rerank_score"] for x in candidates}
+        new = [x for x in hnsw_candidates if x["id"] not in known]
+        if new:
+            known.update(zip((x["id"] for x in new), rerank_scores(reranker, item["question"], [x["text"] for x in new])))
+        for x in hnsw_candidates:
+            x["rerank_score"] = known[x["id"]]
+    llm_chunks_hnsw = production_llm_chunks(hnsw_candidates, reranker is not None)
+    evidence_ids = {x["id"] for x in ranked if x["is_evidence"]}
+
     rerank_fields = {}
     if reranker is not None:
         non_evidence = [x["rerank_score"] for x in final if not x["is_evidence"]]
@@ -169,6 +206,11 @@ def evaluate(db, embeddings, item, evidence, k, chunk_count, reranker=None, cand
         "evidence_reaches_llm_in_production": any(x["is_evidence"] for x in llm_chunks),
         "chunks_sent_to_llm": len(llm_chunks),
         **rerank_fields,
+        #HNSW (production araması): tam sıralamanın ilk hnsw_depth parçasından kaçırdıkları ve sonucu
+        "hnsw_recall": recall,
+        "hnsw_missed_evidence": any(m["id"] in evidence_ids for m in recall["missed"]),
+        "evidence_reaches_llm_hnsw": any(x["is_evidence"] for x in llm_chunks_hnsw),
+        "max_distance_difference": max_distance_difference,
         #Kaynak/sayfa doğruluğu (yalnızca bilgi; başarı sayılmaz)
         "top1_correct_file": top[0]["source_file"] == item["file"],
         "top1_correct_page": top[0]["is_page_hit"],
@@ -180,7 +222,7 @@ def evaluate(db, embeddings, item, evidence, k, chunk_count, reranker=None, cand
     }
 
 
-def run(copy_dir: Path, questions: list, evidence: dict, k: int, rerank_model=None, candidate_k=None) -> dict:
+def run(copy_dir: Path, questions: list, evidence: dict, k: int, rerank_model=None, candidate_k=None, recall_depth=None) -> dict:
     import chromadb
     import sentence_transformers
     from langchain_huggingface import HuggingFaceEmbeddings
@@ -197,7 +239,12 @@ def run(copy_dir: Path, questions: list, evidence: dict, k: int, rerank_model=No
         chunk_count = db_info["chunk_count"]
         if reranker is not None and candidate_k > chunk_count:
             raise RuntimeError(f"--candidate-k ({candidate_k}) exceeds the collection size ({chunk_count})")
-        per_question = [evaluate(db, embeddings, item, evidence[item["id"]], k, chunk_count, reranker, candidate_k) for item in questions]
+        if recall_depth is not None and recall_depth > chunk_count:
+            raise RuntimeError(f"--recall-depth ({recall_depth}) exceeds the collection size ({chunk_count})")
+        #Tam sıralama için tüm vektörler bir kez yüklenir ve kontrol edilir
+        collection = common.load_vectors(db, chunk_count)
+        per_question = [evaluate(db, collection, embeddings, item, evidence[item["id"]], k, reranker, candidate_k, recall_depth)
+                        for item in questions]
     finally:
         db = None
         common.close_db()
@@ -220,6 +267,11 @@ def run(copy_dir: Path, questions: list, evidence: dict, k: int, rerank_model=No
             "model": common.MODEL_NAME, "collection": common.COLLECTION_NAME, "chunk_count": chunk_count, "indexed_count": db_info["indexed_count"],
             "hnsw": db_info["hnsw"], "query_prefix": common.QUERY_PREFIX, "passage_prefix": None,
             "score_threshold": common.SCORE_THRESHOLD, "production_k": common.PRODUCTION_K, "k": k,
+            #Metrikler tam sıralamadan; HNSW yalnızca recall ve "production'da ulaşır mıydı" için (notes.md madde 41)
+            "ranking": "exact", "hnsw_recall_depth": recall_depth or hnsw_depth(reranker, candidate_k),
+            "hnsw_production_depth": hnsw_depth(reranker, candidate_k),
+            "max_distance_difference": max(r["max_distance_difference"] for r in per_question),
+            "distance_tolerance": common.DISTANCE_TOLERANCE,
             #Ölçülen kurulumun production ayarlarıyla (core/settings.py) aynı olup olmadığı görülebilsin
             "production_reranker": {"enabled": common.RERANKER_ENABLED, "model": common.RERANKER_MODEL, "candidate_k": common.RERANK_CANDIDATE_K},
             "consistency_min_cosine": db_info["consistency_min_cosine"],
@@ -253,6 +305,11 @@ def summarize(rows: list, k: int) -> dict:
         "page_hit_at_3": count("page_hit_at_3"),
         f"page_hit_at_{k}": count(f"page_hit_at_{k}"),
         "page_hit_without_evidence_in_top3": count("page_hit_without_evidence_in_top3"),
+        #HNSW (production araması); kalite metriklerini etkilemez
+        "hnsw_recall_mean": round(sum(r["hnsw_recall"]["recall"] for r in rows) / n, 4),
+        "questions_with_hnsw_miss": sum(r["hnsw_recall"]["recall"] < 1 for r in rows),
+        "hnsw_missed_evidence": count("hnsw_missed_evidence"),
+        "evidence_reaches_llm_hnsw": count("evidence_reaches_llm_hnsw"),
     }
 
 
@@ -276,7 +333,8 @@ def main():
         sys.exit("ERROR: evidence phrases do not cover exactly the golden set ids")
     #Hata olursa veya DB değişirse run_on_copy sonucu kaydetmeden çıkar
     report = common.run_on_copy(db_dir, "chroma_evidence_eval_",
-                                lambda copy_dir: run(copy_dir, questions, evidence, args.k, args.rerank_model, args.candidate_k))
+                                lambda copy_dir: run(copy_dir, questions, evidence, args.k, args.rerank_model, args.candidate_k,
+                                                     args.recall_depth))
 
     report["meta"]["chroma_dir"] = Path(os.path.relpath(db_dir)).as_posix()
     report["meta"]["golden_set"] = Path(os.path.relpath(golden_path)).as_posix()
@@ -296,6 +354,16 @@ def main():
     print(f"Gemini'ye ulaşan kanıt (skor >= {common.SCORE_THRESHOLD}, {flow} {common.PRODUCTION_K}): {s['evidence_reaches_llm_in_production']}/{s['questions']}")
     if reranked:
         print(f"Reranker: {args.rerank_model} | aday {args.candidate_k} | soru başına süre ort {s['rerank_seconds_mean']} sn · p95 {s['rerank_seconds_p95']} sn · max {s['rerank_seconds_max']} sn")
+    #Metrikler tam sıralamadan; HNSW'nin kaçırdıkları yalnızca raporlanır (eval durmaz)
+    meta = report["meta"]
+    n = s["questions"]
+    print(f"\nHNSW recall@{meta['hnsw_recall_depth']}: {n - s['questions_with_hnsw_miss']}/{n} soru tam · ort {s['hnsw_recall_mean']} · "
+          f"kaçırılan kanıt {s['hnsw_missed_evidence']} · HNSW ile Gemini'ye ulaşan kanıt {s['evidence_reaches_llm_hnsw']}/{n} · "
+          f"en büyük mesafe farkı {meta['max_distance_difference']:.1e}")
+    for r in report["per_question"]:
+        if r["hnsw_recall"]["missed"]:
+            missed = ", ".join(f"{m['id']} (tam sırada {m['exact_rank']})" for m in r["hnsw_recall"]["missed"])
+            print(f"  UYARI {r['id']}: HNSW kaçırdı: {missed}" + (" ← kanıt" if r["hnsw_missed_evidence"] else ""))
     print("\nDosya bazında (kanıt Hit@1 · Hit@3 · MRR · top-1 yanlış dosya):")
     for name, fs in s["per_file"].items():
         n = fs["questions"]

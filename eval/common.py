@@ -11,7 +11,10 @@ import shutil
 import sys
 import tempfile
 import time
+from dataclasses import dataclass
 from pathlib import Path
+
+import numpy as np
 
 #Model indirmeyi ve Chroma telemetrisini kütüphaneler import edilmeden önce kapatıyoruz
 os.environ["HF_HUB_OFFLINE"] = "1"
@@ -167,22 +170,180 @@ def check_index_completeness(db, embeddings, chunk_count: int) -> int:
     return indexed
 
 
+#Tam sıralama için koleksiyondaki tüm parçalar (eval'de referans; production HNSW kullanıyor, notes.md madde 41)
+#ids, vectors (N x boyut, float32), documents ve metadatas aynı sırada; sıra id'ye göre sabit
+@dataclass(frozen=True)
+class CollectionVectors:
+    ids: list
+    vectors: np.ndarray
+    documents: list
+    metadatas: list
+
+
+#Metadata'da bulunması gereken alanlar (ingestion.py process_pdf yazıyor; eval sayfa ve kanıtı bunlarla eşleştiriyor)
+REQUIRED_METADATA = ("source_file", "page_number")
+
+
+#Tüm parçaları vektörleriyle bir kez alır ve ölçümden önce kontrol eder; bir sorun varsa RuntimeError (sonuç kaydedilmez)
+#Chroma'nın get() sırası garanti değil; eşit mesafede hangi parçanın önde olacağı buna bağlı olmasın diye id'ye göre sıralanır
+def load_vectors(db, chunk_count: int) -> CollectionVectors:
+    data = db._collection.get(include=["embeddings", "documents", "metadatas"])
+    ids = list(data["ids"])
+    embeddings, documents, metadatas = data["embeddings"], data["documents"], data["metadatas"]
+
+    if len(ids) != chunk_count:
+        raise RuntimeError(f"get() returned {len(ids)} chunks, collection count is {chunk_count}")
+    if embeddings is None or len(embeddings) != len(ids):
+        raise RuntimeError("get() did not return one embedding per chunk")
+    if documents is None or len(documents) != len(ids) or metadatas is None or len(metadatas) != len(ids):
+        raise RuntimeError("get() did not return one document and one metadata per chunk")
+    if len(set(ids)) != len(ids):
+        raise RuntimeError("Duplicate chunk ids in the collection")
+
+    #Boyutlar farklıysa np.asarray tek bir matris kuramaz; önce tek tek bakıyoruz
+    dims = {len(v) for v in embeddings}
+    if len(dims) != 1 or 0 in dims:
+        raise RuntimeError(f"Embeddings have inconsistent or empty dimensions: {sorted(dims)}")
+    vectors = np.asarray(embeddings, dtype=np.float32)
+    if not np.isfinite(vectors).all():
+        raise RuntimeError("Some embeddings contain NaN or infinite values")
+    if not (np.linalg.norm(vectors, axis=1) > 0).all():
+        raise RuntimeError("Some embeddings are zero vectors")
+
+    for cid, doc, meta in zip(ids, documents, metadatas):
+        if not isinstance(doc, str) or not doc:
+            raise RuntimeError(f"Chunk {cid} has no text")
+        missing = [f for f in REQUIRED_METADATA if not meta or meta.get(f) is None]
+        if missing:
+            raise RuntimeError(f"Chunk {cid} is missing metadata: {', '.join(missing)}")
+
+    order = sorted(range(len(ids)), key=lambda i: ids[i])
+    return CollectionVectors(
+        ids=[ids[i] for i in order],
+        vectors=vectors[order],
+        documents=[documents[i] for i in order],
+        metadatas=[metadatas[i] for i in order],
+    )
+
+
+#Soru vektörünü koleksiyondaki tüm parçalarla karşılaştırıp hepsini sıralı döner (HNSW yok, her çalıştırmada aynı sonuç)
+#Mesafe Chroma'nın "l2" tanımıyla aynı: karesi alınmış öklid (chromadb/utils/distance_functions.py l2)
+#Skor LangChain'in l2 için kullandığı 1 - d/√2 (production'daki similarity_search_with_relevance_scores ile aynı ölçek)
+#Hesap float64'te; vektörler float32 saklandığı için Chroma'nın mesafeleriyle son hanelerde fark olabilir
+#Eşit mesafede id sırası korunur (load_vectors id'ye göre sıralıyor, argsort kararlı)
+def exact_ranking(collection: CollectionVectors, query_vector) -> list:
+    query = np.asarray(query_vector, dtype=np.float64)
+    if query.shape != (collection.vectors.shape[1],):
+        raise RuntimeError(f"Query vector has shape {query.shape}, collection vectors have {collection.vectors.shape[1]} dimensions")
+    if not np.isfinite(query).all():
+        raise RuntimeError("Query vector contains NaN or infinite values")
+
+    distances = ((collection.vectors.astype(np.float64) - query) ** 2).sum(axis=1)
+    order = np.argsort(distances, kind="stable")
+    return [
+        {
+            "rank": rank,
+            "id": collection.ids[i],
+            "text": collection.documents[i],
+            "metadata": collection.metadatas[i],
+            "distance": float(distances[i]),
+            "score": 1.0 - float(distances[i]) / math.sqrt(2),
+        }
+        for rank, i in enumerate(order, 1)
+    ]
+
+
+#Production'daki aramanın eval karşılığı (services/query.py search_in_db → LangChain similarity_search_with_relevance_scores):
+#LangChain de koleksiyona aynı query() çağrısını yapıp skoru 1 - d/√2 ile hesaplıyor. Soru vektörü dışarıdan verilir:
+#exact_ranking ile aynı vektör kullanılsın (aynı metnin iki ayrı embedding'i CPU'da son hanelerde farklı çıkabiliyor)
+#Çıktı exact_ranking ile aynı biçimde; HNSW yaklaşık olduğu için parça kaçırabilir (recall_at_k ile ölçülür)
+def hnsw_ranking(db, query_vector, k: int) -> list:
+    if not isinstance(k, int) or isinstance(k, bool) or k < 1:
+        raise RuntimeError(f"k must be a positive integer, got {k!r}")
+    query = [float(x) for x in query_vector]
+    if not all(math.isfinite(x) for x in query):
+        raise RuntimeError("Query vector contains NaN or infinite values")
+
+    result = db._collection.query(query_embeddings=[query], n_results=k, include=["documents", "metadatas", "distances"])
+    ids, documents = result["ids"][0], result["documents"][0]
+    metadatas, distances = result["metadatas"][0], result["distances"][0]
+    if not (len(ids) == len(documents) == len(metadatas) == len(distances)):
+        raise RuntimeError("query() returned fields of different lengths")
+    if len(ids) > k:
+        raise RuntimeError(f"query() returned {len(ids)} chunks for k={k}")
+    if len(set(ids)) != len(ids):
+        raise RuntimeError("query() returned duplicate chunk ids")
+    return [
+        {
+            "rank": rank,
+            "id": cid,
+            "text": doc,
+            "metadata": meta,
+            "distance": float(d),
+            "score": 1.0 - float(d) / math.sqrt(2),
+        }
+        for rank, (cid, doc, meta, d) in enumerate(zip(ids, documents, metadatas, distances), 1)
+    ]
+
+
+#exact_ranking ile Chroma'nın mesafeleri arasında kabul edilen en büyük fark
+#float32 kaynaklı fark ~1e-7 civarında; formül farkı (ör. DB "cosine" ile kurulduysa) çok daha büyük olur
+DISTANCE_TOLERANCE = 1e-4
+
+
+#HNSW'nin döndürdüğü her parçanın mesafesi, aynı parçanın exact_ranking'deki mesafesiyle eşleşiyor mu?
+#Bu kontrol numpy formülünün Chroma'nın hesabıyla aynı olduğunu her çalıştırmada doğrular; mesafe ölçüsü değişirse
+#eval yanlış sonuç üretmek yerine durur. HNSW'nin kaçırdığı parçalar burada aranmaz (recall_at_k'nın işi)
+#En büyük farkı döner (meta'ya yazılır; gerçek float32 farkı böylece görülür)
+def check_distance_agreement(exact: list, hnsw: list, tolerance: float = DISTANCE_TOLERANCE) -> float:
+    exact_by_id = {r["id"]: r for r in exact}
+    max_diff = 0.0
+    for r in hnsw:
+        reference = exact_by_id.get(r["id"])
+        if reference is None:
+            raise RuntimeError(f"HNSW returned chunk {r['id']} that is not in the collection vectors")
+        diff = abs(r["distance"] - reference["distance"])
+        if not diff <= tolerance:
+            raise RuntimeError(f"Distance mismatch for chunk {r['id']}: HNSW {r['distance']:.8f}, "
+                               f"exact {reference['distance']:.8f} (difference {diff:.2e} > {tolerance:.0e})")
+        max_diff = max(max_diff, diff)
+    return max_diff
+
+
+#HNSW, tam sıralamanın ilk k parçasının kaçını kendi ilk k'sında buldu? (k: production'ın aday derinliği)
+#k koleksiyondan büyükse koleksiyon boyutuna iner; koleksiyon boşsa kaçırılacak parça yoktur (recall 1.0)
+#Sıra farkı recall'u etkilemez, yalnızca kaçırılan parçalar sayılır; kaçırılanlar tam sıradaki yerleriyle döner
+def recall_at_k(exact: list, hnsw: list, k: int) -> dict:
+    if not isinstance(k, int) or isinstance(k, bool) or k < 1:
+        raise RuntimeError(f"k must be a positive integer, got {k!r}")
+    depth = min(k, len(exact))
+    found_ids = {r["id"] for r in hnsw[:depth]}
+    missed = [r for r in exact[:depth] if r["id"] not in found_ids]
+    found = depth - len(missed)
+    return {
+        "k": depth,
+        "found": found,
+        "recall": found / depth if depth else 1.0,
+        "missed": [{"id": r["id"], "exact_rank": r["rank"], "score": round(r["score"], 4)} for r in missed],
+    }
+
+
 #Sayfa düzeyi sonuç: doğru dosya + beklenen sayfa isabet sayılır (kanıt ifadesi aranmaz)
-#evaluate_evidence.py ilk k sonucu bununla karşılaştırır ve sayfa alanlarını buradan alır
-def evaluate_question(db, item: dict, k: int) -> dict:
+#Arama yapmaz; hazır sıralamanın (exact_ranking veya hnsw_ranking çıktısı) ilk k parçasına bakar
+#Böylece aynı metrikler tam sıralamadan da HNSW sonucundan da hesaplanabilir; çıktı alanları önceki raporlarla aynı
+def evaluate_question(item: dict, ranked: list, k: int) -> dict:
     expected_pages = set(item["pages"])
-    #Production ile aynı sorgu: services/query.py search_in_db
-    results = db.similarity_search_with_relevance_scores(QUERY_PREFIX + item["question"], k=k)
+    results = ranked[:k]
 
     retrieved = []
-    for rank, (doc, score) in enumerate(results, 1):
-        source = doc.metadata.get("source_file")
-        page = doc.metadata.get("page_number")
+    for rank, r in enumerate(results, 1):
+        source = r["metadata"].get("source_file")
+        page = r["metadata"].get("page_number")
         retrieved.append({
             "rank": rank,
             "source_file": source,
             "page": page,
-            "score": round(float(score), 4),
+            "score": round(float(r["score"]), 4),
             "is_hit": source == item["file"] and page in expected_pages,
         })
 
@@ -190,7 +351,7 @@ def evaluate_question(db, item: dict, k: int) -> dict:
     first_hit = next((r for r in retrieved if r["is_hit"]), None)
     hit_at_3 = bool(first_hit and first_hit["rank"] <= 3)
     #Baraj kontrolü production'daki gibi yuvarlanmamış skorla yapılır (yuvarlama sadece gösterim için)
-    first_hit_raw_score = float(results[first_hit["rank"] - 1][1]) if first_hit else None
+    first_hit_raw_score = float(results[first_hit["rank"] - 1]["score"]) if first_hit else None
     return {
         "id": item["id"],
         "question": item["question"],

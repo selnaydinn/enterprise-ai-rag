@@ -4,6 +4,9 @@
 #Her soru için iki sinyal kaydedilir: en yüksek e5 skoru ve ilk --candidate-k aday içindeki en yüksek reranker skoru.
 #Eşik taraması her eşik değeri için kaç negatif sorunun Gemini'ye gideceğini ve kaç cevaplı sorunun kaybedileceğini gösterir.
 #Script karar vermez; eşik seçimi sonuç tablosuna bakılarak yapılır. DB geçici bir kopyada açılır (common.run_on_copy).
+#Adaylar tam sıralamadan (common.exact_ranking: tüm vektörlerle mesafe, her çalıştırmada aynı sonuç); sinyaller ve eşik
+#taramaları buradan. Production'daki HNSW araması aynı soru vektörüyle ayrıca yapılır: kaçırdığı parçalar recall olarak,
+#sorunun Gemini'ye gitme durumunu değiştiren kaçırmalar ayrıca raporlanır (notes.md madde 41). Metrikleri etkilemez.
 
 import argparse
 import json
@@ -18,7 +21,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 #common import edilirken HF offline ve telemetri ayarları da yapılır
 import common  # noqa: E402
-from evaluate_evidence import is_evidence, load_evidence  # noqa: E402
+from evaluate_evidence import CachedQueryEmbeddings, is_evidence, load_evidence, production_llm_chunks  # noqa: E402
 from services.query import rerank_scores  # noqa: E402
 
 GROUPS = ("golden", "near_domain", "out_of_domain")
@@ -35,11 +38,15 @@ def parse_args():
     parser.add_argument("--negative", default="eval/negative_set.jsonl")
     parser.add_argument("--rerank-model", default=common.RERANKER_MODEL)
     parser.add_argument("--candidate-k", type=int, default=common.RERANK_CANDIDATE_K)
+    #HNSW recall'unun ölçüleceği derinlik; verilmezse production'ın HNSW'den çektiği aday sayısı. Metrikleri etkilemez
+    parser.add_argument("--recall-depth", type=int, help="Depth for HNSW recall (default: production candidate depth)")
     parser.add_argument("--out", required=True)
     parser.add_argument("--overwrite", action="store_true", help="Replace --out if it already exists")
     args = parser.parse_args()
     if args.candidate_k < common.PRODUCTION_K:
         parser.error(f"--candidate-k must be at least retrieval_k ({common.PRODUCTION_K})")
+    if args.recall_depth is not None and args.recall_depth < 1:
+        parser.error("--recall-depth must be at least 1")
     return args
 
 
@@ -61,26 +68,59 @@ def load_negative(path: Path) -> list:
     return items
 
 
+#Production'ın HNSW'den aday çektiği derinlik (services/query.py search_in_db): reranker açıksa candidate_k, kapalıysa retrieval_k
+#Bu script'in bugünkü akış hesabı da production ayarına (RERANKER_ENABLED) göre yapılıyor
+def production_depth(candidate_k: int) -> int:
+    return candidate_k if common.RERANKER_ENABLED else common.PRODUCTION_K
+
+
+#Bugünkü akış (services/query.py prepare_chunks_with_metadata): e5 barajı, reranker barajı (en iyi skor), reranker sırası,
+#ilk retrieval_k. Akış evaluate_evidence.production_llm_chunks'ta tek yerde; adaylar ona score / rerank_score adlarıyla verilir
+def sent_to_gemini(candidates: list) -> list:
+    return production_llm_chunks([{**c, "score": c["e5"], "rerank_score": c["rerank"]} for c in candidates], common.RERANKER_ENABLED)
+
+
 #Bir sorunun adayları, iki sinyali ve bugünkü production akışının sonucu
 #evidence None ise soru negatiftir (kanıt aranmaz)
-def measure(db, reranker, item: dict, group: str, candidate_k: int, evidence=None) -> dict:
-    results = db.similarity_search_with_relevance_scores(common.QUERY_PREFIX + item["question"], k=candidate_k)
-    rerank = rerank_scores(reranker, item["question"], [doc.page_content for doc, _ in results])
-    candidates = []
-    for (doc, score), r in zip(results, rerank):
-        source, page = doc.metadata.get("source_file"), doc.metadata.get("page_number")
-        candidates.append({
-            "source_file": source, "page": page, "e5": float(score), "rerank": r,
-            "is_evidence": evidence is not None and is_evidence(item, evidence, source, page, doc.page_content),
-        })
+#Adaylar tam sıralamanın ilk candidate_k parçası; HNSW aynı soru vektörüyle production derinliğinde (ve recall_depth kadar)
+#ayrıca aranır, sonuçları yalnızca hnsw_* alanlarına yazılır
+def measure(db, collection, embeddings, reranker, item: dict, group: str, candidate_k: int, evidence=None, recall_depth=None) -> dict:
+    query_vector = embeddings.embed_query(common.QUERY_PREFIX + item["question"])
+    exact = common.exact_ranking(collection, query_vector)
+    depth = production_depth(candidate_k)
+    recall_k = recall_depth or depth
+    hnsw = common.hnsw_ranking(db, query_vector, max(depth, recall_k))
+    max_distance_difference = common.check_distance_agreement(exact, hnsw)
+    recall = common.recall_at_k(exact, hnsw, recall_k)
 
-    #Bugünkü akış (services/query.py prepare_chunks_with_metadata): e5 barajı, reranker barajı (en iyi skor), reranker sırası, ilk retrieval_k
-    passed = [c for c in candidates if c["e5"] >= common.SCORE_THRESHOLD]
+    def candidate(r, rerank):
+        source, page = r["metadata"].get("source_file"), r["metadata"].get("page_number")
+        return {
+            "id": r["id"], "source_file": source, "page": page, "e5": float(r["score"]), "rerank": rerank,
+            "is_evidence": evidence is not None and is_evidence(item, evidence, source, page, r["text"]),
+        }
+
+    top = exact[:candidate_k]
+    rerank = rerank_scores(reranker, item["question"], [r["text"] for r in top])
+    candidates = [candidate(r, s) for r, s in zip(top, rerank)]
+    sent = sent_to_gemini(candidates)
+
+    #Aynı akış HNSW'nin production derinliğindeki adaylarıyla; reranker skoru yalnızca soruya ve parçaya bağlı olduğu için
+    #tam sıralamada skorlanmış adayların skoru yeniden kullanılır, yalnızca HNSW'ye özgü adaylar skorlanır
+    #Reranker production'da kapalıysa akış reranker skoruna bakmaz, HNSW adayları skorlanmaz
+    hnsw_top = hnsw[:depth]
+    known = {c["id"]: c["rerank"] for c in candidates}
     if common.RERANKER_ENABLED:
-        if passed and max(c["rerank"] for c in passed) < common.RERANK_SCORE_THRESHOLD:
-            passed = []
-        passed = sorted(passed, key=lambda c: -c["rerank"])
-    sent = passed[:common.PRODUCTION_K]
+        new = [r for r in hnsw_top if r["id"] not in known]
+        if new:
+            known.update(zip((r["id"] for r in new), rerank_scores(reranker, item["question"], [r["text"] for r in new])))
+    sent_hnsw = sent_to_gemini([candidate(r, known.get(r["id"])) for r in hnsw_top])
+    #Kaçırılan parçalar arasında kanıt var mı (yalnızca golden)
+    exact_by_id = {r["id"]: r for r in exact}
+    missed_evidence = None
+    if evidence is not None:
+        missed_evidence = any(candidate(exact_by_id[m["id"]], None)["is_evidence"] for m in recall["missed"])
+
     evidence_chunks = [c for c in candidates if c["is_evidence"]]
     return {
         "id": item["id"],
@@ -96,6 +136,14 @@ def measure(db, reranker, item: dict, group: str, candidate_k: int, evidence=Non
         "sends_to_gemini": bool(sent),
         "chunks_sent": len(sent),
         "evidence_reaches_gemini": any(c["is_evidence"] for c in sent) if evidence is not None else None,
+        #HNSW (production araması): kaçırdıkları ve sorunun Gemini'ye gitme durumu; yukarıdaki alanları etkilemez
+        "hnsw_recall": recall,
+        "sends_to_gemini_hnsw": bool(sent_hnsw),
+        #Negatif sette önemli kaçırma: HNSW yüzünden soru Gemini'ye gidiyor ya da gitmiyor
+        "hnsw_changes_outcome": bool(sent) != bool(sent_hnsw),
+        "hnsw_missed_evidence": missed_evidence,
+        "evidence_reaches_gemini_hnsw": any(c["is_evidence"] for c in sent_hnsw) if evidence is not None else None,
+        "max_distance_difference": max_distance_difference,
         "candidates": [{**c, "e5": round(c["e5"], 4), "rerank": round(c["rerank"], 4)} for c in candidates],
     }
 
@@ -142,23 +190,46 @@ def summarize(rows: list) -> dict:
             "golden_sent_to_gemini": sum(r["sends_to_gemini"] for r in golden),
             "golden_evidence_reaches_gemini": sum(bool(r["evidence_reaches_gemini"]) for r in golden),
         },
+        #HNSW (production araması); yukarıdaki dağılımları, akışı ve eşik taramalarını etkilemez
+        "hnsw": {g: summarize_hnsw(v, g == "golden") for g, v in by_group.items() if v},
     }
 
 
-def run(copy_dir: Path, golden: list, negative: list, evidence: dict, rerank_model: str, candidate_k: int) -> dict:
+def summarize_hnsw(rows: list, golden: bool) -> dict:
+    summary = {
+        "questions": len(rows),
+        "recall_mean": round(sum(r["hnsw_recall"]["recall"] for r in rows) / len(rows), 4),
+        "questions_with_miss": sum(r["hnsw_recall"]["recall"] < 1 for r in rows),
+        "outcome_changed": sum(r["hnsw_changes_outcome"] for r in rows),
+        "sent_to_gemini": sum(r["sends_to_gemini_hnsw"] for r in rows),
+    }
+    if golden:
+        summary["missed_evidence"] = sum(bool(r["hnsw_missed_evidence"]) for r in rows)
+        summary["evidence_reaches_gemini"] = sum(bool(r["evidence_reaches_gemini_hnsw"]) for r in rows)
+    return summary
+
+
+def run(copy_dir: Path, golden: list, negative: list, evidence: dict, rerank_model: str, candidate_k: int, recall_depth=None) -> dict:
     import chromadb
     import sentence_transformers
     from langchain_huggingface import HuggingFaceEmbeddings
 
-    embeddings = HuggingFaceEmbeddings(model_name=common.MODEL_NAME, model_kwargs={"device": "cpu"})
+    embeddings = CachedQueryEmbeddings(HuggingFaceEmbeddings(model_name=common.MODEL_NAME, model_kwargs={"device": "cpu"}))
     reranker = sentence_transformers.CrossEncoder(rerank_model, device="cpu")
     db = None
     try:
         db, db_info = common.open_checked_db(copy_dir, embeddings)
-        if candidate_k > db_info["chunk_count"]:
-            raise RuntimeError(f"--candidate-k ({candidate_k}) exceeds the collection size ({db_info['chunk_count']})")
-        rows = [measure(db, reranker, item, "golden", candidate_k, evidence[item["id"]]) for item in golden]
-        rows += [measure(db, reranker, item, item["kind"], candidate_k) for item in negative]
+        chunk_count = db_info["chunk_count"]
+        if candidate_k > chunk_count:
+            raise RuntimeError(f"--candidate-k ({candidate_k}) exceeds the collection size ({chunk_count})")
+        if recall_depth is not None and recall_depth > chunk_count:
+            raise RuntimeError(f"--recall-depth ({recall_depth}) exceeds the collection size ({chunk_count})")
+        #Tam sıralama için tüm vektörler bir kez yüklenir ve kontrol edilir
+        collection = common.load_vectors(db, chunk_count)
+        rows = [measure(db, collection, embeddings, reranker, item, "golden", candidate_k, evidence[item["id"]], recall_depth)
+                for item in golden]
+        rows += [measure(db, collection, embeddings, reranker, item, item["kind"], candidate_k, None, recall_depth)
+                 for item in negative]
     finally:
         db = None
         common.close_db()
@@ -171,6 +242,11 @@ def run(copy_dir: Path, golden: list, negative: list, evidence: dict, rerank_mod
             "collection": common.COLLECTION_NAME, **db_info, "query_prefix": common.QUERY_PREFIX,
             "score_threshold": common.SCORE_THRESHOLD, "rerank_score_threshold": common.RERANK_SCORE_THRESHOLD, "production_k": common.PRODUCTION_K,
             "production_reranker": {"enabled": common.RERANKER_ENABLED, "model": common.RERANKER_MODEL, "candidate_k": common.RERANK_CANDIDATE_K},
+            #Adaylar tam sıralamadan; HNSW yalnızca recall ve "production'da Gemini'ye gider miydi" için (notes.md madde 41)
+            "ranking": "exact", "hnsw_recall_depth": recall_depth or production_depth(candidate_k),
+            "hnsw_production_depth": production_depth(candidate_k),
+            "max_distance_difference": max(r["max_distance_difference"] for r in rows),
+            "distance_tolerance": common.DISTANCE_TOLERANCE,
             "chromadb_version": chromadb.__version__, "sentence_transformers_version": sentence_transformers.__version__,
         },
         "summary": summarize(rows),
@@ -187,6 +263,22 @@ def print_report(report: dict):
     print(f"Bugünkü akışta Gemini'ye giden: dokümana yakın {c['negatives_sent_to_gemini']['near_domain']}/{q['near_domain']} | "
           f"kapsam dışı {c['negatives_sent_to_gemini']['out_of_domain']}/{q['out_of_domain']} | "
           f"golden {c['golden_sent_to_gemini']}/{q['golden']} (kanıt ulaşan {c['golden_evidence_reaches_gemini']})")
+    #Metrikler tam sıralamadan; HNSW'nin kaçırdıkları yalnızca raporlanır (eval durmaz)
+    meta, h = report["meta"], s["hnsw"]
+    print(f"\nHNSW recall@{meta['hnsw_recall_depth']} (production derinliği {meta['hnsw_production_depth']}, "
+          f"en büyük mesafe farkı {meta['max_distance_difference']:.1e}):")
+    for g, d in h.items():
+        line = (f"  {g:<15}{d['questions'] - d['questions_with_miss']}/{d['questions']} soru tam · ort {d['recall_mean']} · "
+                f"Gemini'ye gitme durumu değişen {d['outcome_changed']} · HNSW ile Gemini'ye giden {d['sent_to_gemini']}/{d['questions']}")
+        if "missed_evidence" in d:
+            line += f" · kaçırılan kanıt {d['missed_evidence']} · kanıt ulaşan {d['evidence_reaches_gemini']}"
+        print(line)
+    for r in report["per_question"]:
+        if r["hnsw_recall"]["missed"]:
+            missed = ", ".join(f"{m['id']} (tam sırada {m['exact_rank']})" for m in r["hnsw_recall"]["missed"])
+            flags = (" ← kanıt" if r["hnsw_missed_evidence"] else "") + \
+                    (" ← Gemini'ye gitme durumu değişiyor" if r["hnsw_changes_outcome"] else "")
+            print(f"  UYARI {r['id']}: HNSW kaçırdı: {missed}{flags}")
     for signal in ("e5", "rerank"):
         print(f"\nEn yüksek {signal} skoru (min · medyan · max):")
         for g, d in s["distributions"][signal].items():
@@ -219,7 +311,8 @@ def main():
     if set(evidence) != {q["id"] for q in golden}:
         sys.exit("ERROR: evidence phrases do not cover exactly the golden set ids")
     report = common.run_on_copy(db_dir, "chroma_negative_eval_",
-                                lambda copy_dir: run(copy_dir, golden, negative, evidence, args.rerank_model, args.candidate_k))
+                                lambda copy_dir: run(copy_dir, golden, negative, evidence, args.rerank_model, args.candidate_k,
+                                                     args.recall_depth))
 
     report["meta"]["chroma_dir"] = Path(os.path.relpath(db_dir)).as_posix()
     report["meta"]["golden_set"] = Path(os.path.relpath(golden_path)).as_posix()

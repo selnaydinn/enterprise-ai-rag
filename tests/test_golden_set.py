@@ -4,7 +4,6 @@ import os
 import re
 import unittest
 from pathlib import Path
-from types import SimpleNamespace
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 GOLDEN_PATH = PROJECT_ROOT / "eval" / "golden_set.jsonl"
@@ -172,24 +171,48 @@ class EvalCompatibilityTests(unittest.TestCase):
         self.assertEqual([q["id"] for q in questions], [r["id"] for r in read_records()])
 
     def test_expected_page_is_counted_as_hit(self):
-        #Chroma yerine sahte DB: beklenen dosya/sayfayı 2. sırada döndürüyor
+        #Hazır sıralama (exact_ranking / hnsw_ranking biçiminde): beklenen dosya/sayfa 2. sırada
         for item in read_records():
             with self.subTest(id=item["id"]):
-                wrong = SimpleNamespace(metadata={"source_file": item["file"], "page_number": max(item["pages"]) + 1})
-                right = SimpleNamespace(metadata={"source_file": item["file"], "page_number": item["pages"][0]})
-                fake_db = SimpleNamespace(similarity_search_with_relevance_scores=lambda q, k: [(wrong, 0.9), (right, 0.8), (wrong, 0.7)])
+                wrong = {"metadata": {"source_file": item["file"], "page_number": max(item["pages"]) + 1}}
+                right = {"metadata": {"source_file": item["file"], "page_number": item["pages"][0]}}
+                ranked = [{**wrong, "score": 0.9}, {**right, "score": 0.8}, {**wrong, "score": 0.7}]
 
-                result = self.evaluation.evaluate_question(fake_db, item, k=3)
+                result = self.evaluation.evaluate_question(item, ranked, k=3)
 
                 self.assertTrue(result["hit_at_3"])
                 self.assertEqual(result["first_hit_rank"], 2)
 
     def test_other_file_is_not_counted_as_hit(self):
         item = read_records()[0]
-        other = SimpleNamespace(metadata={"source_file": "baska.pdf", "page_number": item["pages"][0]})
-        fake_db = SimpleNamespace(similarity_search_with_relevance_scores=lambda q, k: [(other, 0.9)] * 3)
+        other = {"metadata": {"source_file": "baska.pdf", "page_number": item["pages"][0]}, "score": 0.9}
 
-        self.assertFalse(self.evaluation.evaluate_question(fake_db, item, k=3)["hit_at_3"])
+        self.assertFalse(self.evaluation.evaluate_question(item, [other] * 3, k=3)["hit_at_3"])
+
+    #Sıralama k'dan uzun olabilir (exact_ranking tüm koleksiyonu döner); yalnızca ilk k'ya bakılır
+    def test_only_first_k_are_evaluated(self):
+        item = read_records()[0]
+        other = {"metadata": {"source_file": "baska.pdf", "page_number": 1}, "score": 0.9}
+        right = {"metadata": {"source_file": item["file"], "page_number": item["pages"][0]}, "score": 0.8}
+        result = self.evaluation.evaluate_question(item, [other, other, other, right], k=3)
+        self.assertFalse(result["hit_at_3"])
+        self.assertEqual(len(result["retrieved"]), 3)
+        self.assertEqual(self.evaluation.evaluate_question(item, [other, other, other, right], k=5)["first_hit_rank"], 4)
+
+    #Baraj yuvarlanmamış skorla: 0.71996 gösterimde 0.72 olur ama barajı (0.72) geçmez; retrieval_k'dan sonraki isabet de geçmez
+    def test_production_reach_uses_raw_score_and_retrieval_k(self):
+        item = read_records()[0]
+        threshold, production_k = self.evaluation.SCORE_THRESHOLD, self.evaluation.PRODUCTION_K
+        right = {"metadata": {"source_file": item["file"], "page_number": item["pages"][0]}}
+        other = {"metadata": {"source_file": "baska.pdf", "page_number": 1}, "score": 0.99}
+
+        below = self.evaluation.evaluate_question(item, [{**right, "score": threshold - 4e-5}], k=3)
+        self.assertEqual(below["first_hit_score"], round(threshold - 4e-5, 4))
+        self.assertFalse(below["reaches_llm_in_production"])
+        self.assertTrue(self.evaluation.evaluate_question(item, [{**right, "score": threshold}], k=3)["reaches_llm_in_production"])
+
+        late = [other] * production_k + [{**right, "score": 0.95}]
+        self.assertFalse(self.evaluation.evaluate_question(item, late, k=production_k + 1)["reaches_llm_in_production"])
 
 
 class ReferencePageTests(unittest.TestCase):
