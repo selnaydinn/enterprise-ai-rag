@@ -74,7 +74,9 @@ class RealPdfTests(unittest.TestCase):
         writer = PdfWriter()
         writer.add_blank_page(width=595, height=842)
         if password:
-            writer.encrypt(user_password=password, algorithm="AES-256")
+            #RC4: pypdf ek paket olmadan işleyebiliyor; AES için cryptography gerekiyor (requirements'ta yalnızca
+            #google-auth üzerinden dolaylı geliyor, zincir değişirse test DependencyError ile patlar)
+            writer.encrypt(user_password=password, algorithm="RC4-128")
         path = self.tmp / name
         with open(path, "wb") as f:
             writer.write(f)
