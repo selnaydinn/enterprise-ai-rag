@@ -44,8 +44,28 @@ def delete_document_chunks(pdf_name):
         db.delete(ids=ids)
     return len(ids)
 
-#PDF HASH, CHUNKING AND  VEKTORIZATION
-def process_pdf(pdf_path):
+#CHUNKING
+#Desteklenen yöntemler; core/settings.py chunking_strategy ve scripts/build_db.py --chunking bu listeden
+#"page": sayfa metni 1200/300 karakterle bölünür (bugünkü DB'ler böyle kuruldu)
+CHUNKING_STRATEGIES = ("page",)
+
+#Sayfa Document'larını chunk'lara böler; yöntem değişirse DB yeniden kurulmalı (scripts/build_db.py)
+def split_pages(pages, strategy):
+    if strategy == "page":
+        #Boyutlar core/settings.py'de
+        settings = get_settings()
+        splitter = RecursiveCharacterTextSplitter(
+            chunk_size = settings.chunk_size,
+            chunk_overlap = settings.chunk_overlap
+        )
+        return splitter.split_documents(pages)
+    raise ValueError(f"Bilinmeyen chunking yöntemi: {strategy!r} (desteklenenler: {', '.join(CHUNKING_STRATEGIES)})")
+
+
+#PDF HASH, CHUNKING
+#PDF'i okuyup chunk'larını ve id'lerini hazırlar; DB'ye dokunmaz (scripts/build_db.py embedding'den önce chunk'ları buradan görüyor)
+#strategy verilmezse core/settings.py chunking_strategy
+def prepare_chunks(pdf_path, strategy=None):
 
     # Dosya adını loglar için yoldan ayıklıyoruz
     pdf_name = os.path.basename(pdf_path)
@@ -74,13 +94,8 @@ def process_pdf(pdf_path):
     for page in pages:
         page.page_content = normalize_blank_lines(page.page_content)
 
-    #Sayfaları chunklara böldük (boyutlar core/settings.py'de; değişirse DB yeniden kurulmalı)
-    settings = get_settings()
-    splitter = RecursiveCharacterTextSplitter(
-        chunk_size = settings.chunk_size,
-        chunk_overlap = settings.chunk_overlap
-    )
-    chunks = splitter.split_documents(pages)
+    #Sayfaları chunklara böldük
+    chunks = split_pages(pages, strategy or get_settings().chunking_strategy)
 
     logger.info(f"{pdf_name}: {len(pages)} sayfa okundu, {len(chunks)} parçaya bölündü.")
 
@@ -112,16 +127,25 @@ def process_pdf(pdf_path):
         final_chunks.append(chunk)
         chunk_ids.append(unique_id_of_chunk)
 
+    return {"pdf_name": pdf_name, "pdf_hash": pdf_hash, "total_pages": len(pages), "chunks": final_chunks, "ids": chunk_ids}
+
+
+#PDF HASH, CHUNKING AND  VEKTORIZATION
+#db verilmezse uygulamanın DB'si (get_db); scripts/build_db.py yeni kurduğu DB'yi veriyor
+def process_pdf(pdf_path, db=None, strategy=None):
+    prepared = prepare_chunks(pdf_path, strategy)
+    pdf_name, final_chunks, chunk_ids = prepared["pdf_name"], prepared["chunks"], prepared["ids"]
+
     logger.info(f"{len(final_chunks)} parça vektörize edilecek.")
 
     #VECTORIZE CHUNKS
     #Tüm dökümanı tek seferde değil, 32şerli paketlerle gömerek CPU'yu rahatlatıyoruz
     batch_size = 32
-    db = get_db()
+    db = db if db is not None else get_db()
     for i in range(0, len(final_chunks), batch_size):
         batch_chunks = final_chunks[i : i + batch_size]
         batch_ids = chunk_ids[i : i + batch_size]
-        
+
         logger.debug(f"{i}/{len(final_chunks)} arası parçalar vektörize ediliyor...")
         db.add_documents(documents=batch_chunks, ids=batch_ids)
 
@@ -130,7 +154,7 @@ def process_pdf(pdf_path):
     #Alan adları schemas.py UploadResponse ile aynı
     return {
         "filename": pdf_name,
-        "total_pages": len(pages),
-        "total_chunks": len(chunks),
+        "total_pages": prepared["total_pages"],
+        "total_chunks": len(final_chunks),
         "message": f"{pdf_name} başarıyla vektörize edildi."
     }

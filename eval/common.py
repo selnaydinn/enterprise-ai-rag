@@ -1,4 +1,4 @@
-#Eval script'lerinin ortak kodu (evaluate_evidence.py, build_normalization_db.py) ve tests/test_golden_set.py.
+#Eval script'lerinin ortak kodu (evaluate_evidence.py, evaluate_negative.py) ve tests/test_golden_set.py.
 #Tek başına çalıştırılmaz. Import edildiğinde model indirmeyi ve Chroma telemetrisini kapatır,
 #ayarları uygulamayla aynı yerden (core/settings.py) okur; Gemini çağrılmaz, GEMINI_API_KEY gerekmez.
 

@@ -30,21 +30,26 @@ See [docs/development.md](docs/development.md) for the code layout.
 
 ## Quick start
 
-Requirements: Docker, Node.js 20.9+, a Gemini API key, and a copy of the ChromaDB folder
-(`chroma_db_normalization/`) and `uploaded_pdfs/` (not in git).
+Requirements: Docker, Node.js 20.9+ and a Gemini API key. The database and the PDFs are not in git: put the PDFs in
+`uploaded_pdfs/` (or start without documents), then build the database once.
 
 ```bash
 cp .env.example .env          # Windows (cmd): copy .env.example .env  · then set GEMINI_API_KEY
-docker compose up --build     # backend: http://localhost:8000/docs
+docker compose build
+# Build the database and download the models (about 1.6 GB) into the Docker volume hf_cache;
+# add --allow-empty to start without documents
+docker compose run --rm rag-backend python scripts/build_db.py --target chroma_db_new --allow-download
+# set CHROMA_DIR=chroma_db_new in .env
+docker compose up             # backend: http://localhost:8000/docs
 
 cd rag-frontend
 npm ci
 npm run dev                   # frontend: http://localhost:3000
 ```
 
-The embedding and reranker models (about 1.6 GB) are kept in the Docker volume `hf_cache`, and the container runs with
-`HF_HUB_OFFLINE=1`. On the very first start the volume is empty, so set `HF_HUB_OFFLINE=0` in `docker-compose.yml`
-once to download the models, then set it back (see [docs/configuration.md](docs/configuration.md#docker)).
+With an existing database folder, copy it into the project root instead and set `CHROMA_DIR` to it. See
+[docs/configuration.md](docs/configuration.md#chromadb) for the build script and
+[the model cache](docs/configuration.md#model-cache).
 
 ## Documentation
 
@@ -79,7 +84,6 @@ it was 28. For those, Gemini is asked to reply `BILGI_YOK`, and the app shows th
 - **No conversation memory;** every question is answered independently.
 - **Data leaves the machine;** questions and retrieved chunks are sent to the Gemini API.
 - **Synchronous uploads;** large PDFs are processed during the upload request.
-- **No database setup script;** a new environment needs a copy of the ChromaDB folder.
 - **Retrieval tuning;** the thresholds were chosen on the same questions they are evaluated on (56 answerable,
   39 unanswerable), so the results are somewhat optimistic; the reranker adds about 2 s per question on CPU.
 - **Search after restart;** the approximate vector index is rebuilt when the database is opened and can occasionally
