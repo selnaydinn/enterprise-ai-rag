@@ -139,12 +139,16 @@ GUNCEL 11:  Geminidan dönen hatalar yakalandı.
             PDF ile ilgili bazı hatalar (şifreli,boş) ayrıca yakalandı. 
             Global hata ayıklayıcı eklendi. Bu tarz globale düşen hatalara header eklenmediği için kendimiz ekledik.
             Gemini boş yanıt dönerse-- 200 dönecek ama no_result olacak detail kısmı
-            Geminiın yanıtı yarıda kalırsa--- 200 success + tamamlanamadı notu
-            HNSW algoritması ve exact search, golden set ve negatif set için karşılaştırıldı. Negatif sette HNSW kaçırması vardı ancak şans eseri sonuca doğrudan bir etkisi bulunmadı. Artık exact search de elimizde olduğu için kaçırmaları net görebilicez. Retrieval kalitesini
-            iyileştirmeye geçmeden önce güvenilir bir ölçüm gerektiği için exact search önemliydi.(madde bazlı chunking denemeleri falan)
----         Negatif set recall: 0.995 , Golden set recall: 1.0
+            Gemini ın yanıtı yarıda kalırsa--- 200 success + tamamlanamadı notu
+           
+           
+GUNCEL 12:  HNSW algoritması ve exact search, golden set ve negatif set için karşılaştırıldı. Negatif sette HNSW kaçırması vardı ancak şans    eseri sonuca doğrudan bir etkisi bulunmadı. Artık exact search de elimizde olduğu için kaçırmaları net görebilicez. Retrieval kalitesini
+iyileştirmeye geçmeden önce güvenilir bir ölçüm gerektiği için exact search önemliydi.(madde bazlı chunking denemeleri falan)
+            Negatif set recall: 0.995 , Golden set recall: 1.0
 
-GUNCEL 12: Retrieval kalitesi artırılacak.(madde bazlı chunking vs).
+
+
+GUNCEL 13: Retrieval kalitesi artırılacak.(madde bazlı chunking vs).
 
 ## 1. Genel Bakış
 
