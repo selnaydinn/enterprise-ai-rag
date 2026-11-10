@@ -32,8 +32,8 @@ class SplitPagesTests(unittest.TestCase):
         self.assertEqual([(d.page_content, d.metadata) for d in got], [(d.page_content, d.metadata) for d in expected])
 
     def test_unknown_strategy_is_rejected(self):
-        with self.assertRaisesRegex(ValueError, "madde"):
-            self.ingestion.split_pages([long_page(1, 0)], "madde")
+        with self.assertRaisesRegex(ValueError, "bilinmeyen"):
+            self.ingestion.split_pages([long_page(1, 0)], "bilinmeyen")
 
     def test_settings_default_is_a_supported_strategy(self):
         self.assertIn(self.ingestion.get_settings().chunking_strategy, self.ingestion.CHUNKING_STRATEGIES)
@@ -81,7 +81,7 @@ class PrepareAndProcessTests(unittest.TestCase):
 
     def test_unknown_strategy_stops_before_the_db(self):
         with self.assertRaises(ValueError):
-            self.prepare(strategy="madde")
+            self.prepare(strategy="bilinmeyen")
         self.get_db.assert_not_called()
 
     #Uygulama db vermiyor: get_db kullanılır

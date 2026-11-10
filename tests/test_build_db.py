@@ -333,7 +333,7 @@ class MainTests(TempDirTest):
 
     #Uygulamanın DB'si hedef olamaz; bilinmeyen yöntem; ikisi de hiçbir şey yapmadan durur
     def test_app_db_as_target_or_unknown_strategy_stops_early(self):
-        for extra, target, message in (([], self.app_db, "uygulamanın kullandığı DB"), (["--chunking", "madde"], None, "madde")):
+        for extra, target, message in (([], self.app_db, "uygulamanın kullandığı DB"), (["--chunking", "bilinmeyen"], None, "bilinmeyen")):
             with self.subTest(message=message):
                 code, _ = self.run_main(*extra, target=target)
                 self.assertNotEqual(code, 0)

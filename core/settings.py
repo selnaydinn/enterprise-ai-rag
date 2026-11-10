@@ -39,9 +39,9 @@ class Settings(BaseSettings):
     collection_name: str = "langchain"
     chunk_size: int = 1200
     chunk_overlap: int = 300
-    #Parçalama yöntemi (services/ingestion.py CHUNKING_STRATEGIES); DB'yi kuran yöntemle aynı olmalı, yoksa yeni yüklenen
-    #PDF'ler DB'deki diğerlerinden farklı bölünür
-    chunking_strategy: Literal["page"] = "page"
+    #Parçalama yöntemi (services/chunking.py CHUNKING_STRATEGIES): "page" (1200/300 karakter) veya "madde" (madde ve
+    #sayfa sınırlarından). DB'yi kuran yöntemle aynı olmalı, yoksa yeni yüklenen PDF'ler DB'deki diğerlerinden farklı bölünür
+    chunking_strategy: Literal["page", "madde"] = "page"
     #Değişirse eval ile ölçülmeli
     #Gemini'ye gönderilen en fazla parça sayısı
     retrieval_k: int = 3

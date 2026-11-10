@@ -306,6 +306,10 @@ def main():
         if stats["count"]:
             log("2/5 parçalama", f"{stats['count']} chunk {stats['by_file']} | karakter medyan {stats['characters']['median']}, "
                                  f"en uzun {stats['characters']['max']} | token medyan {stats['tokens']['median']}, en uzun {stats['tokens']['max']}")
+        if strategy == "madde":
+            for p in prepared:
+                articles = len({c.metadata["article"] for c in p["chunks"] if c.metadata.get("article")})
+                log("2/5 parçalama", f"{p['pdf_name']}: " + (f"{articles} madde" if articles else "madde yapısı yok, page yöntemi"))
         if stats["tokens"]["over_limit"]:
             log("uyarı", f"{stats['tokens']['over_limit']} chunk {E5_MAX_TOKENS} token sınırını aşıyor; sonları embedding'e girmez")
 
@@ -335,7 +339,10 @@ def main():
             "created_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
             "target": display_path(target),
             "pdf_dir": display_path(pdf_dir),
-            "pdfs": [{"file": p["pdf_name"], "pdf_hash": p["pdf_hash"], "pages": p["total_pages"], "chunks": len(p["chunks"])}
+            #method: "madde" yönteminde madde yapısı bulunamayan PDF'ler "page" ile bölünür (services/chunking.py)
+            "pdfs": [{"file": p["pdf_name"], "pdf_hash": p["pdf_hash"], "pages": p["total_pages"], "chunks": len(p["chunks"]),
+                      "articles": len({c.metadata["article"] for c in p["chunks"] if c.metadata.get("article")}),
+                      "method": "madde" if any(c.metadata.get("article") for c in p["chunks"]) else "page"}
                      for p in prepared],
             "chunking": {"strategy": strategy, "chunk_size": settings.chunk_size, "chunk_overlap": settings.chunk_overlap},
             "model": settings.embedding_model,
@@ -371,6 +378,10 @@ def main():
         log("5/5 son", "Boş DB kuruldu; PDF'ler uygulamanın arayüzünden yüklenebilir")
     log("5/5 son", f"Uygulama hâlâ {display_path(app_db)} kullanıyor. Yeni DB'ye geçmek için .env'de CHROMA_DIR={display_path(target)} "
                    f"yapıp uygulamayı yeniden başlatın.")
+    #Yeni yüklenen PDF'ler uygulamanın ayarıyla bölünür; DB'yi kuran yöntemle aynı olmazsa DB karışık hâle gelir
+    if strategy != settings.chunking_strategy:
+        log("uyarı", f"Bu DB '{strategy}' yöntemiyle kuruldu, uygulamanın ayarı '{settings.chunking_strategy}'. "
+                     f"Bu DB'ye geçerken .env'de CHUNKING_STRATEGY={strategy} de yapılmalı.")
 
 
 if __name__ == "__main__":

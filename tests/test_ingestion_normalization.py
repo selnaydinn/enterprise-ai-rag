@@ -75,6 +75,8 @@ class ProcessPdfAppliesNormalizationTests(unittest.TestCase):
         fake_db = mock.Mock()
         fake_db.get.return_value = {"ids": []}
         ingestion = import_ingestion()
+        #Bölme services/chunking.py'de (page yöntemi RecursiveCharacterTextSplitter kullanıyor)
+        chunking = importlib.import_module("services.chunking")
         page = SimpleNamespace(page_content="MADDE 1 - (1) Amaç \n \n(2) Kapsam", metadata={"page": 0})
         captured = {}
 
@@ -84,7 +86,7 @@ class ProcessPdfAppliesNormalizationTests(unittest.TestCase):
 
         with mock.patch.object(ingestion, "get_db", return_value=fake_db), \
              mock.patch.object(ingestion, "PyPDFLoader") as loader, \
-             mock.patch.object(ingestion.RecursiveCharacterTextSplitter, "split_documents", side_effect=fake_split), \
+             mock.patch.object(chunking.RecursiveCharacterTextSplitter, "split_documents", side_effect=fake_split), \
              mock.patch.object(ingestion, "hash_pdf", return_value="deadbeef"), \
              mock.patch.object(ingestion.os.path, "exists", return_value=True):
             loader.return_value.load.return_value = [page]

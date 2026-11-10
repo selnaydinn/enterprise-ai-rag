@@ -3,10 +3,11 @@ import re
 import hashlib
 import logging
 from langchain_community.document_loaders import PyPDFLoader
-from langchain_text_splitters import RecursiveCharacterTextSplitter
 from pypdf.errors import PyPdfError
 from core.config import get_db
 from core.settings import get_settings
+#CHUNKING_STRATEGIES burada da erişilebilir kalsın (scripts/build_db.py ingestion üzerinden okuyor)
+from services.chunking import CHUNKING_STRATEGIES, split_pages  # noqa: F401
 
 logger = logging.getLogger("EnterpriseAI")
 
@@ -44,25 +45,8 @@ def delete_document_chunks(pdf_name):
         db.delete(ids=ids)
     return len(ids)
 
-#CHUNKING
-#Desteklenen yöntemler; core/settings.py chunking_strategy ve scripts/build_db.py --chunking bu listeden
-#"page": sayfa metni 1200/300 karakterle bölünür (bugünkü DB'ler böyle kuruldu)
-CHUNKING_STRATEGIES = ("page",)
-
-#Sayfa Document'larını chunk'lara böler; yöntem değişirse DB yeniden kurulmalı (scripts/build_db.py)
-def split_pages(pages, strategy):
-    if strategy == "page":
-        #Boyutlar core/settings.py'de
-        settings = get_settings()
-        splitter = RecursiveCharacterTextSplitter(
-            chunk_size = settings.chunk_size,
-            chunk_overlap = settings.chunk_overlap
-        )
-        return splitter.split_documents(pages)
-    raise ValueError(f"Bilinmeyen chunking yöntemi: {strategy!r} (desteklenenler: {', '.join(CHUNKING_STRATEGIES)})")
-
-
 #PDF HASH, CHUNKING
+#Bölme yöntemleri services/chunking.py'de (split_pages, CHUNKING_STRATEGIES)
 #PDF'i okuyup chunk'larını ve id'lerini hazırlar; DB'ye dokunmaz (scripts/build_db.py embedding'den önce chunk'ları buradan görüyor)
 #strategy verilmezse core/settings.py chunking_strategy
 def prepare_chunks(pdf_path, strategy=None):
