@@ -66,13 +66,19 @@ was originally built by `eval/build_normalization_db.py` (blank-line normalizati
 
 ## Question sets
 
-- `golden_set.jsonl`: 56 answerable questions: `meb_yonetmelik.pdf` 25 (q01–q25), `AcilSaglikHizmetleri.pdf` 10
-  (q26–q35), `isg.pdf` 10 (q36–q45), `KanMerkezleriYonetmelik.pdf` 11 (q46–q56).
-- `negative_set.jsonl`: 39 questions the documents cannot answer, for calibrating the score threshold: 28 near-domain
-  (close to a document's topic, often with a misleading phrase; 7–8 per document) and 11 out-of-domain. n19 was
-  removed: `isg.pdf` p.10 says the fee is "Bakanlıkça belirlenen belge veya vize bedeli", a partial answer; its id is
-  not reused.
+- `golden_set.jsonl`: 80 answerable questions: `meb_yonetmelik.pdf` 31 (q01–q25, q75–q80),
+  `AcilSaglikHizmetleri.pdf` 16 (q26–q35, q57–q62), `isg.pdf` 16 (q36–q45, q63–q68), `KanMerkezleriYonetmelik.pdf` 17
+  (q46–q56, q69–q74). q57–q80 were added on 2026-11-10 as harder questions: paraphrased, with a distractor on the same
+  page, or with the answer inside a long list (see each record's `note`).
+- `negative_set.jsonl`: 55 questions the documents cannot answer, for calibrating the score threshold: 44 near-domain
+  (close to a document's topic, often with a misleading phrase; 11–12 per document; n41–n56 added on 2026-11-10) and 11
+  out-of-domain. n19 was removed: `isg.pdf` p.10 says the fee is "Bakanlıkça belirlenen belge veya vize bedeli", a
+  partial answer; its id is not reused.
   They are checked by `tests/test_negative_set.py`.
+
+The results below were measured on the first 56 answerable and 39 unanswerable questions, before q57–q80 and n41–n56
+were added. The new questions are meant to be measured first with the current thresholds unchanged, so they show
+whether the thresholds hold on questions they were not chosen on.
 
 ## Score thresholds
 

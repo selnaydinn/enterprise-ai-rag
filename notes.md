@@ -28,7 +28,7 @@
 | 9 | Token sayımı gerçek `usage_metadata`| ✅ | 
 | 10 | Event loop bloklanması Threadpool + upload kilidi; arka plan görevi yok | ✅ | 
 | 11 | E5 ön ekleri denendi, kaliteyi artırmadı, uygulanmadı  | ✅ |
-| 12 | Skor barajı kalibrasyonu. Negatif sorularla ölçüldü; e5 0.72 ön eleme + soru düzeyinde reranker barajı (−2.0): dokümana yakın negatiflerde Gemini'ye giden 28/28 → 4/28, cevaplı soru kaybı yok (n19 kısmi cevabı olduğu için çıkarıldı, set 39 soru). Gemini'ye giden negatiflerde model BILGI_YOK yazıyor, kullanıcı aynı "bilgi bulunamadı" yanıtını görüyor | ✅ | 
+| 12 | Skor barajı kalibrasyonu. Negatif sorularla ölçüldü; e5 0.72 ön eleme + soru düzeyinde reranker barajı (−2.0): dokümana yakın negatiflerde Gemini'ye giden 28/28 → 4/28, cevaplı soru kaybı yok (n19 kısmi cevabı olduğu için çıkarıldı, set 39 soru). Gemini'ye giden negatiflerde model BILGI_YOK yazıyor, kullanıcı aynı "bilgi bulunamadı" yanıtını görüyor. 2026-11-10: 16 yeni negatif soruda baraj tutmadı (4/16 geçti, 44 soruda toplam 8/44); elle denendi: 8'inin 6'sında BILGI_YOK, 2'sinde (n03, n46) "doğrudan bilgi yok" diyen açıklama, uydurma cevap yok (`eval/experiment_A_results/README.md`) | ✅ | 
 | 13 | Retrieval kalitesi. Normalization ve reranker (10 aday → ilk 3) yapıldı; madde bazlı chunking, hibrit arama yok | ◐ |
 | 14 | Golden set 25 soru hepsi `meb_yonetmelik.pdf`, negatif soru yok | ✅ | 
 | 15 | Tekrar yüklenen dosya listede | ✅ | 
@@ -159,7 +159,9 @@ GUNCEL 13: Uygulama açılışında çalışması için database kurulum scripti
              Uygulama ilk kuruluşunda: db kurulur(burada script tarafından reranker + e5 modeli de indirilir) 
                                        uygulama modelleri cacheden alır
              Halihazırda db varsa ilk açılışta: uygulama reranker + e5 modelini indirir
-             Halihazırda db varsa sonraki açılışlarda: uygulama modelleri cacheden alır          
+             Halihazırda db varsa sonraki açılışlarda: uygulama modelleri cacheden alır    
+
+GUNCEL 14: Retrieval kalitesini arttırmak için chunking denenecek. Exact search baz alınacak. Golden set genişletilecek.      
 
 ## 1. Genel Bakış
 

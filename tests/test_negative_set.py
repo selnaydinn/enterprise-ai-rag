@@ -8,7 +8,7 @@ NEGATIVE_PATH = PROJECT_ROOT / "eval" / "negative_set.jsonl"
 GOLDEN_PATH = PROJECT_ROOT / "eval" / "golden_set.jsonl"
 PDF_DIR = PROJECT_ROOT / "uploaded_pdfs"
 
-EXPECTED_COUNT = 39
+EXPECTED_COUNT = 55
 #Çıkarılan sorular; numaraları sonuç dosyalarında geçtiği için yeniden kullanılmaz
 #n19 (OSGB yetki belgesi harcı): isg.pdf s.10 "Bakanlıkça belirlenen belge veya vize bedeli" diyor, yani kısmi cevabı var
 REMOVED_IDS = {"n19"}
