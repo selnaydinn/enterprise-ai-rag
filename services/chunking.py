@@ -181,24 +181,47 @@ def _split_article(seg) -> list:
         text = "\n".join([lines[k][m.end():]] + lines[k + 1:]).strip()
         seg = {**seg, "starts_article": False}
 
+    #İlk chunk tüm alanı kullanır; sonrakilerde başa önceki parçanın sonu (örtüşme) eklendiği için yer ayrılır
+    overlap = settings.chunk_overlap
     room = settings.chunk_size - len(header) - 1
+    next_room = room - overlap - 1
     pieces = [p for p in PARAGRAPH_START.split(text) if p.strip()]
     bodies, current = [], ""
     for piece in pieces:
-        if len(piece) > room:
-            if current.strip():
-                bodies.append(current)
-                current = ""
-            bodies.extend(_page_splitter(room).split_text(piece))
-        elif len(current) + len(piece) <= room:
+        if current and len(current) + len(piece) <= (room if not bodies else next_room):
             current += piece
-        else:
+            continue
+        if current:
             bodies.append(current)
+            current = ""
+        #Yeni parça: ilk chunk'sa tüm alan, değilse örtüşme için ayrılmış daha küçük alan; sığmayan fıkra karakterle bölünür
+        #(örtüşme aşağıda tek tip eklendiği için burada örtüşmesiz)
+        if len(piece) <= (room if not bodies else next_room):
             current = piece
+        else:
+            bodies.extend(RecursiveCharacterTextSplitter(chunk_size=next_room, chunk_overlap=0).split_text(piece))
     if current.strip():
         bodies.append(current)
-    return [Document(page_content=with_header(body.strip(), i == 0), metadata=dict(metadata))
-            for i, body in enumerate(bodies) if body.strip()]
+    bodies = [b.strip() for b in bodies if b.strip()]
+    #Aynı maddenin aynı sayfadaki parçaları arasında örtüşme: her parça öncekinin sonuyla başlar (maddeler ve sayfalar
+    #arasında örtüşme yok; page yöntemi de sayfalar arasında örtüşmüyor)
+    chunks = [bodies[0]] + [f"{_overlap_tail(prev, overlap)}\n{body}" for prev, body in zip(bodies, bodies[1:])]
+    return [Document(page_content=with_header(body, i == 0), metadata=dict(metadata)) for i, body in enumerate(chunks)]
+
+
+#Metnin son en fazla `size` karakteri; tam bir cümleyle başlar, cümle başı yoksa (son cümle çok uzun) tam bir kelimeyle.
+#page yöntemindeki kütüphane örtüşmeyi paragraf/satır sınırına kaydırıyor; son paragraf uzunsa hiç örtüşme kalmıyordu
+def _overlap_tail(text: str, size: int) -> str:
+    if size <= 0:
+        return ""
+    if len(text) <= size:
+        return text
+    tail = text[-size:]
+    sentence = re.search(r"[.;:!?]\s+(?=\S)", tail)
+    if sentence:
+        return tail[sentence.end():]
+    word = re.search(r"\s+(?=\S)", tail)
+    return tail[word.end():] if word else tail
 
 
 #"madde" yöntemi; yeterli madde başlığı yoksa doküman "page" yöntemiyle bölünür (bugünkü sonuçla aynı)

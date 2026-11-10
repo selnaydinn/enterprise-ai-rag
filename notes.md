@@ -29,7 +29,7 @@
 | 10 | Event loop bloklanması Threadpool + upload kilidi; arka plan görevi yok | ✅ | 
 | 11 | E5 ön ekleri denendi, kaliteyi artırmadı, uygulanmadı  | ✅ |
 | 12 | Skor barajı kalibrasyonu. Negatif sorularla ölçüldü; e5 0.72 ön eleme + soru düzeyinde reranker barajı (−2.0): dokümana yakın negatiflerde Gemini'ye giden 28/28 → 4/28, cevaplı soru kaybı yok (n19 kısmi cevabı olduğu için çıkarıldı, set 39 soru). Gemini'ye giden negatiflerde model BILGI_YOK yazıyor, kullanıcı aynı "bilgi bulunamadı" yanıtını görüyor. 2026-11-10: 16 yeni negatif soruda baraj tutmadı (4/16 geçti, 44 soruda toplam 8/44); elle denendi: 8'inin 6'sında BILGI_YOK, 2'sinde (n03, n46) "doğrudan bilgi yok" diyen açıklama, uydurma cevap yok (`eval/experiment_A_results/README.md`) | ✅ | 
-| 13 | Retrieval kalitesi. Normalization ve reranker (10 aday → ilk 3) yapıldı; madde bazlı chunking, hibrit arama yok | ◐ |
+| 13 | Retrieval kalitesi. Normalization ve reranker (10 aday → ilk 3) yapıldı. Madde bazlı chunking denendi (2026-11-10, Deneme A), benimsenmedi: page'i geçmedi (Hit@1 75→70, örtüşmeli 73/80), `madde` yöntemi kodda kaldı ama varsayılan değil (`eval/experiment_A_results/README.md`). Kalan asıl sorun q23 (vektör araması kaçırıyor); hibrit arama yok | ◐ |
 | 14 | Golden set 25 soru hepsi `meb_yonetmelik.pdf`, negatif soru yok | ✅ | 
 | 15 | Tekrar yüklenen dosya listede | ✅ | 
 | 16 | Çift gönderim koruması | ✅ |

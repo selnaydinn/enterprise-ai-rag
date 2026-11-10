@@ -129,8 +129,31 @@ class SplitPagesTests(unittest.TestCase):
         self.assertGreater(len(long), 1)
         for text in long:
             self.assertLessEqual(len(text), self.settings.chunk_size)
-            self.assertTrue(text.startswith("MADDE 4 – Uzun madde\n("), text[:60])
-        self.assertEqual(squash("".join(t.split("\n", 1)[1] for t in long)), squash(paragraphs))
+            self.assertTrue(text.startswith("MADDE 4 – Uzun madde\n"), text[:60])
+        #İlk chunk fıkrayla başlar; her fıkra bir chunk'ta yer alır (örtüşme yüzünden bazıları iki chunk'ta)
+        self.assertTrue(long[0].startswith("MADDE 4 – Uzun madde\n(1)"))
+        for i in range(1, 8):
+            self.assertTrue(any(f"({i}) " in text for text in long), i)
+
+    #Bölünen maddenin her parçası öncekinin sonuyla başlar (örtüşme); örtüşme tam bir cümleyle başlar ve doludur
+    def test_split_article_parts_overlap_from_a_sentence_start(self):
+        paragraphs = "".join(f"({i}) " + "Bu fıkra uzun bir kural anlatır. " * 12 + "\n" for i in range(1, 8))
+        long = [c.page_content.split("\n", 1)[1] for c in self.split(page(ARTICLES + "Uzun madde\nMADDE 4 – \n" + paragraphs, 0))
+                if c.metadata.get("article") == "MADDE 4"]
+        for prev, text in zip(long, long[1:]):
+            tail = text.split("\n", 1)[0]
+            self.assertTrue(prev.rstrip().endswith(tail), tail)
+            self.assertGreater(len(tail), 100)
+            self.assertLessEqual(len(tail), self.settings.chunk_overlap)
+            self.assertTrue(tail.startswith("Bu fıkra"), tail[:30])
+
+    def test_overlap_tail_prefers_sentence_then_word_boundary(self):
+        tail = self.chunking._overlap_tail
+        self.assertEqual(tail("Birinci cümle burada. İkinci cümle burada.", 30), "İkinci cümle burada.")
+        #Cümle başı yoksa kelime sınırından; kelimenin ortasından başlamaz
+        self.assertEqual(tail("çok uzun tek bir cümle devam ediyor ve bitmiyor", 20), "ediyor ve bitmiyor")
+        self.assertEqual(tail("kısa metin", 300), "kısa metin")
+        self.assertEqual(tail("bir metin", 0), "")
 
     #Fıkrası olmayan ve sığmayan madde karakterle bölünür; yine her chunk başlıkla başlar ve sığar
     def test_article_without_paragraphs_is_split_by_characters(self):

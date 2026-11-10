@@ -1,0 +1,93 @@
+{
+  "created_at": "2026-11-10T16:44:46+00:00",
+  "target": "chroma_db_madde_overlap",
+  "pdf_dir": "uploaded_pdfs",
+  "pdfs": [
+    {
+      "file": "AcilSaglikHizmetleri.pdf",
+      "pdf_hash": "b3b94a25",
+      "pages": 6,
+      "chunks": 67,
+      "articles": 44,
+      "method": "madde"
+    },
+    {
+      "file": "isg.pdf",
+      "pdf_hash": "9285b013",
+      "pages": 13,
+      "chunks": 81,
+      "articles": 32,
+      "method": "madde"
+    },
+    {
+      "file": "KanMerkezleriYonetmelik.pdf",
+      "pdf_hash": "f6958101",
+      "pages": 11,
+      "chunks": 91,
+      "articles": 26,
+      "method": "madde"
+    },
+    {
+      "file": "meb_yonetmelik.pdf",
+      "pdf_hash": "e08eec72",
+      "pages": 113,
+      "chunks": 612,
+      "articles": 244,
+      "method": "madde"
+    }
+  ],
+  "chunking": {
+    "strategy": "madde",
+    "chunk_size": 1200,
+    "chunk_overlap": 300
+  },
+  "model": "intfloat/multilingual-e5-base",
+  "collection": "langchain",
+  "chunks": {
+    "count": 851,
+    "by_file": {
+      "AcilSaglikHizmetleri.pdf": 67,
+      "isg.pdf": 81,
+      "KanMerkezleriYonetmelik.pdf": 91,
+      "meb_yonetmelik.pdf": 612
+    },
+    "characters": {
+      "min": 36,
+      "median": 790,
+      "mean": 735.5,
+      "max": 1197
+    },
+    "tokens": {
+      "median": 177,
+      "max": 314,
+      "limit": 512,
+      "over_limit": 0
+    }
+  },
+  "verification": {
+    "count": 851,
+    "ids_match": true,
+    "documents_match": true,
+    "metadata_match": true,
+    "consistency_min_cosine": 1.0,
+    "searchable": 851,
+    "configuration": {
+      "hnsw": {
+        "space": "l2",
+        "ef_construction": 100,
+        "ef_search": 100,
+        "max_neighbors": 16,
+        "resize_factor": 1.2,
+        "sync_threshold": 1000
+      },
+      "spann": null,
+      "embedding_function": null
+    },
+    "problems": []
+  },
+  "embedding_seconds": 560.0,
+  "chromadb_version": "1.5.9",
+  "sentence_transformers_version": "5.6.0",
+  "app_db_unchanged": true,
+  "total_seconds": 590.8
+}
