@@ -80,10 +80,25 @@ CI runs these checks on every pull request to `main`.
 
 ## Retrieval quality
 
-On a 56-question golden set over 4 documents, with the reranker: **Evidence Hit@1 51/56**, **Evidence MRR 0.944**, and
-the chunk with the answer reaches Gemini for **55/56** questions (vector search alone: 39/56, 0.808, 51/56).
-Of 39 unanswerable questions, 4 still reach Gemini (all close to a document's topic); without the reranker threshold
-it was 28. For those, Gemini is asked to reply `BILGI_YOK`, and the app shows the same "no information" answer. Details in [eval/README.md](eval/README.md).
+Measured on 2026-11-10 with an exact ranking over 4 documents, using the app's flow (10 candidates → e5 threshold →
+reranker → top 3):
+
+| | Result |
+|---|---|
+| Answerable questions (80): evidence at rank 1 / in the top 3 | **75/80** / **79/80** (MRR 0.960) |
+| Answerable questions: the chunk with the answer reaches Gemini | **79/80** |
+| Unanswerable, close to a document's topic: reach Gemini | 8/44 |
+| Unanswerable, unrelated to the documents: reach Gemini | 0/11 |
+
+The reranker made the largest difference: on the first 56 questions, vector search alone puts the evidence first for
+39/56 (MRR 0.808), the reranker for 51/56 (0.944). The 24 harder questions added later (paraphrased, distractor on the
+same page) are all found at rank 1. The one miss, q23, is a vector-search miss (evidence at vector rank 12, outside the
+10 candidates). Article-based chunking (split at "MADDE" headings) was tried and not adopted: it did not beat the
+current page-based chunking ([eval/experiment_A_results](eval/experiment_A_results/README.md)).
+
+For unanswerable questions that pass both thresholds, Gemini is asked to reply `BILGI_YOK`, and the app shows the same
+"no information" answer. In a manual check of the 8 near-domain ones, 6 got `BILGI_YOK` and 2 an answer saying the
+documents contain no direct information; none got an invented answer. Details in [eval/README.md](eval/README.md).
 
 ## Known limitations
 
@@ -92,9 +107,16 @@ it was 28. For those, Gemini is asked to reply `BILGI_YOK`, and the app shows th
   `localhost`, run behind HTTPS with `COOKIE_SECURE=true`.
 - **No conversation memory;** every question is answered independently.
 - **Data leaves the machine;** questions and retrieved chunks are sent to the Gemini API.
-- **Synchronous uploads;** large PDFs are processed during the upload request.
-- **Retrieval tuning;** the thresholds were chosen on the same questions they are evaluated on (56 answerable,
-  39 unanswerable), so the results are somewhat optimistic; the reranker adds about 2 s per question on CPU.
+- **Questions are logged in full** at `INFO` level (search log in `services/query.py`).
+- **Synchronous uploads;** large PDFs are processed during the upload request. If embedding fails halfway, the chunks
+  already written stay in the database while the file is removed, and uploading the same PDF again returns `409`.
+- **Thresholds tuned on the evaluated questions;** the reranker threshold (−2.0) was chosen on the first 39
+  unanswerable questions, where 4/28 near-domain ones reached Gemini; on 16 newer ones it let 4/16 through. The
+  reranker adds about 2–3 s per question on CPU.
+- **Only retrieval is measured;** answer quality is not evaluated automatically (Gemini's answers were checked by hand
+  once).
 - **Search after restart;** the approximate vector index is rebuilt when the database is opened and can occasionally
-  miss a near chunk ([notes.md](notes.md) item 41).
-- **Development Docker setup** (`--reload`, full bind mount, root user); not production-ready.
+  miss a near chunk ([notes.md](notes.md) item 41). The evaluation uses an exact ranking, so its numbers are not
+  affected.
+- **Development Docker setup** (`--reload`, full bind mount, root user, port `8000` published on all network
+  interfaces); not production-ready.
