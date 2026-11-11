@@ -19,13 +19,14 @@ The Docker image uses Python 3.13 like the local venv and CI.
 | Part | Where | Notes |
 |---|---|---|
 | API | `main.py`, `schemas.py` | Endpoints, request/response models, startup checks (`lifespan`) |
+| Authentication | `core/auth.py` | Password check, signed session token and cookie, `require_auth` dependency, login lockout (`LoginGuard`) |
 | Settings | `core/settings.py` | All settings in one `pydantic-settings` class |
 | Model / DB / LLM | `core/config.py` | Created lazily once (`get_embeddings`, `get_db`, `get_llm`, `get_reranker`), loaded at startup |
 | Ingestion | `services/ingestion.py` | PDF → chunks (`split_pages`, `prepare_chunks`) → ChromaDB (`process_pdf`), document deletion |
 | Database build | `scripts/build_db.py` | Builds a new database from the PDFs; see [configuration.md](configuration.md#building-a-database) |
 | Query | `services/query.py` | Retrieval, threshold, reranking (`rerank_chunks`, shared `rerank_scores` with eval), prompt, real token counting (`usage_metadata`), startup warm-up (`warm_up`), per-question timing log (`Süreler: ...`) |
 | Token limit | `services/usage.py` | Global token counter stored in SQLite |
-| Frontend | `rag-frontend/` | `app/`, `components/`, `services/api.ts`, `types/` |
+| Frontend | `rag-frontend/` | `app/page.tsx` (login gate), `components/Workspace.tsx` (the app), `components/LoginForm.tsx`, `services/api.ts` (all requests, `credentials: "include"`, `401` → login screen), `types/` |
 | Evaluation | `eval/` | See [`eval/README.md`](../eval/README.md) |
 
 Uploads and deletions share one lock (`UPLOAD_LOCK` in `main.py`), so a deletion cannot run while the same document
@@ -47,6 +48,10 @@ npm run lint                           # ESLint
   guard raises a `BaseException`, so it cannot be swallowed by an `except Exception` block and turned into a passing
   `500` test. Mock `get_db` / `get_llm` / `get_qa_chain` / `get_reranker` instead (see `tests/test_upload.py`,
   `tests/test_query.py`).
+- **Authentication in tests.** Endpoint tests call `bypass_auth(self, main)` (`tests/test_upload.py`) in `setUp`,
+  which overrides `require_auth` for that test. Authentication itself is tested in `tests/test_auth.py`; it also checks
+  that every endpoint except the public ones returns `401` without a session, so a new endpoint without
+  `Depends(require_auth)` fails the tests.
 - **PDF-based tests** read the real `uploaded_pdfs/meb_yonetmelik.pdf` and are skipped when it is missing (e.g. in CI).
 - **Frontend:** there are no unit tests yet; the frontend is checked with TypeScript and ESLint.
 

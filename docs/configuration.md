@@ -16,9 +16,25 @@ Copy `.env.example` to `.env` and fill in the values. All settings are defined i
 | `LLM_MODEL` | `gemini-2.5-flash` | Gemini model |
 | `LLM_TEMPERATURE` | `0.2` | Gemini temperature |
 | `LOG_LEVEL` | `INFO` | `DEBUG`, `INFO`, `WARNING`, `ERROR` or `CRITICAL` |
-| `ALLOW_DELETE` | `false` | Enables document deletion (anyone can delete while there is no auth) |
+| `ALLOW_DELETE` | `false` | Enables document deletion for the signed-in user |
+| `AUTH_ENABLED` | `true` | Requires login; `false` only for local development (a warning is logged) |
+| `APP_PASSWORD` | — (required when auth is on) | Login password |
+| `SESSION_SECRET` | — (required when auth is on) | Signs the session cookie; at least 32 characters, never shared |
+| `SESSION_HOURS` | `12` | Session length; after it the password is asked again |
+| `COOKIE_SECURE` | `false` | `true` sends the cookie over HTTPS only; keep `false` on `http://localhost` or the login will not stick |
 
 Relative paths are resolved from the project root, so the same values work in Docker (`/app`) and locally.
+
+### Authentication
+
+Generate the secret once and put it in `.env` (not in `.env.example`, which is in git):
+
+```bash
+python -c "import secrets; print(secrets.token_urlsafe(48))"
+```
+
+`.env` values need no quotes. Avoid spaces, `#` and quotes in the password so it is read the same way locally and by
+Docker. Changing `SESSION_SECRET` signs everyone out. How the login and the cookie work: [api.md](api.md#authentication).
 
 ### Settings kept in code
 
@@ -46,8 +62,10 @@ These live in `core/settings.py` with defaults and are intentionally not in `.en
 ### Startup checks
 
 The app refuses to start if `GEMINI_API_KEY` is missing or `CHROMA_DIR` does not contain a ChromaDB
-(`chroma.sqlite3`). It never creates an empty database by itself. An invalid value (e.g. `TOKEN_LIMIT=abc`,
-`TOKEN_WINDOW_HOURS=5`, `LOG_LEVEL=VERBOSE`) also stops the app at startup.
+(`chroma.sqlite3`). It never creates an empty database by itself. With `AUTH_ENABLED=true` it also refuses to start if
+`APP_PASSWORD` or `SESSION_SECRET` is missing, before loading the models, so a forgotten setting never leaves the app
+open. An invalid value (e.g. `TOKEN_LIMIT=abc`, `TOKEN_WINDOW_HOURS=5`, `LOG_LEVEL=VERBOSE`, a `SESSION_SECRET` shorter
+than 32 characters) also stops the app at startup.
 
 After loading the models, the app runs one search and one rerank with a fixed question (`WARM_UP_QUESTION` in
 `services/query.py`) so the first real question does not pay for model initialization and building the search index
@@ -111,11 +129,16 @@ the script lists the PDFs it built so the list can be compared before switching.
 Optional. Copy `rag-frontend/.env.local.example` to `rag-frontend/.env.local`:
 
 ```
-NEXT_PUBLIC_API_URL=http://127.0.0.1:8000
+NEXT_PUBLIC_API_URL=http://localhost:8000
 ```
 
-If the file is missing, `http://127.0.0.1:8000` is used. The value is embedded at build time, so restart the dev
+If the file is missing, `http://localhost:8000` is used. The value is embedded at build time, so restart the dev
 server after changing it.
+
+Use the same host name for the frontend and the backend: open the app at `http://localhost:3000` and keep
+`localhost` here. Browsers treat `localhost` and `127.0.0.1` as different sites and do not send the `SameSite=Lax`
+session cookie between them; the login then seems to work, but every following request returns `401` and the login
+screen comes back.
 
 ## Docker
 
