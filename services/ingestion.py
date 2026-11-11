@@ -45,6 +45,17 @@ def delete_document_chunks(pdf_name):
         db.delete(ids=ids)
     return len(ids)
 
+#Yarıda kalan bir yüklemenin chunk'larını geri alır (main.py upload), silinen chunk sayısını döner
+#Hash ile arıyoruz: dosya adı değil içerik; yazılmış olan her chunk'ın metadata'sında pdf_hash var (prepare_chunks)
+#Yalnızca bu yüklemenin chunk'ları silinir: aynı hash DB'de önceden olsaydı upload duplikasyon kontrolünde 409 alırdı
+#db verilmezse uygulamanın DB'si (testler sahte DB veriyor)
+def delete_chunks_by_hash(pdf_hash, db=None):
+    db = db if db is not None else get_db()
+    ids = db.get(where={"pdf_hash": pdf_hash}, include=[])["ids"]
+    if ids:
+        db.delete(ids=ids)
+    return len(ids)
+
 #PDF HASH, CHUNKING
 #Bölme yöntemleri services/chunking.py'de (split_pages, CHUNKING_STRATEGIES)
 #PDF'i okuyup chunk'larını ve id'lerini hazırlar; DB'ye dokunmaz (scripts/build_db.py embedding'den önce chunk'ları buradan görüyor)
@@ -124,6 +135,8 @@ def process_pdf(pdf_path, db=None, strategy=None):
 
     #VECTORIZE CHUNKS
     #Tüm dökümanı tek seferde değil, 32şerli paketlerle gömerek CPU'yu rahatlatıyoruz
+    #Bir paket hata verirse önceki paketler DB'de kalır; main.py upload'u delete_chunks_by_hash ile geri alıyor
+    #langchain_chroma upsert ile yazıyor ve id'ler hash'ten türüyor: aynı PDF yeniden işlenirse kayıt çoğalmaz
     batch_size = 32
     db = db if db is not None else get_db()
     for i in range(0, len(final_chunks), batch_size):

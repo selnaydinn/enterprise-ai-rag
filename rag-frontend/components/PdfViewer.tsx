@@ -4,11 +4,17 @@ import { X, FileText } from "lucide-react";
 //Prop type safety
 interface PdfViewerProps {
   selectedDoc: string | null; // Örn: http://localhost:8000/static-pdfs/meb_yonetmelik.pdf
+  //Açılacak sayfa (kaynak rozetinden); null ise PDF baştan açılır
+  page?: number | null;
   setSelectedDoc: (docName: string | null) => void;
 }
 
 //Props
-export default function PdfViewer({ selectedDoc, setSelectedDoc }: PdfViewerProps) {
+export default function PdfViewer({ selectedDoc, page, setSelectedDoc }: PdfViewerProps) {
+
+  //PDF açma parametreleri adresin # kısmında: page=N o sayfaya gider (Chrome, Edge, Firefox); desteklemeyen tarayıcı
+  //yok sayar ve baştan açar. Sayfa 0 veya yoksa eklenmez
+  const src = selectedDoc ? `${selectedDoc}#${page ? `page=${page}&` : ''}toolbar=1&navpanes=0` : null;
   
   // Dosya adını URL'den ayıklayıp sadece temiz başlığı göstermek için (Header için)
   const getFileName = (url: string | null) => {
@@ -38,10 +44,13 @@ export default function PdfViewer({ selectedDoc, setSelectedDoc }: PdfViewerProp
             
             {/*PDF GÖSTERİM ALANI */}
             <div className="flex-1 w-full h-full bg-slate-100/50 relative">
+              {/* key: yalnızca # kısmı değişince (aynı PDF, başka sayfa) bazı tarayıcılar sayfayı değiştirmiyor; adres */}
+              {/* değişince iframe yeniden kuruluyor. PDF tarayıcı önbelleğinden geldiği için hızlı */}
               <iframe
-                src={`${selectedDoc}#toolbar=1&navpanes=0`} 
+                key={src}
+                src={src ?? undefined}
                 className="w-full h-full border-0 bg-white"
-                title="PDF Viewer"
+                title="PDF önizleme"
               />
             </div>
 

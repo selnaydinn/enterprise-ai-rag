@@ -32,9 +32,17 @@ export default function Workspace({ onSignedOut }: WorkspaceProps) {
   const [isLoading, setIsLoading] = useState(false);
   
   const [selectedDoc, setSelectedDoc] = useState<string | null>(null);
+  //Önizlemede açılacak sayfa; yalnızca kaynak rozetinden açılınca dolu, listeden açılınca PDF 1. sayfadan başlar
+  const [selectedPage, setSelectedPage] = useState<number | null>(null);
 
+  //Doküman ve sayfa birlikte değişir; böylece önceki kaynağın sayfası başka bir dokümana taşınmaz
+  const openDocument = (name: string | null, page: number | null = null) => {
+    setSelectedDoc(name);
+    setSelectedPage(name ? page : null);
+  };
+
+  //Yükleme sürüyor mu; yüzde tutulmuyor: sürenin çoğu backend'deki embedding ve frontend bunu ölçemiyor (notes.md #30)
   const [isUploading, setIsUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
 
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
 
@@ -122,7 +130,7 @@ export default function Workspace({ onSignedOut }: WorkspaceProps) {
     showToast(`${name} silindi.`, 'success');
     //Silinen doküman önizlemede açıksa kapatıyoruz
     if (selectedDoc === name) {
-      setSelectedDoc(null);
+      openDocument(null);
     }
     //Silme başarılı oldu; liste yenilenemezse yalnızca loga yazıyoruz
     try {
@@ -184,47 +192,32 @@ export default function Workspace({ onSignedOut }: WorkspaceProps) {
     }
 
     setIsUploading(true);
-    setUploadProgress(10);
-
-    const progressInterval = setInterval(() => {
-      setUploadProgress((prev) => (prev >= 90 ? 90 : prev + 10));
-    }, 250);
 
     try {
       const result = await apiService.uploadPdf(file);
       console.log("PDF yüklendi ve frontende yanıtını döndü.");
-      clearInterval(progressInterval);
 
       //Hatalar artık HTTP koduyla geliyor (uploadPdf fırlatıyor); buraya yalnızca başarılı yükleme ulaşır
       //Listeye kendimiz eklemek yerine backendten çekiyoruz; kaydedilen ad backendten (".PDF" -> ".pdf" olabilir)
       const savedName = result.filename;
       showToast(`${savedName} yüklendi.`, 'success');
-      let refreshedDocs: DocumentItem[] | null = null;
       try {
-        refreshedDocs = await apiService.getExistingDocuments();
+        const refreshedDocs = await apiService.getExistingDocuments();
+        setDocuments(refreshedDocs);
+        if (refreshedDocs.some((doc) => doc.name === savedName)) {
+          openDocument(savedName);
+        }
       } catch (error) {
         console.error("Yükleme sonrası döküman listesi yenilenemedi:", error);
       }
 
-      setUploadProgress(100);
-      setTimeout(() => {
-        setIsUploading(false);
-        setUploadProgress(0);
-        if (refreshedDocs) {
-          setDocuments(refreshedDocs);
-          if (refreshedDocs.some((doc) => doc.name === savedName)) {
-            setSelectedDoc(savedName);
-          }
-        }
-      }, 400);
-
     } catch (error: unknown) {
-      clearInterval(progressInterval);
-      setIsUploading(false);
-      setUploadProgress(0);
       const message = error instanceof Error ? error.message : "";
       showToast(message || "Dosya yüklenirken bir hata oluştu.");
       console.error(error);
+    } finally {
+      //Başarılı da olsa hatalı da olsa gösterge kapanır
+      setIsUploading(false);
     }
   };
 
@@ -285,18 +278,23 @@ export default function Workspace({ onSignedOut }: WorkspaceProps) {
     }
   };
 
-  //Dökümanın adını aldık
+  //Dökümanın adını aldık (sol liste ve önizlemeyi kapatma); sayfa verilmez, PDF baştan açılır
   const handleSetSelectedDoc = (doc: string | null) => {
     if (!doc) {
-      setSelectedDoc(null);
+      openDocument(null);
       return;
     }
     if (doc.startsWith('http')) {
       const parts = doc.split('/');
-      setSelectedDoc(decodeURIComponent(parts[parts.length - 1]));
+      openDocument(decodeURIComponent(parts[parts.length - 1]));
     } else {
-      setSelectedDoc(doc);
+      openDocument(doc);
     }
+  };
+
+  //Kaynak rozeti: dokümanı cevabın dayandığı sayfada açar (notes.md #31)
+  const handleOpenSource = (name: string, page: number) => {
+    openDocument(name, page);
   };
 
   return (
@@ -325,15 +323,15 @@ export default function Workspace({ onSignedOut }: WorkspaceProps) {
         onSend={handleSend}
         onFileUpload={handleFileUpload}
         isUploading={isUploading}
-        uploadProgress={uploadProgress}
-        setSelectedDoc={handleSetSelectedDoc} 
+        onOpenSource={handleOpenSource}
         isLoading={isLoading}
         usage={usage}
       />
 
       {/* 3. BÖLÜM: SAĞ PDF ÖNİZLEME ALANI */}
       <PdfViewer 
-        selectedDoc={selectedDoc ? `${BACKEND_URL}/static-pdfs/${encodeURIComponent(selectedDoc)}` : null} 
+        selectedDoc={selectedDoc ? `${BACKEND_URL}/static-pdfs/${encodeURIComponent(selectedDoc)}` : null}
+        page={selectedPage}
         setSelectedDoc={handleSetSelectedDoc}
       />
 

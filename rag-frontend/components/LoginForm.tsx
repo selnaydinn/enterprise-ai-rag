@@ -51,7 +51,7 @@ export default function LoginForm({ onLoggedIn }: LoginFormProps) {
       >
         <div className="flex items-center gap-3">
           <div className="relative w-12 h-12 shrink-0">
-            <Image src="/logo.png" alt="Enterprise AI Logo" fill className="object-contain" priority />
+            <Image src="/logo.png" alt="Enterprise AI logosu" fill className="object-contain" priority />
           </div>
           <div className="flex flex-col">
             <h1 className="text-lg font-bold tracking-tight leading-none">Enterprise AI</h1>

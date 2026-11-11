@@ -7,7 +7,7 @@ Setup, running, the API and the overall architecture are described in the [main 
 
 ```bash
 npm ci
-npm run dev          # http://localhost:3000
+npm run dev          # http://localhost:3000 (only this machine; see below)
 npx tsc --noEmit     # type check
 npm run lint         # ESLint
 ```
@@ -16,3 +16,6 @@ The backend address comes from `NEXT_PUBLIC_API_URL` in `.env.local` (see `.env.
 if it is not set, `http://localhost:8000` is used. Open the app at `http://localhost:3000` and keep `localhost` for the
 backend too: the session cookie is not sent between `localhost` and `127.0.0.1`
 ([details](../docs/configuration.md#frontend-settings-rag-frontendenvlocal)).
+
+`npm run dev` listens on `localhost` only (`next dev -H localhost`); Next.js would otherwise listen on all network
+interfaces (`0.0.0.0`) and the dev server would be reachable from other devices on the same network.

@@ -65,6 +65,12 @@ curl -i -b cookies.txt http://localhost:8000/documents/                      # 2
 Gemini was called but found no answer in the chunks (it replied `BILGI_YOK`; `token_usage` is the tokens spent). The
 server log tells the cases apart (`Sonuç yok: ...`).
 
+When the database has no documents at all (built with `--allow-empty`, or every document was deleted), the answer
+is `no_result` with its own `message` and `answer` ("Henüz yüklü doküman yok. Önce bir PDF yükleyin."), empty
+`sources` and `token_usage` 0. This is checked by counting the stored chunks, only when the search returns no
+candidates; if chunks exist but the search still returns nothing, the usual `no_result` answer is returned and a
+`WARNING` is logged.
+
 Gemini can also return an empty answer without an error (the question was blocked, a safety filter stopped the answer,
 or the token limit was used up by thinking). This is also `no_result` with empty `sources`, but with its own `message`
 and `answer` ("Bu soruya yanıt üretilemedi..."), because the information may be in the documents. `token_usage` is the

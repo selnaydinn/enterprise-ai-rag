@@ -20,7 +20,7 @@
 | 1 | Upload'da path traversal önlemesi. | ✅ | 
 | 2 | Duplikasyon kontrolü yazmadan önce 409 conflig vermeli. | ✅ | 
 | 3 | `.dockerignore` | ✅ | |
-| 4 | Kimlik doğrulama | ❌ | 
+| 4 | Kimlik doğrulama | ✅ | 
 | 5 | CORS ayarları| ✅ | 
 | 6 | Hata detaylarının sızması | ✅ | |
 | 7 | Upload boyut limiti 20mb olacak, pdf  uzantı kontrolü. | ✅ | 
@@ -41,26 +41,27 @@
 | 22 | Deprecated LangChain importları | ✅ | 
 | 23 | Bağımlılıklar | ✅ | 
 | 24 | Kullanılmayan kod.Kopyalama döngüsü kaldırıldı; `os`, `ChatOllama`, `api.ts` boş satırları duruyor| ✅ |  
-| 25 | Docker yapılandırması | ❌ | 
+| 25 | Docker yapılandırması. Model önbelleği volume'u yapıldı (#42). Kalanlar: `--reload` + `.:/app` bind mount (dev/prod ayrımı), root kullanıcı, healthcheck yok, obsolete `version` alanı, sabit `dns`, frontend compose'da değil, port tüm ağ arayüzlerine açık (`127.0.0.1:8000:8000` olmalı). Port küçük düzeltmeler PR'ında, geri kalanı `notes2.md` Faz 2'de | ◐ | 
 | 26 | API tasarımı. Soru uzunluk sınırı, düz `usage` objesi; response modelleri, silme endpoint'i yok | ✅ |
 | 27 | Prompt / LLM katmanı. Kurallar sistem mesajında, belgeler ve soru `<belge>`/`<soru>` etiketleri arasında, metindeki bu etiketler siliniyor (injection zorlaştırıldı, engellenmedi). Cevap yoksa BILGI_YOK → no_result. Zaman aşımı 20 sn, 2 deneme; geçici Gemini hataları 503 (kota / sunucu, ayrı mesajlar) ve 504 (zaman aşımı). Boş cevap (engellenen soru, güvenlik filtresi) → no_result, kendi mesajıyla; yarım cevap (finish_reason STOP değil) → notla gösteriliyor, WARNING loglanıyor.| ✅ | 
 | 28 | Tekrarlanan frontend tipleri | ✅ | 
 | 29 | `catch (error: any)` | ✅ | 
-| 30 | Sahte upload progress bar | ❌ | 
-| 31 | Kaynakta sayfaya atlama | ❌ | 
-| 32 | Markdown render | ❌ | |
+| 30 | Sahte upload progress bar | ✅ | 
+| 31 | Kaynakta sayfaya atlama | ✅ | 
+| 32 | Markdown render | ✅ |
 | 33 | Token göstergesi Ayrı state + `/usage/`; limit dolunca kilit ve geri sayım  | ✅ | 
-| 34 | Dil tutarsızlığı | ❌ | 
-| 35 | `key={index}` | ❌ | 
-| 36 | Erişilebilirlik | ❌ | 
-| 37 | Gönder butonunun kaybolması | ❌ | 
+| 34 | Dil tutarsızlığı | ✅ | 
+| 35 | `key={index}` | ✅ | 
+| 36 | Erişilebilirlik | ✅ | 
+| 37 | Gönder butonunun kaybolması | ✅ | 
 | 38 | Python sürüm farkı | ✅ | 
 | 39 | `process_pdf`'teki gereksiz kontrol | ✅ |
 | 40 | DB kurulum script'i | ✅ | 
 | 41 | HNSW indeksi her açılışta yeniden kuruluyor, arama ara sıra en yakın parçayı kaçırıyor -- artık evalde exact search, productionda hnsw kullanılacak | ✅  | 
 | 42 | Docker'da model önbelleği için volume (e5 + reranker) | ✅ | 
 | 43 | Streaming eklenecek. | ❌ | 
-| 44 | DB boşken (hiç doküman yok) soru sorulunca "sorunuzu yeniden yazın" deniyor; "önce PDF yükleyin" denmeli | ❌ | 
+| 44 | DB boşken (hiç doküman yok) soru sorulunca "sorunuzu yeniden yazın" deniyor; "önce PDF yükleyin" denmeli | ✅ | 
+| 45 |  Upload rollback (yarım kalan chunk'ları geri alma) | ✅  | 
 
 ---
 
@@ -171,6 +172,14 @@ GUNCEL 15: Backend için auth mekanizması kuruldu.
            Session 12 saat aralıklarla yenileniyor.
            Endpointlere auth dependency olarak eklendi.
            Frontende login ekranı eklendi. Login ve workspace page.tsx üzerinden yönetiliyor.
+           Eğer PDF yüklenmesi sırasında bir hata oluşursa önceden yarım chunklar dbde kalıyordu--> şimdi pdf hashine göre yarım chunklar siliniyor.
+           Eğer db boşsa ve query atılırsa veritabanında döküman bulunmuyor uyarısı dönüyor.
+           Progress bar artık yüzde göstermiyor.
+           Döküman listeyi adlarıyla tutuluyor. Index olarak tutulunca kayma yaşanıyordu ve normalde değişmeyen dökümanlar da frontendde rerander ediliyordu.
+           Gönder butonu query yazılmadıkça inaktif, input girilince aktif oluyor.
+           Döküman listesinde ok tuşlarıyla gezinilebiliyor.
+           AI yanıtı markdown olarak okunuyor.
+           
 
 ## 1. Genel Bakış
 

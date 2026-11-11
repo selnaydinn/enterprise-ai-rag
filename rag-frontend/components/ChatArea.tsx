@@ -1,11 +1,29 @@
 'use client';
 import { useEffect, useRef, useState } from "react";
 import { Menu, ArrowUp, Paperclip, Loader2 } from "lucide-react";
-import type { UsageStatus } from "@/types/api";
+import type { Source, UsageStatus } from "@/types/api";
 import type { Message } from "@/types/chat";
+import MarkdownMessage from "@/components/MarkdownMessage";
 
 //Backenddeki soru sınırıyla aynı (main.py MAX_QUESTION_LENGTH)
 const MAX_QUESTION_LENGTH = 500;
+
+//Aynı dosya ve sayfadan birden fazla parça gelirse tek rozet gösterilir (notes.md #31); parçaların metinleri
+//rozetin ipucunda (title) alt alta durur. Sıra korunur: ilk rozet en alakalı parçanın sayfası
+//key: "dosya#sayfa" tekilleştirmeden sonra benzersiz, liste sırası değişse de rozet doğru takip edilir (notes.md #35)
+function groupSources(sources: Source[]) {
+  const groups = new Map<string, { source_name: string; page: number; texts: string[] }>();
+  for (const source of sources) {
+    const key = `${source.source_name}#${source.page}`;
+    const group = groups.get(key);
+    if (group) {
+      group.texts.push(source.raw_text);
+    } else {
+      groups.set(key, { source_name: source.source_name, page: source.page, texts: [source.raw_text] });
+    }
+  }
+  return [...groups.entries()].map(([key, group]) => ({ key, ...group }));
+}
 
 //Kalan süreyi saat gibi yazar: 02:14:35
 function formatCountdown(ms: number) {
@@ -46,8 +64,8 @@ interface ChatAreaProps {
   onSend: () => void;
   onFileUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
   isUploading: boolean;
-  uploadProgress: number;
-  setSelectedDoc?: (doc: string | null) => void;
+  //Kaynak rozetine tıklanınca dokümanı o sayfada açar
+  onOpenSource?: (name: string, page: number) => void;
   isLoading: boolean;
   usage: UsageStatus | null;
 }
@@ -62,8 +80,7 @@ export default function ChatArea({
   onSend,
   onFileUpload,
   isUploading,
-  uploadProgress,
-  setSelectedDoc,
+  onOpenSource,
   isLoading, // <-- Parametre olarak buraya ekledik
   usage
 }: ChatAreaProps) {
@@ -100,9 +117,10 @@ export default function ChatArea({
         </div>
       )}
 
-      {/* TOKEN USAGE */}
+      {/* TOKEN KULLANIMI */}
+      {/* "tr-TR": binlik ayırıcı nokta (1.234); verilmezse tarayıcının diline göre 1,234 de çıkabiliyordu */}
       <div className="absolute top-5 right-6 z-30 text-[10px] text-black font-semibold tracking-wide">
-        Token Usage: {usage ? `${usage.used.toLocaleString()} / ${usage.limit.toLocaleString()}` : '-'}
+        Token kullanımı: {usage ? `${usage.used.toLocaleString("tr-TR")} / ${usage.limit.toLocaleString("tr-TR")}` : '-'}
       </div>
       
       {/* MESAJ ALANI */}
@@ -111,9 +129,11 @@ export default function ChatArea({
         <div className="sticky top-0 w-full h-24 bg-gradient-to-b from-slate-200 via-slate-200 to-transparent pointer-events-none z-20 backdrop-blur-[3px]"></div>
       
         <div className="max-w-3xl w-full mx-auto pl-3 space-y-5 -mt-24 pt-28 pb-6 flex flex-col">
+          {/* key={index} burada bilinçli: mesajlar yalnızca sona ekleniyor, hiç silinmiyor veya yer değiştirmiyor, */}
+          {/* bu yüzden sıra numarası her zaman aynı mesajı gösteriyor. Silme/düzenleme eklenirse kimlik verilmeli (#35) */}
           {messages.map((msg, index) => (
-            <div 
-              key={index} 
+            <div
+              key={index}
               className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}
             >
               <div 
@@ -123,7 +143,8 @@ export default function ChatArea({
                     : 'bg-white text-black border border-slate-200/60 rounded-bl-none'
                 }`}
               >
-                {msg.text}
+                {/* Asistan cevabı markdown (kalın, liste); kullanıcının sorusu düz metin (notes.md #32) */}
+                {msg.role === 'assistant' ? <MarkdownMessage text={msg.text} /> : msg.text}
               </div>
 
               {/* KULLANILAN KAYNAKLAR*/}
@@ -132,17 +153,12 @@ export default function ChatArea({
                   <span className="text-[10px] text-black font-semibold block w-full pl-1">
                     Kullanılan Kaynaklar:
                   </span>
-                  {msg.sources.map((res, i) => (
-                    <button 
-                      key={i}
-                      onClick={() => {
-                        if (setSelectedDoc) {
-                          setSelectedDoc(res.source_name);
-                          console.log("Kaynak seçildi.")
-                        }
-                      }}
+                  {groupSources(msg.sources).map((res) => (
+                    <button
+                      key={res.key}
+                      onClick={() => onOpenSource?.(res.source_name, res.page)}
                       className="bg-indigo-50/60 hover:bg-indigo-100/80 border border-indigo-100 text-[11px] text-indigo-600 font-semibold px-3 py-1 rounded-full transition-all flex items-center gap-1.5 active:scale-95 group shadow-sm"
-                      title={res.raw_text}
+                      title={res.texts.join("\n\n---\n\n")}
                     >
                       <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 group-hover:animate-pulse" />
                       <span>{res.source_name} • Sayfa {res.page}</span>
@@ -171,21 +187,21 @@ export default function ChatArea({
       {/* INPUT VE DOSYA YÜKLEME ALANI */}
       <div className="p-6 shrink-0 bg-transparent space-y-4">
         
-        {/*İlerleme Çubuğu */}
+        {/* YÜKLEME GÖSTERGESİ (belirsiz / indeterminate) */}
+        {/* Yüzde yok: sürenin çoğu backend'deki embedding, gerçek ilerleme bilinmiyor; sahte yüzde yerine kayan çubuk (notes.md #30) */}
+        {/* role="status": ekran okuyucu "Dosya işleniyor" duyurur; aria-valuenow olmayan progressbar "belirsiz" demek */}
         {isUploading && (
-          <div className="max-w-3xl mx-auto bg-white border border-slate-200 p-3.5 rounded-xl flex flex-col gap-2 shadow-sm">
-            <div className="flex items-center justify-between text-xs text-black font-medium">
-              <div className="flex items-center gap-2">
-                <Loader2 className="h-3.5 w-3.5 animate-spin text-indigo-500" />
-                <span>Dosya işleniyor...</span>
-              </div>
-              <span className="font-bold text-indigo-600">%{uploadProgress}</span>
+          <div role="status" className="max-w-3xl mx-auto bg-white border border-slate-200 p-3.5 rounded-xl flex flex-col gap-2 shadow-sm">
+            <div className="flex items-center gap-2 text-xs text-black font-medium">
+              <Loader2 className="h-3.5 w-3.5 animate-spin text-indigo-500" />
+              <span>Dosya işleniyor... Büyük PDF&apos;lerde bu birkaç dakika sürebilir.</span>
             </div>
-            <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
-              <div 
-                className="bg-indigo-600 h-full transition-all duration-300 ease-out rounded-full"
-                style={{ width: `${uploadProgress}%` }}
-              />
+            <div
+              role="progressbar"
+              aria-label="Dosya işleniyor"
+              className="relative w-full bg-slate-100 h-1.5 rounded-full overflow-hidden"
+            >
+              <div className="absolute inset-y-0 left-0 w-1/3 bg-indigo-600 rounded-full animate-indeterminate motion-reduce:animate-none motion-reduce:w-full motion-reduce:opacity-40" />
             </div>
           </div>
         )}
@@ -216,20 +232,22 @@ export default function ChatArea({
               }}
               maxLength={MAX_QUESTION_LENGTH}
               disabled={isLimited}
-              placeholder={isLimited ? "Token limiti doldu" : "Ask a question..."}
+              placeholder={isLimited ? "Token limiti doldu" : "Dokümanlarınız hakkında bir soru sorun..."}
               className="flex-1 resize-none bg-transparent border-0 pl-2 pr-12 py-2.5 text-xs font-medium text-black placeholder-slate-400 focus:outline-none max-h-36 overflow-y-auto disabled:cursor-not-allowed"
             />
 
+            {/* Buton her zaman yerinde; gönderilemeyecekken pasif görünür (notes.md #37). Eskiden kutu boşken */}
+            {/* kayboluyordu, yazmaya başlayınca beliriyordu. Yalnızca boşluk yazılmışsa da gönderilmez (handleSend) */}
             <div className="absolute right-2 bottom-2 w-10 h-10 flex items-center justify-center">
-              {input.length > 0 && (
-                <button
-                  onClick={onSend}
-                  disabled={isLoading || isLimited}
-                  className="rounded-lg bg-white hover:bg-slate-200 text-slate-900 p-2.5 h-10 w-10 flex items-center justify-center transition-all shadow-md shadow-indigo-100 animate-in fade-in zoom-in-95 duration-150 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white"
-                >
-                  <ArrowUp className="w-4 h-4 shrink-0" />
-                </button>
-              )}
+              <button
+                onClick={onSend}
+                disabled={!input.trim() || isLoading || isLimited}
+                aria-label="Gönder"
+                title="Gönder"
+                className="rounded-lg bg-white hover:bg-slate-200 text-slate-900 p-2.5 h-10 w-10 flex items-center justify-center transition-all shadow-md shadow-indigo-100 disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none disabled:hover:bg-white"
+              >
+                <ArrowUp className="w-4 h-4 shrink-0" />
+              </button>
             </div>
 
           </div>
