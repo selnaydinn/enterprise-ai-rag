@@ -10,7 +10,9 @@ from unittest import mock
 
 from fastapi.testclient import TestClient
 
-PDF = b"%PDF-1.4\n" + b"0" * 100
+from core.auth import require_auth
+
+PDF =b"%PDF-1.4\n" + b"0" * 100
 
 #Sorgu testleri gerçek usage.db'ye yazmasın; sınır testleri tests/test_usage.py'de
 OPEN_USAGE = {"used": 0, "limit": 10000, "resets_at": "2026-10-24T18:00:00+03:00", "limited": False}
@@ -24,6 +26,13 @@ ANSWER = {"status": "success", "message": "ok", "answer": "Cevap", "sources": []
 #DB/LLM'e dokunan fonksiyonlar her testte sahte değerlerle değiştiriliyor
 def import_main():
     return importlib.import_module("main")
+
+
+#Endpoint testleri auth'u değil endpoint davranışını test ediyor; require_auth yerine hiçbir şey yapmayan bir fonksiyon
+#kullanılır (FastAPI dependency override). Test bitince override kaldırılır. Auth'un kendisi: tests/test_auth.py
+def bypass_auth(testcase, main):
+    main.app.dependency_overrides[require_auth] = lambda: None
+    testcase.addCleanup(main.app.dependency_overrides.pop, require_auth, None)
 
 
 class HashTests(unittest.TestCase):
@@ -67,6 +76,7 @@ class UploadEndpointTests(unittest.TestCase):
 
     def setUp(self):
         self.main = import_main()
+        bypass_auth(self, self.main)
         self.client = TestClient(self.main.app)
         #Gerçek uploaded_pdfs/ yerine geçici klasör; bir üstü path traversal kontrolü için
         self.root = Path(tempfile.mkdtemp(prefix="upload_test_"))
@@ -189,6 +199,7 @@ class InternalErrorTests(unittest.TestCase):
 
     def setUp(self):
         self.main = import_main()
+        bypass_auth(self, self.main)
         self.client = TestClient(self.main.app)
 
     def assert_hidden(self, response, logs, message):
@@ -234,6 +245,7 @@ class QueryValidationTests(unittest.TestCase):
 
     def setUp(self):
         self.main = import_main()
+        bypass_auth(self, self.main)
         self.client = TestClient(self.main.app)
         patches = [
             mock.patch.object(self.main, "get_status", return_value=OPEN_USAGE),
@@ -275,6 +287,7 @@ class ResponseModelTests(unittest.TestCase):
 
     def setUp(self):
         self.main = import_main()
+        bypass_auth(self, self.main)
         self.client = TestClient(self.main.app)
         for patch in (mock.patch.object(self.main, "get_status", return_value=OPEN_USAGE),
                       mock.patch.object(self.main, "record_usage")):
@@ -331,7 +344,8 @@ class CorsTests(unittest.TestCase):
         origin = self.main.CORS_ORIGINS[0]
         response = self.preflight(origin)
         self.assertEqual(response.headers.get("access-control-allow-origin"), origin)
-        self.assertNotIn("access-control-allow-credentials", response.headers)
+        #Oturum cookie'si için credentials açık (core/auth.py); yoksa tarayıcı cookie'yi göndermez
+        self.assertEqual(response.headers.get("access-control-allow-credentials"), "true")
 
     def test_unknown_origin_gets_no_cors_header(self):
         response = self.preflight("http://kotu-site.example")
@@ -342,11 +356,14 @@ class ConcurrencyTests(unittest.TestCase):
 
     #TestClient "with" ile açılıyor: eş istekler aynı event loop'ta çalışsın (UPLOAD_LOCK tek bir loop'a bağlanır)
     #"with" lifespan'ı da çalıştırıyor; gerçek model/Gemini yüklenmesin diye get_llm, get_db, get_reranker ve warm_up sahte
+    #Auth ayar kontrolü de sahte: CI'da .env yok, APP_PASSWORD tanımsız olduğu için lifespan başlamazdı
     def setUp(self):
         self.main = import_main()
+        bypass_auth(self, self.main)
         self.upload_dir = Path(tempfile.mkdtemp(prefix="upload_test_"))
         self.addCleanup(shutil.rmtree, self.upload_dir, True)
         for patch in (mock.patch.object(self.main, "UPLOAD_DIR", str(self.upload_dir)),
+                      mock.patch.object(self.main, "check_auth_config"),
                       mock.patch.object(self.main, "get_llm"),
                       mock.patch.object(self.main, "get_db"),
                       mock.patch.object(self.main, "get_reranker"),

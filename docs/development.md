@@ -21,7 +21,8 @@ The Docker image uses Python 3.13 like the local venv and CI.
 | API | `main.py`, `schemas.py` | Endpoints, request/response models, startup checks (`lifespan`) |
 | Settings | `core/settings.py` | All settings in one `pydantic-settings` class |
 | Model / DB / LLM | `core/config.py` | Created lazily once (`get_embeddings`, `get_db`, `get_llm`, `get_reranker`), loaded at startup |
-| Ingestion | `services/ingestion.py` | PDF → chunks → ChromaDB, document deletion |
+| Ingestion | `services/ingestion.py` | PDF → chunks (`split_pages`, `prepare_chunks`) → ChromaDB (`process_pdf`), document deletion |
+| Database build | `scripts/build_db.py` | Builds a new database from the PDFs; see [configuration.md](configuration.md#building-a-database) |
 | Query | `services/query.py` | Retrieval, threshold, reranking (`rerank_chunks`, shared `rerank_scores` with eval), prompt, real token counting (`usage_metadata`), startup warm-up (`warm_up`), per-question timing log (`Süreler: ...`) |
 | Token limit | `services/usage.py` | Global token counter stored in SQLite |
 | Frontend | `rag-frontend/` | `app/`, `components/`, `services/api.ts`, `types/` |

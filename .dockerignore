@@ -26,6 +26,7 @@ usage.db
 
 # Değerlendirme çıktıları ve notlar
 eval/results/
+eval/experiment_*_results/
 notes.md
 
 # IDEs

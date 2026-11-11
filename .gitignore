@@ -3,8 +3,8 @@ venv/
 .venv/
 env/
 __pycache__/
-chroma_db/
-chroma_db_normalization/
+#Bütün Chroma DB klasörleri (chroma_db_normalization, chroma_db_madde ve scripts/build_db.py ile kurulan diğerleri)
+chroma_db*/
 uploaded_pdfs/
 usage.db
 *.pyc

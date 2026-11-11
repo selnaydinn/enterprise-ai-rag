@@ -4,6 +4,8 @@ from unittest import mock
 
 from fastapi.testclient import TestClient
 
+from tests.test_upload import bypass_auth
+
 GENERIC_DETAIL = "Beklenmeyen bir hata oluştu."
 SECRET = "C:\\gizli\\yol iç hata"
 
@@ -19,6 +21,7 @@ class UnhandledErrorTests(unittest.TestCase):
 
     def setUp(self):
         self.main = import_main()
+        bypass_auth(self, self.main)
         self.client = TestClient(self.main.app, raise_server_exceptions=False)
         #/usage/'ın try/except'i yok; get_status hatası doğrudan global yakalayıcıya gidiyor
         patch = mock.patch.object(self.main, "get_status", side_effect=RuntimeError(SECRET))
@@ -46,6 +49,8 @@ class UnhandledErrorTests(unittest.TestCase):
         response, _ = self.get_usage({"Origin": origin})
         self.assertEqual(response.status_code, 500)
         self.assertEqual(response.headers.get("access-control-allow-origin"), origin)
+        #Frontend cookie'li (credentials) istek atıyor; bu başlık yoksa tarayıcı 500 yanıtını da engeller
+        self.assertEqual(response.headers.get("access-control-allow-credentials"), "true")
         self.assertIn("Origin", response.headers.get("vary", ""))
 
     def test_unknown_or_missing_origin_gets_no_cors_header(self):
@@ -68,6 +73,7 @@ class HandledErrorsUnchangedTests(unittest.TestCase):
 
     def setUp(self):
         self.main = import_main()
+        bypass_auth(self, self.main)
         self.client = TestClient(self.main.app, raise_server_exceptions=False)
 
     def test_unknown_route_is_still_404(self):

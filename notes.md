@@ -28,8 +28,8 @@
 | 9 | Token sayımı gerçek `usage_metadata`| ✅ | 
 | 10 | Event loop bloklanması Threadpool + upload kilidi; arka plan görevi yok | ✅ | 
 | 11 | E5 ön ekleri denendi, kaliteyi artırmadı, uygulanmadı  | ✅ |
-| 12 | Skor barajı kalibrasyonu. Negatif sorularla ölçüldü; e5 0.72 ön eleme + soru düzeyinde reranker barajı (−2.0): dokümana yakın negatiflerde Gemini'ye giden 28/28 → 4/28, cevaplı soru kaybı yok (n19 kısmi cevabı olduğu için çıkarıldı, set 39 soru). Gemini'ye giden negatiflerde model BILGI_YOK yazıyor, kullanıcı aynı "bilgi bulunamadı" yanıtını görüyor | ✅ | 
-| 13 | Retrieval kalitesi. Normalization ve reranker (10 aday → ilk 3) yapıldı; madde bazlı chunking, hibrit arama yok | ◐ |
+| 12 | Skor barajı kalibrasyonu. Negatif sorularla ölçüldü; e5 0.72 ön eleme + soru düzeyinde reranker barajı (−2.0): dokümana yakın negatiflerde Gemini'ye giden 28/28 → 4/28, cevaplı soru kaybı yok (n19 kısmi cevabı olduğu için çıkarıldı, set 39 soru). Gemini'ye giden negatiflerde model BILGI_YOK yazıyor, kullanıcı aynı "bilgi bulunamadı" yanıtını görüyor. 2026-11-10: 16 yeni negatif soruda baraj tutmadı (4/16 geçti, 44 soruda toplam 8/44); elle denendi: 8'inin 6'sında BILGI_YOK, 2'sinde (n03, n46) "doğrudan bilgi yok" diyen açıklama, uydurma cevap yok (`eval/experiment_A_results/README.md`) | ✅ | 
+| 13 | Retrieval kalitesi. Normalization ve reranker (10 aday → ilk 3) yapıldı. Madde bazlı chunking denendi (2026-11-10, Deneme A), benimsenmedi: page'i geçmedi (Hit@1 75→70, örtüşmeli 73/80), `madde` yöntemi kodda kaldı ama varsayılan değil (`eval/experiment_A_results/README.md`). Kalan asıl sorun q23 (vektör araması kaçırıyor); hibrit arama yok | ◐ |
 | 14 | Golden set 25 soru hepsi `meb_yonetmelik.pdf`, negatif soru yok | ✅ | 
 | 15 | Tekrar yüklenen dosya listede | ✅ | 
 | 16 | Çift gönderim koruması | ✅ |
@@ -56,10 +56,11 @@
 | 37 | Gönder butonunun kaybolması | ❌ | 
 | 38 | Python sürüm farkı | ✅ | 
 | 39 | `process_pdf`'teki gereksiz kontrol | ✅ |
-| 40 | DB kurulum script'i | ❌ | 
-| 41 | HNSW indeksi her açılışta yeniden kuruluyor, arama ara sıra en yakın parçayı kaçırıyor | ❌ | 
+| 40 | DB kurulum script'i | ✅ | 
+| 41 | HNSW indeksi her açılışta yeniden kuruluyor, arama ara sıra en yakın parçayı kaçırıyor -- artık evalde exact search, productionda hnsw kullanılacak | ✅  | 
 | 42 | Docker'da model önbelleği için volume (e5 + reranker) | ✅ | 
 | 43 | Streaming eklenecek. | ❌ | 
+| 44 | DB boşken (hiç doküman yok) soru sorulunca "sorunuzu yeniden yazın" deniyor; "önce PDF yükleyin" denmeli | ❌ | 
 
 ---
 
@@ -142,13 +143,32 @@ GUNCEL 11:  Geminidan dönen hatalar yakalandı.
             Gemini ın yanıtı yarıda kalırsa--- 200 success + tamamlanamadı notu
            
            
-GUNCEL 12:  HNSW algoritması ve exact search, golden set ve negatif set için karşılaştırıldı. Negatif sette HNSW kaçırması vardı ancak şans    eseri sonuca doğrudan bir etkisi bulunmadı. Artık exact search de elimizde olduğu için kaçırmaları net görebilicez. Retrieval kalitesini
+GUNCEL 12:  HNSW algoritması ve exact search, golden set ve negatif set için karşılaştırıldı. Negatif sette HNSW kaçırması vardı ancak şans eseri sonuca doğrudan bir etkisi bulunmadı. Artık exact search de elimizde olduğu için kaçırmaları net görebilicez. Retrieval kalitesini
 iyileştirmeye geçmeden önce güvenilir bir ölçüm gerektiği için exact search önemliydi.(madde bazlı chunking denemeleri falan)
-            Negatif set recall: 0.995 , Golden set recall: 1.0
+            Negatif set recall: 0.995 , Golden set recall: 1.0 (sadece 1 açılış için)
 
 
 
-GUNCEL 13: Retrieval kalitesi artırılacak.(madde bazlı chunking vs).
+GUNCEL 13: Uygulama açılışında çalışması için database kurulum scripti oluşturuldu.
+             Parametreler: --target  -> dbnin kurulacağı yol
+                           --pdf_dir  -> dbnin kurulumda kullanacağı pdfler
+                           --chunking  -> chunking tipi(mesela madde bazlı mı sayfa bazlı mı)
+                           --allow-download  -> reranker + e5 modeli db kurulumunda yüklenir(db kurmak için e5 modeli gerekebilir pdf varsa)
+                           --allow-empty  -> boş db kurulmasına izin verir
+                           --manifest  -> yazılacak manifest dosyasının yolu
+             Uygulama ilk kuruluşunda: db kurulur(burada script tarafından reranker + e5 modeli de indirilir) 
+                                       uygulama modelleri cacheden alır
+             Halihazırda db varsa ilk açılışta: uygulama reranker + e5 modelini indirir
+             Halihazırda db varsa sonraki açılışlarda: uygulama modelleri cacheden alır    
+
+GUNCEL 14: 
+           Chunking stratejisi + overlap eklenerek yeni db kuruldu. Bu db'de eval çalıştırıldı ve anlamlı bir iyileşme görülmedi. Chunking  ile   sadece 1 soru iyileşti ama kayıplar daha fazla
+           Chunking stratejisi eklendi. Eğer madde ile başlıyorsa madde bazlı chunking yapılıyor, maddeler çok uzun ve diğer sayfaya taşıyorsa her sayfa için yeni chunk açılıyor ve  madde başlığı aynen taşınıyor. Eğer madde haricinde bir ek veya tabloya başlıyorsa page bazlı chunking yöntemi kullanılıyor. Bir pdfte 3den az madde ifadesi varsa direkt page chunking yapılıyor. Her chunkın başına madde+içerik konulmaya çalışıldı ama 20 chunk içerik verisini önceki satırdan alamadı
+           Golden set 80 negatif set 56 soruya çıkarıldı. Baseline sonuçlarında 79/80 hit@3, 11/11 out of domain hiç geminia gitmedi, 36/44 near domain geminia gitmedi. Kalan 8soru gemini a gitti ama 6sı BILGI_YOK aldı, 2si de gemini tarafından doğrudan bilgi bulunmuyor diye cevaplandı      
+
+GUNCEL 15: Backend için auth mekanizması kuruldu.
+           Parola ve session secret .env'e yazıldı.
+           Endpointlere auth dependency olarak eklendi.
 
 ## 1. Genel Bakış
 
@@ -326,7 +346,7 @@ PDF yönetmelikleri üzerinde soru-cevap yapan bir RAG uygulaması:
     - Parçaların hepsi (metin, metadata, vektör) `chroma.sqlite3`'te; diskteki HNSW indeksi ise boş (`header.bin`: kapasite 100, kayıtlı parça 0). Chroma indeksi diske ancak `sync_threshold` (Chroma varsayılanı 1000) değişiklik birikince yazıyor; DB toplam 794 değişiklik gördü (716 ekleme, 78 silme), eşiğe hiç ulaşılmadı.
     - Bu yüzden DB her açıldığında 794 değişiklik kayıt defterinden (`embeddings_queue`) oynatılıyor ve indeks bellekte sıfırdan kuruluyor. Ekleme paralel yapıldığı için (`num_threads` = çekirdek sayısı) indeks her açılışta biraz farklı çıkıyor; yaklaşık arama bazı açılışlarda gerçek ilk 10'daki bir parçayı hiç bulamıyor.
     - Distance değerleri değişmiyor, eşit skorlu parçaların yer değiştirmesi de değil: aynı parçanın distance'ı her açılışta birebir aynı, soru vektörü her seferinde aynı, kaçan parçaların distance'ı komşularından açıkça farklı, aynı metinli parça yok. Değişen tek şey bir parçanın listeye hiç girmemesi (q21: 3. sıradaki `h_f6958101_p3_c25`, 0.347484, bir açılışta yok; kanıt değil).
-    - Etkisi: aynı soru uygulama yeniden başlatılınca farklı parçalarla cevaplanabilir; doküman sayısı arttıkça risk artar, reranker kapalıyken (k=3) daha büyük. `eval/evaluate_evidence.py` bu durumda "full ranking does not match evaluate_question top 10" hatasıyla sonuç kaydetmeden duruyor (kontrol doğru çalışıyor, gevşetilmemeli).
+    - Etkisi: aynı soru uygulama yeniden başlatılınca farklı parçalarla cevaplanabilir; doküman sayısı arttıkça risk artar, reranker kapalıyken (k=3) daha büyük. (Eval'in bu durumda durması 2026-11-06'da çözüldü, aşağıya bakın.)
     - Denemeler (geçici kopyalarda; her biri 20 açılış × 56 soru, sonuç numpy ile hesaplanan tam sıralamayla karşılaştırıldı):
 
       | Deneme | İndekste kayıtlı | Kaçırma olan açılış | Her açılışta aynı sonuç |
@@ -341,11 +361,18 @@ PDF yönetmelikleri üzerinde soru-cevap yapan bir RAG uygulaması:
     - Sonuç: `ef_search` tek başına yetmiyor. İndeksi tam kaydetmek sonuçları her açılışta aynı yapıyor ama kaydedilen indeks de kusurlu olabiliyor (q42) ve sonradan yüklenen PDF'ler eşik dolana kadar yine her açılışta yeniden ekleniyor; eşiği kalıcı olarak küçültmek sık disk yazımı demek. Bu yüzden yeniden kurulum yapılmadı.
     - Kapsam dışı sorularda daha sık görülüyor: `eval/evaluate_negative.py` iki çalıştırması arasında 4 kapsam dışı soruda (n09, n10, n38, n40) aday listesi değişti, n10'un en iyi reranker skoru 2.65 oynadı. Bu sorular hiçbir parçaya yakın olmadığı için yaklaşık arama daha çok şaşırıyor; hiçbir adayları e5 barajını geçmediği için sonuç değişmedi.
     - Karar (2026-10-30): şimdilik dokunulmuyor; etki küçük (224 aramada 1 kaçırma, kanıt değil; reranker 10 aday aldığı için cevap nadiren değişir). Kalıcı çözüm tam arama: `search_in_db`'de yaklaşık harita yerine tüm vektörlere bakmak (bu ölçekte ~1–2 ms; ya Chroma'dan tüm sıralamayı isteyip ilk k'yı almak, ya da vektörleri belleğe alıp mesafeyi kendimiz hesaplamak, yükleme/silmede güncelleyerek). Doküman sayısı ciddi artarsa veya "aynı soru farklı cevap" görülürse ele alınmalı.
+    - Karar (2026-11-06): production HNSW'de kalıyor (tam arama doküman sayısıyla doğrusal yavaşlar). Eval tam sıralamaya geçti: `evaluate_evidence.py` ve `evaluate_negative.py` metrikleri tüm vektörlerle hesaplanan sıralamadan alıyor (her çalıştırmada aynı); HNSW aynı soru vektörüyle production derinliğinde ayrıca aranıyor, kaçırdıkları recall olarak raporlanıyor, eval durmuyor. Ayrıntı: `eval/README.md` "Exact ranking and HNSW recall".
+    - İlk ölçüm (2026-11-06, recall@10): golden 56/56 tam; dokümana yakın negatif 27/28 (n04, 2. sıradaki parça), kapsam dışı 10/11 (n40). Hiçbir kaçırma sorunun Gemini'ye gitme durumunu değiştirmedi. Eski `negative_mminilm_c10_gate_39neg.json` HNSW'nin n08, n09, n10'u kaçırdığı bir açılışta üretilmiş; yeni referans `negative_mminilm_c10_gate_39neg_exact.json`. Recall düşerse önce `ef_search` artırılır.
 
 42. **Modeller Docker'a verilmiyor; konteyner her yeniden oluşturulduğunda internetten indiriliyor** — `Dockerfile`, `docker-compose.yml`
     - Image'da model yok, compose'da HF önbelleği için volume yok. Açılışta e5 (~1.1 GB) ve reranker (~470 MB, `cross-encoder/mmarco-mMiniLMv2-L12-H384-v1`) konteyner içine (`/root/.cache/huggingface`) indiriliyor; yeniden başlatmada kalıyor, `docker compose up --build` / `down` + `up` sonrası tekrar iniyor. İnternet yoksa uygulama açılmıyor.
     - Öneri: compose'a named volume (`hf_cache:/root/.cache/huggingface`); model bir kez iner, yeniden build'lerde korunur. İnternetsiz/sabit sürüm gerekirse modeller Dockerfile'da `COPY . .`'dan önce bir `RUN` adımıyla image'a gömülebilir (image ~1.6 GB büyür); madde 25'teki dev/prod ayrımıyla birlikte düşünülmeli.
     - Aynı adımda kontrol edilmeli: konteynerde 3 GB RAM sınırı (e5 + reranker + torch sınıra yaklaşabilir, aşılırsa OOM) ve 2 CPU sınırı (rerank süresi yerelde ölçülen ~2.1 sn'den uzun olur). Önce yerelde iki model yüklüyken RAM ölçülmeli; doğrulama: log'da iki modelin yüklendiği, `docker stats`, konteyner yeniden oluşturulunca modelin tekrar inmediği.
+
+44. **DB boşken soru sorulunca yanlış yönlendiren mesaj** — `services/query.py` `answer_question`, `no_result_response`
+    - `scripts/build_db.py --allow-empty` ile dokümansız kurulum mümkün. Boş koleksiyonda arama hata vermiyor, 0 sonuç dönüyor (2026-11-07'de geçici boş DB ile denendi); kullanıcıya 200 + `no_result` ve "Sorunuzla ilgili yüklü dokümanlarda yeterli bilgi bulunamadı. Lütfen sorunuzu dokümanların kapsamına göre yeniden yazın." gidiyor. Gemini çağrılmıyor, token harcanmıyor.
+    - Sorun: mesaj soruyu yeniden yazmayı öneriyor; asıl sebep hiç doküman olmaması. Frontend de doküman yokken soru kutusunu kilitlemiyor (yalnızca token sınırında ve cevap beklenirken).
+    - Öneri: backend'de koleksiyon boşsa (`count()` ucuz) ayrı bir `no_result` mesajı: "Henüz yüklü doküman yok. Önce bir PDF yükleyin." Her istemcide doğru olur, frontend değişmez. İstenirse frontend doküman listesi boşken kutuyu ayrıca kilitleyebilir.
 ---
 
 ## 3. Test, Kalite ve Süreç

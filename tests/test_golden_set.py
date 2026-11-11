@@ -9,7 +9,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 GOLDEN_PATH = PROJECT_ROOT / "eval" / "golden_set.jsonl"
 PDF_DIR = PROJECT_ROOT / "uploaded_pdfs"
 
-EXPECTED_COUNT = 56
+EXPECTED_COUNT = 80
 FIELDS = {"id": str, "topic": str, "question": str, "file": str, "pages": list, "article": str, "note": str}
 
 
@@ -80,6 +80,31 @@ EVIDENCE = {
     "q54": "için en fazla bir yıl, diğer birimler için en fazla üç ay",
     "q55": "il sağlık müdürlüğünce 7 gün içerisinde değerlendirilir",
     "q56": "Vücut Ağırlığı ≥50 kg",  #EK-5 tablosu
+    #q57-q80: 2026-11-10'da eklenen zor sorular (başka kelimelerle sorulmuş, aynı sayfada çeldiricisi olan, listede gizli)
+    "q57": "tıbbi danışman koordinasyonu ve onayı ile",
+    "q58": "bakmaksızın, stabilizasyon sağlanıncaya kadar bütün tıbbî hizmetleri sunar",
+    "q59": "ekip sunduğu hizmet ile ilgili bilgileri merkeze bildirir",
+    "q60": "ilgili birim sorumlusu tarafından yazılı olarak belgelendirilir",
+    "q61": "Bu birimler zemin katta",
+    "q62": "24 saat süre ile gerekli tıbbi",
+    "q63": "ayrıca diğer sağlık personeli görevlendirir",
+    "q64": "Onaylı defterin asıl sureti işveren",
+    "q65": "en geç 30 gün içerisinde yeni sorumlu müdürün",
+    "q66": "kaydıyla bodrum katta bulunabilir",
+    "q67": "toplam çalışan sayısına dâhil edilmez",
+    "q68": "üç ay içinde vize işleminin tamamlanmaması",
+    "q69": "Bu durumda kan TM’nde alınır",
+    "q70": "malî karşılık anlamına gelmeyecek şekilde",
+    "q71": "üst üste iki defa toplantılara katılmayanların üyeliği düşer",
+    "q72": "Etikette en az aşağıdaki bilgiler bulunur",
+    "q73": "atanmalarını takip eden altı ay içinde",
+    "q74": "TM veya BKM sorumlusu tarafından ortak alınan kararla mümkündür",
+    "q75": "her beş defa geç kalma yarım gün devamsızlıktan sayılır",
+    "q76": "son sınıf yılsonu başarı puanı yüksek olan öğrenci okul birincisi seçilir",
+    "q77": "öğrencinin disiplin cezası bulunmadığı bildirilir",
+    "q78": "zarara yol açan öğrencilerin velilerine ödettirilir",
+    "q79": "on iş gününü geçmemek kaydıyla",
+    "q80": "yapılamayan dersler için ders saatleri dışında",
 }
 
 #Cevap ifadesinin "pages" dışında da geçtiği ama bilerek doğru kabul edilmeyen sayfalar (çeldirici)

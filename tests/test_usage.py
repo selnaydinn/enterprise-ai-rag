@@ -9,7 +9,7 @@ from unittest import mock
 from fastapi.testclient import TestClient
 
 from services import usage
-from tests.test_upload import ANSWER, import_main
+from tests.test_upload import ANSWER, bypass_auth, import_main
 
 LIMIT = 1000
 
@@ -90,6 +90,7 @@ class QueryUsageEndpointTests(TempUsageDb):
     def setUp(self):
         super().setUp()
         self.main = import_main()
+        bypass_auth(self, self.main)
         self.client = TestClient(self.main.app)
         patch = mock.patch.object(self.main, "prepare_chunks_with_metadata",
                                   return_value={**ANSWER, "token_usage": 300})
