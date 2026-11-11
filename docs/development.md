@@ -29,6 +29,11 @@ The Docker image uses Python 3.13 like the local venv and CI.
 | Frontend | `rag-frontend/` | `app/page.tsx` (login gate), `components/Workspace.tsx` (the app), `components/LoginForm.tsx`, `services/api.ts` (all requests, `credentials: "include"`, `401` → login screen), `types/` |
 | Evaluation | `eval/` | See [`eval/README.md`](../eval/README.md) |
 
+If an upload fails after chunks were written (an error halfway through embedding, or after it), `main.py`
+`rollback_chunks` deletes that PDF's chunks by `pdf_hash` (`services/ingestion.py` `delete_chunks_by_hash`) before
+removing the file, so no chunks without a file are left and the same PDF can be uploaded again. Chunk ids come from the
+PDF hash and Chroma writes with upsert, so processing the same PDF again never duplicates chunks.
+
 Uploads and deletions share one lock (`UPLOAD_LOCK` in `main.py`), so a deletion cannot run while the same document
 is half-ingested. Embedding and Gemini calls run in a thread pool, so other requests are not blocked.
 

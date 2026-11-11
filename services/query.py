@@ -50,6 +50,9 @@ def is_no_answer(answer):
 
 NO_RESULT_ANSWER = "Sorunuzla ilgili yüklü dokümanlarda yeterli bilgi bulunamadı. Lütfen sorunuzu dokümanların kapsamına göre yeniden yazın."
 
+#DB'de hiç doküman yokken (build_db.py --allow-empty veya tüm dokümanlar silinmiş); soruyu yeniden yazmak işe yaramaz
+EMPTY_DB_ANSWER = "Henüz yüklü doküman yok. Önce bir PDF yükleyin."
+
 #Gemini boş cevap döndüğünde (engellenen soru, güvenlik filtresi, yalnızca düşünüp cevap yazmadan biten MAX_TOKENS)
 #"Dokümanlarda yok" demiyoruz: soru filtreye takılmış olabilir, bilgi dokümanlarda olabilir
 EMPTY_ANSWER = "Bu soruya yanıt üretilemedi. Lütfen sorunuzu farklı şekilde yazın."
@@ -132,6 +135,12 @@ def search_in_db(user_query):
     k = settings.rerank_candidate_k if settings.reranker_enabled else settings.retrieval_k
     results = get_db().similarity_search_with_relevance_scores(optimized_query, k=k)
     return results
+
+#DB'de en az bir parça var mı (notes.md #44); "arama aday döndürmedi" ile "DB boş" aynı şey sayılmıyor: arama ileride
+#filtre veya hibrit aramayla doküman varken de boş dönebilir, o zaman "doküman yok" demek yanlış olur
+#Yalnızca arama boş döndüğünde çağrılıyor (normal akışta ek sorgu yok); limit=1, include=[]: tek bir id okunuyor
+def has_any_chunk():
+    return len(get_db().get(limit=1, include=[])["ids"]) > 0
 
 # RERANKING
 #Soru-parça çiftlerinin cross-encoder skorları; eval/evaluate_evidence.py de aynı fonksiyonu kullanıyor
@@ -216,6 +225,16 @@ def answer_question(user_input, timings, tokens):
         matched_chunks = search_in_db(user_input)
     finally:
         timings["arama"] = time.perf_counter() - step
+
+    #Hiç aday yok: DB boşsa kullanıcı PDF yüklemeye yönlendirilir; parça varken boş dönmesi beklenmez, loglanır
+    #İkisinde de reranker ve Gemini çağrılmaz, token harcanmaz
+    if not matched_chunks:
+        if not has_any_chunk():
+            logger.info("Sonuç yok: veritabanında doküman yok (Gemini çağrılmadı).")
+            return no_result_response(0, answer=EMPTY_DB_ANSWER, message="Veritabanında doküman yok.")
+        logger.warning("Arama hiç aday döndürmedi ama veritabanında parça var (beklenmeyen durum, Gemini çağrılmadı).")
+        return no_result_response(0)
+
     passed_chunks = []
 
     #Skor kontrolü (e5 benzerlik skoru); reranker'dan önce yapılıyor, böylece reranker daha az parça işliyor

@@ -108,5 +108,93 @@ class PrepareAndProcessTests(unittest.TestCase):
         self.assertEqual(set(result), {"filename", "total_pages", "total_chunks", "message"})
 
 
+#Bellekte Chroma yerine geçen küçük DB: process_pdf'in kullandığı add_documents ve geri almanın kullandığı get/delete
+#fail_on_call: o sıradaki add_documents çağrısı hata verir (embedding ortasında hata)
+#Chroma gibi upsert: aynı id tekrar yazılırsa kayıt çoğalmaz (gerçek davranış geçici bir Chroma koleksiyonunda doğrulandı)
+class FakeDb:
+
+    def __init__(self, fail_on_call=None):
+        self.records = {}
+        self.calls = 0
+        self.fail_on_call = fail_on_call
+
+    def add_documents(self, documents, ids):
+        self.calls += 1
+        if self.calls == self.fail_on_call:
+            raise RuntimeError("embedding hatası")
+        for doc, chunk_id in zip(documents, ids):
+            self.records[chunk_id] = dict(doc.metadata)
+
+    def get(self, where, include=None, limit=None):
+        (key, value), = where.items()
+        ids = [i for i, meta in self.records.items() if meta.get(key) == value]
+        return {"ids": ids[:limit] if limit else ids}
+
+    def delete(self, ids):
+        for chunk_id in ids:
+            self.records.pop(chunk_id, None)
+
+    def hashes(self):
+        return {meta["pdf_hash"] for meta in self.records.values()}
+
+
+#Yarıda kalan yükleme (notes.md #45): geri alma yalnızca o PDF'in chunk'larını siler, PDF yeniden yüklenebilir
+class RollbackTests(unittest.TestCase):
+
+    def setUp(self):
+        self.ingestion = import_ingestion()
+        self.loader = mock.patch.object(self.ingestion, "PyPDFLoader").start()
+        self.hash = mock.patch.object(self.ingestion, "hash_pdf").start()
+        mock.patch.object(self.ingestion.os.path, "exists", return_value=True).start()
+        self.addCleanup(mock.patch.stopall)
+        #32'den fazla chunk: en az iki paket
+        self.loader.return_value.load.return_value = [long_page(n, n) for n in range(12)]
+
+    def process(self, db, pdf_hash):
+        self.hash.return_value = pdf_hash
+        with self.assertLogs("EnterpriseAI", level="INFO"):
+            return self.ingestion.process_pdf(f"{pdf_hash}.pdf", db=db, strategy="page")
+
+    def test_rollback_after_failed_batch_removes_only_that_pdf(self):
+        db = FakeDb()
+        self.process(db, "eskipdf1")
+        other = dict(db.records)
+
+        db.fail_on_call = db.calls + 2
+        with self.assertRaises(RuntimeError):
+            self.process(db, "deadbeef")
+        #İlk paket yazıldı, ikincisi hata verdi: geri alınmazsa 32 hayalet chunk kalır
+        self.assertEqual(db.hashes(), {"eskipdf1", "deadbeef"})
+
+        self.assertEqual(self.ingestion.delete_chunks_by_hash("deadbeef", db=db), 32)
+        self.assertEqual(db.records, other)
+
+        #Duplikasyon kontrolü artık reddetmiyor; aynı PDF baştan yüklenebilir
+        with mock.patch.object(self.ingestion, "get_db", return_value=db):
+            self.assertFalse(self.ingestion.is_file_already_processed("deadbeef"))
+        db.fail_on_call = None
+        result = self.process(db, "deadbeef")
+        self.assertEqual(len(db.records), len(other) + result["total_chunks"])
+
+    def test_reprocessing_same_pdf_does_not_duplicate(self):
+        db = FakeDb()
+        first = self.process(db, "deadbeef")
+        self.process(db, "deadbeef")
+        self.assertEqual(len(db.records), first["total_chunks"])
+
+    def test_nothing_to_roll_back_returns_zero(self):
+        db = FakeDb()
+        self.assertEqual(self.ingestion.delete_chunks_by_hash("yok", db=db), 0)
+
+    #db verilmezse uygulamanın DB'si; yalnızca id'ler isteniyor
+    def test_without_db_uses_app_db(self):
+        app_db = mock.Mock()
+        app_db.get.return_value = {"ids": ["h_deadbeef_p1_c0"]}
+        with mock.patch.object(self.ingestion, "get_db", return_value=app_db):
+            self.assertEqual(self.ingestion.delete_chunks_by_hash("deadbeef"), 1)
+        app_db.get.assert_called_once_with(where={"pdf_hash": "deadbeef"}, include=[])
+        app_db.delete.assert_called_once_with(ids=["h_deadbeef_p1_c0"])
+
+
 if __name__ == "__main__":
     unittest.main()

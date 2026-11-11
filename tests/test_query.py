@@ -186,6 +186,47 @@ class PrepareChunksTests(unittest.TestCase):
             self.query.prepare_chunks_with_metadata(QUESTION)
         self.assertNotIn("Gemini token", self.timing_lines(logs))
 
+    #notes.md #44: DB boşken soruyu yeniden yazmayı değil PDF yüklemeyi öneren mesaj
+    def test_empty_db_asks_for_upload_without_calling_models(self):
+        chain = mock.Mock()
+        with mock.patch.object(self.query, "search_in_db", return_value=[]), \
+             mock.patch.object(self.query, "has_any_chunk", return_value=False), \
+             mock.patch.object(self.query, "get_qa_chain", return_value=chain), \
+             self.assertLogs("EnterpriseAI", level="INFO") as logs:
+            result = self.query.prepare_chunks_with_metadata(QUESTION)
+        self.assertEqual(result["status"], "no_result")
+        self.assertEqual(result["answer"], self.query.EMPTY_DB_ANSWER)
+        self.assertEqual((result["sources"], result["token_usage"]), ([], 0))
+        self.reranker.predict.assert_not_called()
+        chain.invoke.assert_not_called()
+        self.assertIn("veritabanında doküman yok", "\n".join(logs.output))
+
+    #Parça varken arama boş dönmemeli; dönerse "doküman yok" denmez, eski yanıt ve uyarı
+    def test_empty_search_with_chunks_in_db_keeps_old_answer_and_warns(self):
+        with mock.patch.object(self.query, "search_in_db", return_value=[]), \
+             mock.patch.object(self.query, "has_any_chunk", return_value=True), \
+             self.assertLogs("EnterpriseAI", level="WARNING") as logs:
+            result = self.query.prepare_chunks_with_metadata(QUESTION)
+        self.assertEqual(result["answer"], self.query.NO_RESULT_ANSWER)
+        self.assertIn("beklenmeyen durum", "\n".join(logs.output))
+
+    #Aday var ama barajı geçmiyor: eski yanıt; DB sayımı hiç yapılmaz (normal akışta ek sorgu yok)
+    def test_candidates_below_threshold_keep_old_answer_without_counting(self):
+        with mock.patch.object(self.query, "search_in_db", return_value=[chunk(0.5)]), \
+             mock.patch.object(self.query, "has_any_chunk") as has_any:
+            result = self.query.prepare_chunks_with_metadata(QUESTION)
+        self.assertEqual(result["answer"], self.query.NO_RESULT_ANSWER)
+        has_any.assert_not_called()
+
+    def test_has_any_chunk_reads_a_single_id(self):
+        db = mock.Mock()
+        for ids, expected in (([], False), (["h_deadbeef_p1_c0"], True)):
+            with self.subTest(ids=ids):
+                db.get.return_value = {"ids": ids}
+                with mock.patch.object(self.query, "get_db", return_value=db):
+                    self.assertIs(self.query.has_any_chunk(), expected)
+        db.get.assert_called_with(limit=1, include=[])
+
     def test_timings_show_gemini_not_called_when_no_chunk_passes(self):
         with self.assertLogs("EnterpriseAI", level="INFO") as logs, \
              mock.patch.object(self.query, "search_in_db", return_value=[chunk(0.5)]):

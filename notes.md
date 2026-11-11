@@ -20,7 +20,7 @@
 | 1 | Upload'da path traversal önlemesi. | ✅ | 
 | 2 | Duplikasyon kontrolü yazmadan önce 409 conflig vermeli. | ✅ | 
 | 3 | `.dockerignore` | ✅ | |
-| 4 | Kimlik doğrulama | ❌ | 
+| 4 | Kimlik doğrulama | ✅ | 
 | 5 | CORS ayarları| ✅ | 
 | 6 | Hata detaylarının sızması | ✅ | |
 | 7 | Upload boyut limiti 20mb olacak, pdf  uzantı kontrolü. | ✅ | 
@@ -41,7 +41,7 @@
 | 22 | Deprecated LangChain importları | ✅ | 
 | 23 | Bağımlılıklar | ✅ | 
 | 24 | Kullanılmayan kod.Kopyalama döngüsü kaldırıldı; `os`, `ChatOllama`, `api.ts` boş satırları duruyor| ✅ |  
-| 25 | Docker yapılandırması | ❌ | 
+| 25 | Docker yapılandırması. Model önbelleği volume'u yapıldı (#42). Kalanlar: `--reload` + `.:/app` bind mount (dev/prod ayrımı), root kullanıcı, healthcheck yok, obsolete `version` alanı, sabit `dns`, frontend compose'da değil, port tüm ağ arayüzlerine açık (`127.0.0.1:8000:8000` olmalı). Port küçük düzeltmeler PR'ında, geri kalanı `notes2.md` Faz 2'de | ◐ | 
 | 26 | API tasarımı. Soru uzunluk sınırı, düz `usage` objesi; response modelleri, silme endpoint'i yok | ✅ |
 | 27 | Prompt / LLM katmanı. Kurallar sistem mesajında, belgeler ve soru `<belge>`/`<soru>` etiketleri arasında, metindeki bu etiketler siliniyor (injection zorlaştırıldı, engellenmedi). Cevap yoksa BILGI_YOK → no_result. Zaman aşımı 20 sn, 2 deneme; geçici Gemini hataları 503 (kota / sunucu, ayrı mesajlar) ve 504 (zaman aşımı). Boş cevap (engellenen soru, güvenlik filtresi) → no_result, kendi mesajıyla; yarım cevap (finish_reason STOP değil) → notla gösteriliyor, WARNING loglanıyor.| ✅ | 
 | 28 | Tekrarlanan frontend tipleri | ✅ | 
@@ -60,7 +60,8 @@
 | 41 | HNSW indeksi her açılışta yeniden kuruluyor, arama ara sıra en yakın parçayı kaçırıyor -- artık evalde exact search, productionda hnsw kullanılacak | ✅  | 
 | 42 | Docker'da model önbelleği için volume (e5 + reranker) | ✅ | 
 | 43 | Streaming eklenecek. | ❌ | 
-| 44 | DB boşken (hiç doküman yok) soru sorulunca "sorunuzu yeniden yazın" deniyor; "önce PDF yükleyin" denmeli | ❌ | 
+| 44 | DB boşken (hiç doküman yok) soru sorulunca "sorunuzu yeniden yazın" deniyor; "önce PDF yükleyin" denmeli | ✅ | 
+| 45 |  Upload rollback (yarım kalan chunk'ları geri alma) | ✅  | 
 
 ---
 
@@ -171,6 +172,8 @@ GUNCEL 15: Backend için auth mekanizması kuruldu.
            Session 12 saat aralıklarla yenileniyor.
            Endpointlere auth dependency olarak eklendi.
            Frontende login ekranı eklendi. Login ve workspace page.tsx üzerinden yönetiliyor.
+           Eğer PDF yüklenmesi sırasında bir hata oluşursa önceden yarım chunklar dbde kalıyordu--> şimdi pdf hashine göre yarım chunklar siliniyor.
+           Eğer db boşsa ve query atılırsa veritabanında döküman bulunmuyor uyarısı dönüyor.
 
 ## 1. Genel Bakış
 

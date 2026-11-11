@@ -108,8 +108,9 @@ documents contain no direct information; none got an invented answer. Details in
 - **No conversation memory;** every question is answered independently.
 - **Data leaves the machine;** questions and retrieved chunks are sent to the Gemini API.
 - **Questions are logged in full** at `INFO` level (search log in `services/query.py`).
-- **Synchronous uploads;** large PDFs are processed during the upload request. If embedding fails halfway, the chunks
-  already written stay in the database while the file is removed, and uploading the same PDF again returns `409`.
+- **Synchronous uploads;** large PDFs are processed during the upload request. A failed upload is rolled back (its
+  chunks are deleted, the file is removed), but if the app is stopped while an upload is running, part of its chunks
+  can stay in the database and uploading the same PDF again returns `409`.
 - **Thresholds tuned on the evaluated questions;** the reranker threshold (−2.0) was chosen on the first 39
   unanswerable questions, where 4/28 near-domain ones reached Gemini; on 16 newer ones it let 4/16 through. The
   reranker adds about 2–3 s per question on CPU.

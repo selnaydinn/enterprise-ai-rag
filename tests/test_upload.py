@@ -86,9 +86,12 @@ class UploadEndpointTests(unittest.TestCase):
             mock.patch.object(self.main, "UPLOAD_DIR", str(self.upload_dir)),
             mock.patch.object(self.main, "is_file_already_processed", return_value=False),
             mock.patch.object(self.main, "process_pdf", return_value=PROCESSED),
+            #Hata sonrası geri alma (main.rollback_chunks); gerçek DB'ye gitmesin
+            mock.patch.object(self.main, "delete_chunks_by_hash", return_value=0),
         ]
         self.in_db = patches[1].start()
         self.process = patches[2].start()
+        self.rollback = patches[3].start()
         patches[0].start()
         for p in patches:
             self.addCleanup(p.stop)
@@ -180,7 +183,42 @@ class UploadEndpointTests(unittest.TestCase):
         #Detay kullanıcıya gitmiyor ama logda kalıyor
         self.assertIn("C:\\gizli\\yol embedding hatası", "\n".join(logs.output))
 
+    #Embedding ortasında hata: yazılmış paketler bu PDF'in hash'iyle geri alınır, aynı PDF yeniden yüklenebilir
+    def test_failed_processing_rolls_back_written_chunks(self):
+        self.process.side_effect = RuntimeError("embedding hatası")
+        self.rollback.return_value = 64
+        with self.assertLogs("EnterpriseAI", level="WARNING") as logs:
+            response = self.upload("rapor.pdf")
+        self.assertEqual(response.status_code, 500)
+        self.rollback.assert_called_once_with(hashlib.md5(PDF).hexdigest()[:8])
+        self.assertIn("geri alındı: rapor.pdf (64 parça silindi)", "\n".join(logs.output))
+        self.assertEqual(self.files(), [])
+
+    #Tüm chunk'lar yazıldıktan sonraki hata (ör. yanıt modeli): yine geri alınır, dosya da silinir
+    def test_error_after_writing_also_rolls_back(self):
+        self.process.return_value = {"filename": "rapor.pdf"}
+        with self.assertLogs("EnterpriseAI", level="ERROR"):
+            response = self.upload("rapor.pdf")
+        self.assertEqual(response.status_code, 500)
+        self.rollback.assert_called_once()
+        self.assertEqual(self.files(), [])
+
+    #Geri alma da başarısız: kullanıcı yine genel 500 mesajını görür; asıl hata ve geri alma hatası ayrı ayrı loglanır
+    def test_failed_rollback_keeps_generic_500_and_logs_both(self):
+        self.process.side_effect = RuntimeError("embedding hatası")
+        self.rollback.side_effect = RuntimeError("silme hatası")
+        with self.assertLogs("EnterpriseAI", level="ERROR") as logs:
+            response = self.upload("rapor.pdf")
+        self.assertEqual(response.status_code, 500)
+        self.assertEqual(response.json()["detail"], "Dosya işlenirken beklenmeyen bir hata oluştu.")
+        output = "\n".join(logs.output)
+        self.assertIn("embedding hatası", output)
+        self.assertIn("silme hatası", output)
+        self.assertIn(f"pdf_hash {hashlib.md5(PDF).hexdigest()[:8]}", output)
+        self.assertEqual(self.files(), [])
+
     #Bozuk, şifreli veya metinsiz PDF kullanıcı kaynaklı: 500 değil 422, mesaj ingestion.py'deki haliyle
+    #DB'ye yazmadan önce oluştuğu için geri alma çağrılmaz
     def test_unreadable_pdf_returns_422_and_removes_file(self):
         from services.ingestion import PdfUnreadableError
         for message in ["Dosya okunamadı; bozuk veya şifreli olabilir.",
@@ -191,6 +229,11 @@ class UploadEndpointTests(unittest.TestCase):
                 self.assertEqual(response.status_code, 422)
                 self.assertEqual(response.json()["detail"], message)
                 self.assertEqual(self.files(), [])
+        self.rollback.assert_not_called()
+
+    def test_successful_upload_does_not_roll_back(self):
+        self.assertEqual(self.upload("rapor.pdf").status_code, 200)
+        self.rollback.assert_not_called()
 
 
 class InternalErrorTests(unittest.TestCase):

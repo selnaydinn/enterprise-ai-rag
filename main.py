@@ -11,7 +11,7 @@ from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, StringConstraints
-from services.ingestion import PdfUnreadableError, process_pdf, hash_bytes, hash_pdf, is_file_already_processed, delete_document_chunks
+from services.ingestion import PdfUnreadableError, process_pdf, hash_bytes, hash_pdf, is_file_already_processed, delete_document_chunks, delete_chunks_by_hash
 from core.auth import check_auth_config, check_password, clear_session_cookie, login_guard, require_auth, set_session_cookie
 from core.config import get_db, get_llm, get_reranker
 from core.settings import get_settings
@@ -199,6 +199,17 @@ def remove_if_exists(path):
     if os.path.exists(path):
         os.remove(path)
 
+#Yarıda kalan yüklemenin DB'ye yazılmış chunk'larını siler (embedding ortasında hata veya yazımdan sonraki hata)
+#Yapılmazsa dosyası olmayan "hayalet" chunk'lar kalır ve aynı PDF tekrar yüklenince 409 alır (duplikasyon kontrolü)
+#Silme de başarısız olursa asıl hata korunur (çağıran genel 500 döner); hash loga yazılır ki DB elle temizlenebilsin
+def rollback_chunks(pdf_hash, filename):
+    try:
+        deleted = delete_chunks_by_hash(pdf_hash)
+        if deleted:
+            logger.warning(f"Yarım kalan yükleme geri alındı: {filename} ({deleted} parça silindi).")
+    except Exception:
+        logger.exception(f"Geri alma başarısız: {filename} (pdf_hash {pdf_hash}) parçaları DB'de kalmış olabilir.")
+
 #PDF önizleme (frontend iframe'i); eskiden auth'suz StaticFiles mount'uydu, URL aynı kaldı
 #iframe header ekleyemez ama tarayıcı cookie'yi kendisi gönderdiği için auth burada da çalışıyor
 #Ad kuralları silmedekiyle aynı: temizlenmiş ad istenenle aynı değilse (ör. "..\\x.pdf") reddediliyor
@@ -262,13 +273,17 @@ async def upload_pdf(file: UploadFile = File(...)):
 
         #Dosya PDF ama işlenemiyor (bozuk, şifreli, metinsiz); kullanıcı kaynaklı olduğu için 500 değil 422
         #Mesaj ingestion.py'de kullanıcıya gösterilecek biçimde yazılı; log orada WARNING
+        #Bu hata DB'ye yazmadan önce oluşuyor (prepare_chunks); geri alınacak chunk yok
         except PdfUnreadableError as e:
             remove_if_exists(target_file_path)
             raise HTTPException(status_code=422, detail=str(e))
 
+        #Asıl hata önce loglanıyor, sonra chunk'lar geri alınıp dosya siliniyor (UPLOAD_LOCK hâlâ tutuluyor)
+        #Kapsam dışı: uygulama yükleme sürerken kapatılırsa bu blok çalışmaz (notes2.md Faz 2, graceful shutdown)
         except Exception:
-            remove_if_exists(target_file_path)
             logger.exception("Upload hatası")
+            rollback_chunks(pdf_hash, filename)
+            remove_if_exists(target_file_path)
             raise HTTPException(status_code=500, detail="Dosya işlenirken beklenmeyen bir hata oluştu.")
 
 
