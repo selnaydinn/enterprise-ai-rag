@@ -47,3 +47,8 @@ export interface DeleteResponse {
 export interface FeaturesResponse {
   allow_delete: boolean;
 }
+
+//GET /auth/me (main.py AuthStatus); oturum yoksa backend 401 döner, bu yanıt gelmez
+export interface AuthStatus {
+  authenticated: boolean;
+}

@@ -25,8 +25,11 @@ See [docs/development.md](docs/development.md) for the code layout.
   If no chunk is relevant enough, Gemini is not called and no tokens are used.
 - **Safe uploads:** file name sanitizing, 20 MB limit, PDF content check, duplicates rejected (`409`).
 - **Token limit:** a global limit that resets every 6 hours (Turkey time); when reached, the input is locked with a countdown.
-- **Document deletion:** disabled by default (`ALLOW_DELETE=false`) because there is no authentication yet.
-- **Startup checks:** the app does not start without `GEMINI_API_KEY` or an existing ChromaDB.
+- **Login:** single-user password login with a signed, `HttpOnly` session cookie; every endpoint and the PDF files
+  require a session, and repeated wrong passwords lock the login for 15 minutes ([docs/api.md](docs/api.md#authentication)).
+- **Document deletion:** disabled by default (`ALLOW_DELETE=false`).
+- **Startup checks:** the app does not start without `GEMINI_API_KEY`, an existing ChromaDB, or (with login on)
+  `APP_PASSWORD` and `SESSION_SECRET`.
 
 ## Quick start
 
@@ -34,7 +37,8 @@ Requirements: Docker, Node.js 20.9+ and a Gemini API key. The database and the P
 `uploaded_pdfs/` (or start without documents), then build the database once.
 
 ```bash
-cp .env.example .env          # Windows (cmd): copy .env.example .env  · then set GEMINI_API_KEY
+cp .env.example .env          # Windows (cmd): copy .env.example .env  · then set GEMINI_API_KEY, APP_PASSWORD
+python -c "import secrets; print(secrets.token_urlsafe(48))"   # put the output in .env as SESSION_SECRET
 docker compose build
 # Build the database and download the models (about 1.6 GB) into the Docker volume hf_cache;
 # add --allow-empty to start without documents
@@ -44,8 +48,11 @@ docker compose up             # backend: http://localhost:8000/docs
 
 cd rag-frontend
 npm ci
-npm run dev                   # frontend: http://localhost:3000
+npm run dev                   # frontend: http://localhost:3000 (sign in with APP_PASSWORD)
 ```
+
+Open the frontend at `http://localhost:3000`, not `127.0.0.1`: the session cookie only works when the frontend and
+the backend use the same host name ([details](docs/configuration.md#frontend-settings-rag-frontendenvlocal)).
 
 With an existing database folder, copy it into the project root instead and set `CHROMA_DIR` to it. See
 [docs/configuration.md](docs/configuration.md#chromadb) for the build script and
@@ -80,7 +87,9 @@ it was 28. For those, Gemini is asked to reply `BILGI_YOK`, and the app shows th
 
 ## Known limitations
 
-- **No authentication;** the token limit is shared by all users and the sidebar user is a placeholder.
+- **Single user;** one password, no user accounts or per-user token limits. Sessions cannot be revoked one by one
+  (changing `SESSION_SECRET` ends all of them). Over plain HTTP the password and the cookie are not encrypted; outside
+  `localhost`, run behind HTTPS with `COOKIE_SECURE=true`.
 - **No conversation memory;** every question is answered independently.
 - **Data leaves the machine;** questions and retrieved chunks are sent to the Gemini API.
 - **Synchronous uploads;** large PDFs are processed during the upload request.

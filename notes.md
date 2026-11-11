@@ -168,7 +168,9 @@ GUNCEL 14:
 
 GUNCEL 15: Backend için auth mekanizması kuruldu.
            Parola ve session secret .env'e yazıldı.
+           Session 12 saat aralıklarla yenileniyor.
            Endpointlere auth dependency olarak eklendi.
+           Frontende login ekranı eklendi. Login ve workspace page.tsx üzerinden yönetiliyor.
 
 ## 1. Genel Bakış
 

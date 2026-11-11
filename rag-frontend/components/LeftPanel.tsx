@@ -14,7 +14,7 @@ interface LeftPanelProps {
   filteredDocuments: DocumentItem[];
   //Verilmezse (backend'de silme kapalıysa) silme butonu görünmez
   onDeleteDocument?: (docName: string) => void;
-  //Çıkış göstermelik (auth yok); bildirim page.tsx'te gösteriliyor
+  //Backend'de oturumu kapatır (Workspace.tsx handleSignOut), ardından giriş ekranına dönülür
   onSignOut: () => void;
 }
 
@@ -134,19 +134,21 @@ export default function LeftPanel({
         <div className="pt-4 border-t border-slate-200 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3 min-w-0">
             <div className="h-8 w-8 rounded-full bg-slate-200 text-black flex items-center justify-center font-bold text-xs shrink-0">
-              SA
+              Y
             </div>
+            {/* Tek kullanıcı (parola ile giriş); kullanıcı adı/e-posta yok */}
             <div className="flex flex-col min-w-0">
-              <span className="text-xs font-semibold text-black truncate">Selin Aydın</span>
-              <span className="text-[10px] text-black font-medium truncate">selin@company.com</span>
+              <span className="text-xs font-semibold text-black truncate">Yönetici</span>
+              <span className="text-[10px] text-black font-medium truncate">Oturum açık</span>
             </div>
           </div>
-          
+
           {/* Çıkış Butonu */}
-          <button 
+          <button
             onClick={onSignOut}
             className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-slate-100 rounded-lg transition-all"
-            title="Sign Out"
+            title="Çıkış yap"
+            aria-label="Çıkış yap"
           >
             <LogOut className="h-4 w-4" />
           </button>
