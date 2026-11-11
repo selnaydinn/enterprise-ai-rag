@@ -48,11 +48,11 @@
 | 29 | `catch (error: any)` | ✅ | 
 | 30 | Sahte upload progress bar | ✅ | 
 | 31 | Kaynakta sayfaya atlama | ✅ | 
-| 32 | Markdown render | ❌ | |
+| 32 | Markdown render | ✅ |
 | 33 | Token göstergesi Ayrı state + `/usage/`; limit dolunca kilit ve geri sayım  | ✅ | 
-| 34 | Dil tutarsızlığı | ❌ | 
+| 34 | Dil tutarsızlığı | ✅ | 
 | 35 | `key={index}` | ✅ | 
-| 36 | Erişilebilirlik | ❌ | 
+| 36 | Erişilebilirlik | ✅ | 
 | 37 | Gönder butonunun kaybolması | ✅ | 
 | 38 | Python sürüm farkı | ✅ | 
 | 39 | `process_pdf`'teki gereksiz kontrol | ✅ |
@@ -177,6 +177,8 @@ GUNCEL 15: Backend için auth mekanizması kuruldu.
            Progress bar artık yüzde göstermiyor.
            Döküman listeyi adlarıyla tutuluyor. Index olarak tutulunca kayma yaşanıyordu ve normalde değişmeyen dökümanlar da frontendde rerander ediliyordu.
            Gönder butonu query yazılmadıkça inaktif, input girilince aktif oluyor.
+           Döküman listesinde ok tuşlarıyla gezinilebiliyor.
+           AI yanıtı markdown olarak okunuyor.
            
 
 ## 1. Genel Bakış

@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { Menu, ArrowUp, Paperclip, Loader2 } from "lucide-react";
 import type { Source, UsageStatus } from "@/types/api";
 import type { Message } from "@/types/chat";
+import MarkdownMessage from "@/components/MarkdownMessage";
 
 //Backenddeki soru sınırıyla aynı (main.py MAX_QUESTION_LENGTH)
 const MAX_QUESTION_LENGTH = 500;
@@ -116,9 +117,10 @@ export default function ChatArea({
         </div>
       )}
 
-      {/* TOKEN USAGE */}
+      {/* TOKEN KULLANIMI */}
+      {/* "tr-TR": binlik ayırıcı nokta (1.234); verilmezse tarayıcının diline göre 1,234 de çıkabiliyordu */}
       <div className="absolute top-5 right-6 z-30 text-[10px] text-black font-semibold tracking-wide">
-        Token Usage: {usage ? `${usage.used.toLocaleString()} / ${usage.limit.toLocaleString()}` : '-'}
+        Token kullanımı: {usage ? `${usage.used.toLocaleString("tr-TR")} / ${usage.limit.toLocaleString("tr-TR")}` : '-'}
       </div>
       
       {/* MESAJ ALANI */}
@@ -141,7 +143,8 @@ export default function ChatArea({
                     : 'bg-white text-black border border-slate-200/60 rounded-bl-none'
                 }`}
               >
-                {msg.text}
+                {/* Asistan cevabı markdown (kalın, liste); kullanıcının sorusu düz metin (notes.md #32) */}
+                {msg.role === 'assistant' ? <MarkdownMessage text={msg.text} /> : msg.text}
               </div>
 
               {/* KULLANILAN KAYNAKLAR*/}
@@ -229,7 +232,7 @@ export default function ChatArea({
               }}
               maxLength={MAX_QUESTION_LENGTH}
               disabled={isLimited}
-              placeholder={isLimited ? "Token limiti doldu" : "Ask a question..."}
+              placeholder={isLimited ? "Token limiti doldu" : "Dokümanlarınız hakkında bir soru sorun..."}
               className="flex-1 resize-none bg-transparent border-0 pl-2 pr-12 py-2.5 text-xs font-medium text-black placeholder-slate-400 focus:outline-none max-h-36 overflow-y-auto disabled:cursor-not-allowed"
             />
 

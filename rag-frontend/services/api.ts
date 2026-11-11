@@ -81,7 +81,7 @@ export const apiService = {
     const response = await request("/documents/");
 
     if (!response.ok) {
-      throw new Error("Mevcut dökümanlar getirilirken backend hatası oluştu.");
+      throw new Error("Mevcut dokümanlar getirilirken backend hatası oluştu.");
     }
     return response.json();
   },

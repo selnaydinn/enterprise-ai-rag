@@ -50,7 +50,7 @@ export default function PdfViewer({ selectedDoc, page, setSelectedDoc }: PdfView
                 key={src}
                 src={src ?? undefined}
                 className="w-full h-full border-0 bg-white"
-                title="PDF Viewer"
+                title="PDF önizleme"
               />
             </div>
 
