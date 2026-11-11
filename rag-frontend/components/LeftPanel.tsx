@@ -93,11 +93,13 @@ export default function LeftPanel({
         <div className="flex-1 overflow-y-auto pr-1">
           <div className="space-y-0.5">
             {filteredDocuments && filteredDocuments.length > 0 ? (
-              filteredDocuments.map((doc, idx) => {
+              filteredDocuments.map((doc) => {
                 const isSelected = selectedDoc === doc.name;
                 return (
-                  <div 
-                    key={idx} 
+                  //key: dosya adı (backend'de benzersiz); sıra numarası olsaydı bir doküman silinince ya da arama
+                  //filtresi değişince React kalan öğeleri yanlış eşleştirirdi (notes.md #35)
+                  <div
+                    key={doc.name}
                     onClick={() => setSelectedDoc(doc.name)} 
                     className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium cursor-pointer transition-all ${
                       isSelected 

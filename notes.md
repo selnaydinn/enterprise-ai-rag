@@ -46,14 +46,14 @@
 | 27 | Prompt / LLM katmanı. Kurallar sistem mesajında, belgeler ve soru `<belge>`/`<soru>` etiketleri arasında, metindeki bu etiketler siliniyor (injection zorlaştırıldı, engellenmedi). Cevap yoksa BILGI_YOK → no_result. Zaman aşımı 20 sn, 2 deneme; geçici Gemini hataları 503 (kota / sunucu, ayrı mesajlar) ve 504 (zaman aşımı). Boş cevap (engellenen soru, güvenlik filtresi) → no_result, kendi mesajıyla; yarım cevap (finish_reason STOP değil) → notla gösteriliyor, WARNING loglanıyor.| ✅ | 
 | 28 | Tekrarlanan frontend tipleri | ✅ | 
 | 29 | `catch (error: any)` | ✅ | 
-| 30 | Sahte upload progress bar | ❌ | 
-| 31 | Kaynakta sayfaya atlama | ❌ | 
+| 30 | Sahte upload progress bar | ✅ | 
+| 31 | Kaynakta sayfaya atlama | ✅ | 
 | 32 | Markdown render | ❌ | |
 | 33 | Token göstergesi Ayrı state + `/usage/`; limit dolunca kilit ve geri sayım  | ✅ | 
 | 34 | Dil tutarsızlığı | ❌ | 
-| 35 | `key={index}` | ❌ | 
+| 35 | `key={index}` | ✅ | 
 | 36 | Erişilebilirlik | ❌ | 
-| 37 | Gönder butonunun kaybolması | ❌ | 
+| 37 | Gönder butonunun kaybolması | ✅ | 
 | 38 | Python sürüm farkı | ✅ | 
 | 39 | `process_pdf`'teki gereksiz kontrol | ✅ |
 | 40 | DB kurulum script'i | ✅ | 
@@ -174,6 +174,10 @@ GUNCEL 15: Backend için auth mekanizması kuruldu.
            Frontende login ekranı eklendi. Login ve workspace page.tsx üzerinden yönetiliyor.
            Eğer PDF yüklenmesi sırasında bir hata oluşursa önceden yarım chunklar dbde kalıyordu--> şimdi pdf hashine göre yarım chunklar siliniyor.
            Eğer db boşsa ve query atılırsa veritabanında döküman bulunmuyor uyarısı dönüyor.
+           Progress bar artık yüzde göstermiyor.
+           Döküman listeyi adlarıyla tutuluyor. Index olarak tutulunca kayma yaşanıyordu ve normalde değişmeyen dökümanlar da frontendde rerander ediliyordu.
+           Gönder butonu query yazılmadıkça inaktif, input girilince aktif oluyor.
+           
 
 ## 1. Genel Bakış
 
