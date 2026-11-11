@@ -161,7 +161,14 @@ GUNCEL 13: Uygulama açılışında çalışması için database kurulum scripti
              Halihazırda db varsa ilk açılışta: uygulama reranker + e5 modelini indirir
              Halihazırda db varsa sonraki açılışlarda: uygulama modelleri cacheden alır    
 
-GUNCEL 14: Retrieval kalitesini arttırmak için chunking denenecek. Exact search baz alınacak. Golden set genişletilecek.      
+GUNCEL 14: 
+           Chunking stratejisi + overlap eklenerek yeni db kuruldu. Bu db'de eval çalıştırıldı ve anlamlı bir iyileşme görülmedi. Chunking  ile   sadece 1 soru iyileşti ama kayıplar daha fazla
+           Chunking stratejisi eklendi. Eğer madde ile başlıyorsa madde bazlı chunking yapılıyor, maddeler çok uzun ve diğer sayfaya taşıyorsa her sayfa için yeni chunk açılıyor ve  madde başlığı aynen taşınıyor. Eğer madde haricinde bir ek veya tabloya başlıyorsa page bazlı chunking yöntemi kullanılıyor. Bir pdfte 3den az madde ifadesi varsa direkt page chunking yapılıyor. Her chunkın başına madde+içerik konulmaya çalışıldı ama 20 chunk içerik verisini önceki satırdan alamadı
+           Golden set 80 negatif set 56 soruya çıkarıldı. Baseline sonuçlarında 79/80 hit@3, 11/11 out of domain hiç geminia gitmedi, 36/44 near domain geminia gitmedi. Kalan 8soru gemini a gitti ama 6sı BILGI_YOK aldı, 2si de gemini tarafından doğrudan bilgi bulunmuyor diye cevaplandı      
+
+GUNCEL 15: Backend için auth mekanizması kuruldu.
+           Parola ve session secret .env'e yazıldı.
+           Endpointlere auth dependency olarak eklendi.
 
 ## 1. Genel Bakış
 

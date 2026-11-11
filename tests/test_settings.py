@@ -53,6 +53,35 @@ class SettingsTests(unittest.TestCase):
         self.assertEqual(s.gemini_api_key.get_secret_value(), "gizli")
         self.assertNotIn("gizli", repr(s))
 
+    def test_auth_defaults(self):
+        s = make_settings()
+        self.assertTrue(s.auth_enabled)
+        self.assertIsNone(s.app_password)
+        self.assertIsNone(s.session_secret)
+        self.assertEqual(s.session_hours, 12)
+        self.assertFalse(s.cookie_secure)
+
+    def test_auth_secrets_are_stripped_hidden_and_blank_is_none(self):
+        secret = "s" * 40
+        s = make_settings(APP_PASSWORD="  parola  ", SESSION_SECRET=f" {secret} ")
+        self.assertEqual(s.app_password.get_secret_value(), "parola")
+        self.assertEqual(s.session_secret.get_secret_value(), secret)
+        self.assertNotIn("parola", repr(s))
+        self.assertNotIn(secret, repr(s))
+        blank = make_settings(APP_PASSWORD="   ", SESSION_SECRET="   ")
+        self.assertIsNone(blank.app_password)
+        self.assertIsNone(blank.session_secret)
+
+    def test_short_session_secret_is_rejected(self):
+        with self.assertRaises(ValidationError):
+            make_settings(SESSION_SECRET="k" * 31)
+        self.assertEqual(len(make_settings(SESSION_SECRET="k" * 32).session_secret.get_secret_value()), 32)
+
+    def test_session_hours_must_be_positive(self):
+        for hours in ["0", "-1"]:
+            with self.subTest(hours=hours), self.assertRaises(ValidationError):
+                make_settings(SESSION_HOURS=hours)
+
     def test_window_hours_must_divide_day(self):
         for hours in ["5", "0", "-6"]:
             with self.subTest(hours=hours), self.assertRaises(ValidationError):

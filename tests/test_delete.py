@@ -7,7 +7,7 @@ from unittest import mock
 
 from fastapi.testclient import TestClient
 
-from tests.test_upload import PDF, import_main
+from tests.test_upload import PDF, bypass_auth, import_main
 
 
 class DeleteEndpointTests(unittest.TestCase):
@@ -15,6 +15,7 @@ class DeleteEndpointTests(unittest.TestCase):
     #Gerçek uploaded_pdfs/ yerine geçici klasör; silme ayarı testlerde açık, DB silme fonksiyonu sahte
     def setUp(self):
         self.main = import_main()
+        bypass_auth(self, self.main)
         self.client = TestClient(self.main.app)
         self.upload_dir = Path(tempfile.mkdtemp(prefix="delete_test_"))
         self.addCleanup(shutil.rmtree, self.upload_dir, True)

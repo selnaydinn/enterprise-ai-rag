@@ -33,6 +33,20 @@ class Settings(BaseSettings):
     #Kimlik doğrulama yokken herkes silebileceği için varsayılan kapalı; açmak bilinçli bir karar olmalı
     allow_delete: bool = False
 
+    #KİMLİK DOĞRULAMA (tek kullanıcı: parola + imzalı oturum cookie'si, core/auth.py)
+    #Açıkken parola veya secret eksikse uygulama başlamaz (fail-closed: ayar unutulursa sistem sessizce açık kalmasın)
+    #Kapatmak yalnızca yerel geliştirme içindir
+    auth_enabled: bool = True
+    #Girişte sorulan parola; SecretStr: repr/log'da "**********" görünür
+    app_password: SecretStr | None = None
+    #Oturum cookie'sini imzalayan gizli değer; sunucudan hiç çıkmaz. Değiştirilirse tüm oturumlar geçersiz olur
+    #Üretmek için: python -c "import secrets; print(secrets.token_urlsafe(48))"
+    session_secret: SecretStr | None = None
+    #Oturum süresi; dolunca yeniden parola istenir. Kısa tutmak çalınan bir cookie'nin ömrünü sınırlar
+    session_hours: int = 12
+    #true: cookie yalnızca HTTPS üzerinden gönderilir (bulut). Yerelde (http://localhost) false olmalı, yoksa giriş tutmaz
+    cookie_secure: bool = False
+
     #Kodda sabit tutulanlar (.env.example'da yok)
     #Değişirse DB yeniden kurulmalı
     embedding_model: str = "intfloat/multilingual-e5-base"
@@ -77,6 +91,29 @@ class Settings(BaseSettings):
     def strip_api_key(cls, value):
         if isinstance(value, str):
             return value.strip() or None
+        return value
+
+    #Parola ve secret'ın başındaki/sonundaki boşluklar atılır; yalnızca boşluktan oluşan değer "tanımlı değil" sayılır
+    @field_validator("app_password", "session_secret", mode="before")
+    @classmethod
+    def strip_auth_secrets(cls, value):
+        if isinstance(value, str):
+            return value.strip() or None
+        return value
+
+    #Kısa secret tahmin edilebilir ve mühür taklit edilebilir; token_urlsafe(48) 64 karakter üretir
+    @field_validator("session_secret")
+    @classmethod
+    def secret_is_long_enough(cls, value):
+        if value is not None and len(value.get_secret_value()) < 32:
+            raise ValueError("SESSION_SECRET en az 32 karakter olmalı. Üretmek için: python -c \"import secrets; print(secrets.token_urlsafe(48))\"")
+        return value
+
+    @field_validator("session_hours")
+    @classmethod
+    def session_hours_is_positive(cls, value):
+        if value <= 0:
+            raise ValueError("SESSION_HOURS 0'dan büyük olmalı.")
         return value
 
     #-1 (dinamik) en küçük geçerli değer; daha küçüğü uygulamayı başlatmaz
