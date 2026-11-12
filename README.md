@@ -119,5 +119,5 @@ documents contain no direct information; none got an invented answer. Details in
 - **Search after restart;** the approximate vector index is rebuilt when the database is opened and can occasionally
   miss a near chunk ([notes.md](notes.md) item 41). The evaluation uses an exact ranking, so its numbers are not
   affected.
-- **Development Docker setup** (`--reload`, full bind mount, root user, port `8000` published on all network
-  interfaces); not production-ready.
+- **Development Docker setup** (`--reload`, full bind mount, root user, no healthcheck); not production-ready. The
+  backend port is published on `127.0.0.1` only, so it is not reachable from other devices on the network.
