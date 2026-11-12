@@ -68,6 +68,26 @@ npm run lint                           # ESLint
   There is no `.env` in CI, so the defaults from `core/settings.py` are used.
 - `frontend-static-test`: Node 22, `npm ci`, `tsc --noEmit`, ESLint.
 
+## Dependency updates
+
+- **Dependabot** (`.github/dependabot.yml`) opens pull requests for new versions: npm and pip weekly, GitHub Actions
+  and the Docker base image monthly. Frontend minor/patch updates are grouped into one PR. Nothing is merged
+  automatically; each PR runs CI. Vulnerability alerts and security PRs are enabled separately in the GitHub repository
+  settings (Settings → Code security).
+- **torch is ignored** by Dependabot: its version is pinned in three places (`requirements.txt`, `Dockerfile`,
+  `.github/workflows/ci.yml`) and must be updated in all of them together, by hand.
+- **Re-run the eval** before merging updates of `chromadb`, `sentence-transformers`, `langchain*` or `pypdf`. Passing
+  unit tests do not show retrieval quality changes (different embeddings, search or extracted PDF text).
+- **pip-audit** (in `requirements-dev.txt`) checks the backend requirements against known vulnerabilities. It is not
+  part of CI; run it by hand, e.g. before a release:
+
+  ```bash
+  pip-audit -r requirements.txt
+  ```
+
+  Some reported issues may not apply to this project (for example, ChromaDB server/auth issues, since the app uses the
+  embedded client). Check the description before acting.
+
 ## Logging
 
 All modules log to the `EnterpriseAI` logger; the level comes from `LOG_LEVEL`. With `LOG_LEVEL=DEBUG` you also see

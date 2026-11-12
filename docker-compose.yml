@@ -5,7 +5,10 @@ services:
     build: .
     container_name: meb_rag_backend
     ports:
-      - "8000:8000"  # Next.js frontend uygulamasının bağlanacağı API portu
+      #Next.js frontend uygulamasının bağlanacağı API portu
+      #127.0.0.1: yalnızca bu bilgisayardan erişilir; aynı ağdaki diğer cihazlar bağlanamaz (Docker Windows Firewall'u atlayabilir)
+      #Container içindeki uvicorn 0.0.0.0'da kalmalı (Dockerfile): Docker isteği container'a kendi sanal ağından iletir
+      - "127.0.0.1:8000:8000"
     volumes:
       - .:/app       # Kodda yapacağın değişikliklerin anında güncellenmesini sağlar
       # PDF'LERİN UÇMASINI ENGELLEYEN KALICI VOLUME:

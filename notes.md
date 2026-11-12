@@ -1,5 +1,7 @@
 # Enterprise AI — Kod İnceleme Notları
 
+2026-11-12 İTİBARİYLE NOTES.MD KAPANMIŞTIR. AÇIK MADDELER NOTES2.MD' YE TAŞINDI.
+
 > İlk inceleme: 2026-10-18 · Son güncelleme: 2026-10-25 (Sprint A sonu) · Branch: `main`
 > Kapsam: backend (FastAPI), frontend (Next.js), Docker, `eval/`, `tests/`
 
@@ -179,6 +181,11 @@ GUNCEL 15: Backend için auth mekanizması kuruldu.
            Gönder butonu query yazılmadıkça inaktif, input girilince aktif oluyor.
            Döküman listesinde ok tuşlarıyla gezinilebiliyor.
            AI yanıtı markdown olarak okunuyor.
+
+GUNCEL 16: Pip audit kuruldu
+           Dependabot eklendi
+           Pypdf sürümü güncellendi
+           Docker portu 8000 den localhosta çekildi. Aynı wifi ağındakiler uygulamaya erişemesin diye.
            
 
 ## 1. Genel Bakış
