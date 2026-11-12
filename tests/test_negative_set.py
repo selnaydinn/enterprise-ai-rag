@@ -68,18 +68,27 @@ class NegativeSetFormatTests(unittest.TestCase):
         self.assertFalse(golden & set(questions))
 
 
+#Eval'in kapsadığı PDF'ler: golden set'in "file" alanından okunur, elle liste tutulmaz
+def eval_pdf_names():
+    return sorted({json.loads(line)["file"]
+                   for line in GOLDEN_PATH.read_text(encoding="utf-8").splitlines() if line.strip()})
+
+
 class AbsentTermsTests(unittest.TestCase):
 
-    #Negatif sorunun cevabı hiçbir PDF'te olmamalı; yeni bir PDF eklenip cevap ortaya çıkarsa bu test yakalar
+    #Negatif sorunun cevabı eval PDF'lerinin hiçbirinde olmamalı; bu PDF'lerin yeni bir sürümü cevabı içerirse bu test yakalar
+    #uploaded_pdfs/'a sonradan eklenen başka PDF'ler kapsam dışı: negatif set yalnızca eval PDF'lerine göre yazıldı
     @classmethod
     def setUpClass(cls):
         try:
             import pypdf
         except ImportError:
             raise unittest.SkipTest("pypdf kurulu değil")
-        paths = sorted(PDF_DIR.glob("*.pdf"))
-        if not paths:
-            raise unittest.SkipTest(f"{PDF_DIR} içinde PDF yok (uploaded_pdfs/ git'e dahil değil)")
+        paths = [PDF_DIR / name for name in eval_pdf_names()]
+        missing = [p.name for p in paths if not p.exists()]
+        if missing:
+            #Eksik PDF'lerle "geçti" demek yanıltıcı olur (uploaded_pdfs/ git'e dahil değil, CI'da hep atlanır)
+            raise unittest.SkipTest(f"{PDF_DIR} içinde eval PDF'leri eksik: {', '.join(missing)}")
         cls.texts = {p.name: normalize(" ".join(page.extract_text() for page in pypdf.PdfReader(p).pages)) for p in paths}
 
     def test_absent_terms_do_not_appear_in_any_pdf(self):
