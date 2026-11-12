@@ -96,6 +96,14 @@ class SettingsTests(unittest.TestCase):
         with self.assertRaises(ValidationError):
             make_settings(LOG_LEVEL="VERBOSE")
 
+    def test_log_format_defaults_to_text_and_is_case_insensitive(self):
+        self.assertEqual(make_settings().log_format, "text")
+        self.assertEqual(make_settings(LOG_FORMAT=" JSON ").log_format, "json")
+
+    def test_invalid_log_format_is_rejected(self):
+        with self.assertRaises(ValidationError):
+            make_settings(LOG_FORMAT="xml")
+
     def test_thinking_budget_defaults_to_model_default(self):
         self.assertIsNone(make_settings().llm_thinking_budget)
         for value, expected in (("-1", -1), ("0", 0), ("256", 256)):

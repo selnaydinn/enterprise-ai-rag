@@ -5,23 +5,33 @@
 
 ## Yapılacaklar
 
-Ayrıntılar (dosyalar, riskler, ek RAM) "Yol haritası" tablosunda; gerekçeler §1–15'te.
+Ayrıntılar (dosyalar, riskler, ek RAM) "Yol haritası" tablosunda; gerekçeler §1–17'de.
+Önerilen sıra: 0b → 1 → 2 → L → 3 → 4 → 5 → (6, 7, 8...). B ve B2 yayına alma kararıyla öne çekilir; R ve S bağımsızdır.
 
 **Faz 0b: Log temizliği**
-- ❌ Upload logunda tam yol yerine yalnızca dosya adı (`main.py`)
+- ✅ Upload logunda tam yol yerine yalnızca dosya adı (`main.py`, test: `test_upload_logs_name_not_full_path`)
 
 **Faz 1: Structured logging (§7)**
-- ❌ JSON log formatı (`LOG_FORMAT=text|json`)
-- ❌ Request ID middleware ve `X-Request-ID` header'ı
-- ❌ uvicorn loglarını aynı formata bağlama
+- ✅ JSON log formatı (`LOG_FORMAT=text|json`, varsayılan text; Docker'da JSON Faz 2'nin prod compose'unda açılacak)
+- ✅ Request ID middleware ve `X-Request-ID` header'ı (500'de de; istek sonu özet satırı)
+- ✅ uvicorn loglarını aynı formata bağlama (uvicorn'un erişim satırı da kalıyor, kullanıcı kararı)
 
-**Faz 2: Health ve Docker (§10, §11; notes.md #25)**
+**Faz 2: Health ve Docker (§10, §11, §17; notes.md #25)**
+- ❌ Önce ölçüm: Docker yavaşlığının kaynağını bulmak (§17, deneme A–D, DB kopyasıyla)
 - ❌ `/health/live` ve `/health/ready` endpoint'leri
 - ❌ Docker dev/prod ayrımı (`--reload` ve `.:/app` yalnızca dev override'da)
 - ❌ Docker healthcheck
 - ❌ Graceful shutdown
 - ❌ Container'da root olmayan kullanıcı
 - ❌ `version` alanını silme, sabit `dns` ayarını gözden geçirme
+- ❌ Ölçüme göre: DB'yi Docker volume'una almak ve/veya CPU sınırını ayarlamak
+- ❌ Sonra tekrar ölçüm (Faz 2 öncesi ve sonrası karşılaştırması)
+
+**Faz L: Sahte LLM modu ve yük testi (§16)**
+- ❌ `LLM_MODE=fake`: Gemini yerine gecikmeli sahte cevap, isteğe bağlı sahte hata
+- ❌ Sahte modda token'lar gerçek kullanım sınırını tüketmesin
+- ❌ Sahte mod açıkken açılışta WARNING; varsayılan her zaman `gemini`
+- ❌ Yük testi scripti (golden + negatif set soruları, ayarlanabilir eşzamanlılık)
 
 **Faz 3: Sentry backend (§6)**
 - ❌ Sentry kurulumu ve hassas veri temizleyici (scrubber)
@@ -43,6 +53,9 @@ Ayrıntılar (dosyalar, riskler, ek RAM) "Yol haritası" tablosunda; gerekçeler
 - ❌ `X-Request-ID` gönderme ve hata mesajında gösterme
 - ❌ Fetch timeout (AbortController)
 - ❌ `error.tsx` hata sayfası
+- ❌ Beklenen hatalar (503, 504, 429) `console.error` yerine `console.warn` veya hiç; yalnızca beklenmeyenler `console.error` (dev modda Next.js hata rozeti/penceresi gürültüsü, `Workspace.tsx:253`)
+- ❌ Her cevabı konsola yazan `console.log("LLM frontende yanıtını döndü.", result)` satırını kaldırma (`Workspace.tsx:240`)
+- ❌ PDF önbelleği: `/static-pdfs/{name}` cevabına `Cache-Control: private, no-cache` (`main.py` `read_pdf`) + test. Bugün tarayıcı PDF'i önbellekten açıyor, istek backend'e gitmiyor ve oturum kontrol edilmiyor (çıkıştan sonra da açılabilir). Sonrasında her açılışta istek gider, değişmemişse `304` döner. Faz B'den (internete açılmadan) önce yapılmalı
 
 **Faz 9: Sentry frontend**
 - ❌ `@sentry/nextjs` (opsiyonel)
@@ -81,12 +94,18 @@ Ayrıntılar (dosyalar, riskler, ek RAM) "Yol haritası" tablosunda; gerekçeler
 - ❌ Frontend nerede: aynı VPS'te container mı, Vercel gibi statik host mu?
 - ❌ Domain (Caddy ile HTTPS için gerekli)
 
+
+GUNCEL 1: Loglara request ID verildi
+          Loglar json moduna çevrilebiliyor artık.(bağlanacak uygulamalar için)
+
 ## Yapılanlar
 
 | Tarih | İş |
 |---|---|
 | 2026-11-11 | Mikroservise bölmeme kararı (modüler monolit); tek kullanıcılı giriş (notes.md #4) ve auth'lu `/static-pdfs/{name}` endpoint'i; upload rollback (Faz 0a, notes.md #45); boş DB mesajı (#44); frontend UX (#30–#37, #32 markdown); Next.js 16.4.6 güvenlik güncellemesi. Soru metni bilerek INFO logda kalıyor (kullanıcı kararı); Sentry'ye gidip gitmeyeceği Faz 3'te ayrıca karar |
 | 2026-11-12 | Negatif set testi yalnızca eval PDF'lerine bakıyor; Dependabot (`.github/dependabot.yml`, torch hariç); pip-audit (`requirements-dev.txt`, `docs/development.md`); pypdf 6.14.0 → 6.21.4 (38 DoS açığı; çıkarılan metin 797 chunk'ta aynı, 13'ünde yalnız boşluk farkı); Docker portu yalnızca localhost'a (`127.0.0.1:8000:8000`); `notes.md` kapatıldı |
+| 2026-11-12 | Faz 0b (upload logunda yalnızca dosya adı); Faz 1: `core/log_setup.py` (text/JSON biçim, request ID, istek sonu özet satırı, uvicorn logları aynı biçimde), `LOG_FORMAT`, CORS `expose_headers`, 500'de `X-Request-ID`; `tests/test_log_setup.py` |
+
 
 Kalan pip-audit bulguları bilerek açık: chromadb (yalnızca sunucu modu, biz gömülü kullanıyoruz), torch (`torch.jit.script`, kullanılmıyor), setuptools (yalnızca paket kurulumu/derleme sırasında).
 
@@ -158,7 +177,7 @@ Next.js (host'ta, compose'da değil) ──fetch──► FastAPI (tek container
 
 ## 7. Structured logging stratejisi
 
-- **Bağımlılıksız:** stdlib `logging` + ~30 satırlık bir `JsonFormatter` (`core/logging.py`). Alanlar: `ts`, `level`, `service`, `logger`, `request_id`, `msg`, `event` (opsiyonel işlem adı), `exc_type` + `exc` (traceback).
+- **Bağımlılıksız:** stdlib `logging` + `JsonFormatter` (`core/log_setup.py`; `logging.py` adı stdlib modülünü gölgeleyebileceği için kullanılmadı). Alanlar: `ts`, `level`, `logger`, `request_id`, `msg`, `exc` (traceback). `service` ve `event` alanları ihtiyaç olunca eklenir.
 - `LOG_FORMAT=text|json` ayarı: yerelde okunabilir text kalır (bugünkü format), Docker'da json kullanılır.
 - **Request ID:** küçük bir ASGI middleware gelen `X-Request-ID`'yi kabul eder (uzunluk ve karakter doğrulamasıyla) ya da `uuid4` üretir, `contextvars`'a yazar ve yanıta header olarak ekler. Bir `logging.Filter` her kayda `request_id` ekler. Starlette `run_in_threadpool` contextvars'ı thread'e kopyaladığı için sync `/query/` ve `process_pdf` loglarında da ID görünür (bu bir testle doğrulanacak).
 - CORS: `expose_headers=["X-Request-ID"]`, `allow_headers`'a `X-Request-ID` eklenir. Frontend hata mesajında ID'yi gösterebilir (opsiyonel).
@@ -271,7 +290,7 @@ Testler `unittest` ile yazılıyor (`python -m unittest discover tests`; README'
 **Bulutun önceki kararlara etkisi**
 - Mikroservis: değişmiyor. RAM gevşiyor ama ikinci model kopyası (+1.5 GB) hâlâ bir kazanç sağlamıyor.
 - Monitoring: 8 GB'lık makinede Prometheus ve Grafana sürekli açık tutulabilir (profil yerine varsayılan servis). Jaeger yine opsiyonel kalır.
-- Docker'daki `cpus: 2` / `memory: 3000M` sınırları makine boyutuna göre yeniden ayarlanır (`OMP_NUM_THREADS` ile birlikte). Docker'da yaşanan 28 sn'lik yanıt süresi (notes.md GUNCEL 9) büyük ölçüde CPU kotasından kaynaklanıyordu; bulutta Faz 4'teki metriklerle ölçülecek.
+- Docker'daki `cpus: 2` / `memory: 3000M` sınırları makine boyutuna göre yeniden ayarlanır (`OMP_NUM_THREADS` ile birlikte). Yerelde Docker'da yaşanan yavaşlığın (notes.md GUNCEL 9) kaynağı §17'de ölçülecek; Windows'a özgü kısmı (dosya köprüsü, WSL2) Linux sunucuda yaşanmaz.
 - Sentry SaaS ve Grafana zaten buluttan erişilebilir; self-hosted Sentry için yine 4 GB+ RAM gerektiğinden önerilmiyor.
 
 **İnternete açılınca zorunlu hale gelenler (Faz B)**
@@ -298,6 +317,64 @@ Testler `unittest` ile yazılıyor (`python -m unittest discover tests`; README'
 - Port taraması: dışarıdan yalnızca 22, 80 ve 443 açık mı.
 - Restart sonrası verinin kaybolmadığı kontrol edilir.
 
+## 16. Gemini kotası, az trafik ve sahte LLM modu (Faz L)
+
+**Sorun:** Ücretsiz Gemini API'si günde ~20 istekle sınırlı ve uygulamayı tek kişi kullanıyor. Ölçüm için ne yeterli istek ne de yeterli trafik var.
+
+**Hangi fazlar etkilenmiyor:**
+- Faz 1 (log, request ID), Faz 2 (health; `/health/ready` Gemini'ye istek atmaz), Faz 3 (Sentry; hata bilerek tetiklenir) tek kullanıcıyla tam değer verir. Bunlar istatistik için değil, tek tek olayları incelemek için.
+- Faz 5 (circuit breaker) unit testte mock ile test edilir.
+- Faz R'nin retrieval eval'i (Hit@k, MRR) Gemini çağırmaz; yalnızca Deneme C Gemini ister.
+- Gemini'nin 429 (kota) hatası da metrik ve circuit breaker için gerçek bir veri.
+
+**Etkilenenler:** Faz 4 (metrikler) ve Faz 6 (Grafana) trafik ister. Çözüm: sahte LLM modu + yük testi.
+
+**Sahte LLM modu:** Soru akışında (arama → eşik → reranker → prompt → **Gemini** → cevap ayıklama → token kaydı) yalnızca Gemini adımı değişir; geri kalanı gerçek çalışır (gerçek e5, reranker, DB, log, metrik).
+
+| Davranış | Açıklama |
+|---|---|
+| Cevap | `[SAHTE CEVAP]` önekli; reranker'ın seçtiği ilk parçadan alıntı ve gerçek kaynaklar (PDF sayfa atlama da test edilir) |
+| Gecikme | `FAKE_LLM_DELAY_SECONDS` (ör. 3); beklemezse yük testi gerçekçi olmaz |
+| Hata | `FAKE_LLM_ERROR_RATE` (ör. 0.1): timeout / kota hatası; uygulama gerçek Gemini hatası gibi işler (503/504, log, metrik, circuit breaker) |
+| Token | Metin uzunluğundan tahmini sayı; metrikler dolar ama `usage.db`'deki gerçek günlük sınırı tüketmez (yazılmaz veya ayrı işaretlenir, planda netleşecek) |
+
+**Güvenlik:** Varsayılan `LLM_MODE=gemini`. Sahte modda açılışta WARNING; `/health/ready` modu gösterir; cevaplar `[SAHTE CEVAP]` etiketli. Sahte modda Gemini API key kontrolü atlanır (küçük bir istisna kuralı).
+
+**Ölçer:** arama ve reranker süresi, eşzamanlı isteklerde davranış, RAM/CPU tıkanması, upload sırasında soruların yavaşlaması, log/metrik/Grafana/circuit breaker.
+**Ölçmez:** Gemini'nin gerçek hızı, cevap kalitesi (Deneme C için gerçek Gemini gerekir), Gemini'nin gerçek hata davranışı.
+
+**Testlerdeki mock'tan farkı:** mock yalnızca test kodunda yaşar (model ve DB yok); sahte mod çalışan gerçek uygulamanın içindedir (Docker'da açılır, tarayıcıdan kullanılır).
+
+**Yük testi scripti:** golden (80) + negatif (55) set sorularını ayarlanabilir eşzamanlılıkla (ör. 1, 5, 10) gönderir; süre ve durum kodlarını özetler. Yeni bağımlılık gerektirmez (stdlib veya mevcut `httpx`). Production hâliyle (Faz 2 sonrası, `--reload` kapalı) çalıştırılmalı.
+
+**Maliyet:** ~50–80 satır + test; yeni bağımlılık ve ek RAM yok; `LLM_MODE` yazılmazsa davranış değişmez.
+
+**Alternatif / ek:** Gemini ücretli katman (harcama limitiyle) veya daha yüksek ücretsiz kotası olan bir model. Güncel kota ve fiyatlar Google AI Studio'dan kontrol edilecek.
+
+## 17. Docker yavaşlığı (Faz 2'nin parçası)
+
+**Durum:** notes.md GUNCEL 9'da aynı soru Docker'da ~28 sn, native ~9 sn sürüyordu. Sonradan `OMP_NUM_THREADS=2` eklendi; etkisi yeniden ölçülmedi.
+
+**Olası sebepler (olasılık sırasıyla, ölçülmedi):**
+1. **Windows klasör köprüsü (`.:/app`):** Docker Desktop container'ları WSL2 sanal makinesinde çalıştırıyor; Windows klasörüne erişim yavaş. Chroma (SQLite + HNSW) çok sayıda küçük okuma yapıyor.
+2. **`--reload` dosya izlemesi:** köprü üzerinden tüm proje klasörünü (venv, node_modules, DB) tarıyor, 2 çekirdeklik kotadan CPU yiyor.
+3. **CPU kotası:** native 4 çekirdek, Docker 2 çekirdek; e5 ve reranker CPU yoğun.
+4. **WSL2'nin kendi yükü:** genelde en küçük pay.
+
+**Deney (DB'nin kopyasıyla; asıl DB'ye dokunulmaz):**
+
+| Deneme | Değişen | Ne öğreniriz |
+|---|---|---|
+| A | Bugünkü Docker | Referans |
+| B | `--reload` kapalı | Dosya izlemenin payı |
+| C | B + DB kopyası Docker named volume'unda | Windows köprüsünün payı |
+| D | C + 3 çekirdek | CPU kotasının payı |
+| Native | Docker'sız | Hedef |
+
+Her denemede aynı 5 soru; yalnızca `log_timings`'teki **arama + reranker** süresine bakılır (Gemini süresi her yerde aynı, kota harcamamak için sahte mod da kullanılabilir). İlk sorgu (ısınma) ayrı tutulur.
+
+**Faz 2'ye etkisi:** prod hâlinde `--reload` yok (sebep 2 gider) ve kod imajın içinde (sebep 1'in bir kısmı gider). Deney C anlamlı fark gösterirse DB named volume'a taşınır; bu durumda yedekleme ve sunucuya taşıma adımları (§15) buna göre güncellenir. Linux sunucuda sebep 1 ve 4 yaşanmaz.
+
 ---
 
 ## Yol haritası (öncelik sırasıyla)
@@ -307,8 +384,8 @@ Etiketler: 🔴 Production için gerekli · 🟡 Faydalı iyileştirme · ⚪ İ
 | Faz | İş | Sınıf | Değişecek dosyalar | Risk | Ek RAM |
 |---|---|---|---|---|---|
 | 0b | Upload logunda tam yol yerine dosya adı ("kalıcı olarak kaydedildi" satırı) | 🟡 | `main.py` | Yok | 0 |
-| 1 | JSON logging + Request ID middleware + CORS header'ları | 🔴 | yeni `core/logging.py`, `main.py`, `core/settings.py` (`LOG_FORMAT`, `SERVICE_NAME`), `.env.example`, `docs/configuration.md`, yeni test | uvicorn logger'larının çift basılması; contextvar'ın thread'e geçmemesi (testle kontrol) | ~0 |
-| 2 | Health/readiness endpoint'leri + Docker prod/dev ayrımı + healthcheck + graceful shutdown + non-root kullanıcı, `version` alanı, sabit `dns` (notes.md #25) | 🔴 | `main.py`, `Dockerfile`, `docker-compose.yml`, yeni `docker-compose.override.yml`, `docs/` | Bugünkü `docker compose up` akışının bozulması (override bunu önler); chroma mount yolunun doğru olması | 0 |
+| 2 | Önce/sonra performans ölçümü (§17) + health/readiness endpoint'leri + Docker prod/dev ayrımı + healthcheck + graceful shutdown + non-root kullanıcı, `version` alanı, sabit `dns` (notes.md #25) | 🔴 | `main.py`, `Dockerfile`, `docker-compose.yml`, yeni `docker-compose.override.yml`, `docs/` | Bugünkü `docker compose up` akışının bozulması (override bunu önler); chroma mount yolunun doğru olması; non-root kullanıcının DB ve `uploaded_pdfs`'e yazma izni; `usage.db` tek dosya mount'u (dosya yoksa Docker klasör oluşturur) | 0 |
+| L | Sahte LLM modu (`LLM_MODE=fake`) + yük testi scripti (§16) | 🟡 | `core/settings.py`, `core/config.py` veya yeni `services/fake_llm.py`, `services/query.py`, yeni `scripts/load_test.py`, `.env.example`, `docs/`, test | Production'da yanlışlıkla açık kalması (varsayılan `gemini` + WARNING + etiket); sahte token'ların gerçek sınırı tüketmesi | 0 |
 | B | **Bulut hazırlığı:** Caddy (HTTPS), rate limit, firewall, proxy header'ları, prod CORS (§15) | 🔴 (internete açılmadan önce) | yeni `deploy/Caddyfile`, `docker-compose.yml` (veya `docker-compose.prod.yml`), `main.py`, `services/api.ts`, `docs/`, test | Rate limit 429'unun token 429'uyla karışması | ~30 MB (Caddy) |
 | B2 | **Deploy:** GHCR'a imaj push eden workflow, sunucu kurulumu, veri kopyalama, yedekleme | 🔴 (bulut için) | yeni `.github/workflows/deploy.yml` (veya yalnızca build+push), `docs/deployment.md` | Secret yönetimi; ilk veri taşıma | – |
 | 3 | Sentry (backend) + scrubber + beklenen/beklenmeyen hata ayrımı | 🔴 | yeni `core/observability.py`, `main.py`, `services/query.py` (beklenen hatalar), `core/settings.py`, `requirements.txt`, test | Çift event; local variable sızıntısı (kapatılacak) | ~20 MB |
@@ -316,7 +393,7 @@ Etiketler: 🔴 Production için gerekli · 🟡 Faydalı iyileştirme · ⚪ İ
 | 5 | Gemini circuit breaker + readiness'e bağlanması | 🟡 | yeni `services/circuit_breaker.py`, `services/query.py`, `main.py`, test | Yanlış ayarlanırsa gereksiz 503; eşikler `.env`'den | 0 |
 | 6 | Prometheus + Grafana (yerelde profil, bulutta varsayılan) + provisioned dashboard | 🟡 | `docker-compose.yml`, yeni `monitoring/` (prometheus.yml, grafana provisioning, dashboard JSON) | RAM; Grafana'nın dışarı açılmaması | 200–350 MB |
 | 7 | OpenTelemetry (manuel span + FastAPI/httpx) + Jaeger profili | 🟡/⚪ | `core/observability.py`, `services/query.py`, `services/ingestion.py`, `requirements-otel.txt`, compose | Prompt'un attribute'a sızması (kural + test); dependency sayısı | 30–50 MB + Jaeger (opt-in) |
-| 8 | Frontend: `X-Request-ID` gönderme ve hata mesajında gösterme, fetch timeout (AbortController), `error.tsx` | 🟡 | `rag-frontend/services/api.ts`, `app/error.tsx` | Düşük | 0 |
+| 8 | Frontend: `X-Request-ID` gönderme ve hata mesajında gösterme, fetch timeout (AbortController), `error.tsx`, beklenen hatalarda `console.error` yerine `warn`, cevap `console.log`'unun kaldırılması; backend: PDF cevabında `Cache-Control: private, no-cache` | 🟡 (PDF önbelleği Faz B'den önce 🔴) | `rag-frontend/services/api.ts`, `components/Workspace.tsx`, `app/error.tsx`, `main.py`, test | PDF açılışlarının yavaşlaması (tarayıcı `304` yerine her seferinde tam indirirse; Network sekmesinde kontrol) | 0 |
 | 9 | Sentry (frontend, `@sentry/nextjs`) | ⚪ | `rag-frontend/` config dosyaları | Build ağırlaşır | 0 (backend) |
 | 10 | Frontend container'ı (standalone) compose'a; bulutta frontend de sunucuda olacaksa Faz B2'ye taşınır | 🟡 (bulut) / ⚪ | yeni `rag-frontend/Dockerfile`, compose | Build-time env | ~150 MB |
 | R | Retrieval kalitesi (notes.md #13): q23, hibrit arama denemesi, Deneme C (Gemini kotası uygunken) | 🟡 | `services/query.py`, `eval/`, yeni deneme klasörü | Eval sonuçları golden + negatif setle ölçülmeden production'a girmez; mevcut DB'ye dokunulmaz (deneme kopyada) | hibrit aramaya göre |

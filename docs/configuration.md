@@ -16,6 +16,7 @@ Copy `.env.example` to `.env` and fill in the values. All settings are defined i
 | `LLM_MODEL` | `gemini-2.5-flash` | Gemini model |
 | `LLM_TEMPERATURE` | `0.2` | Gemini temperature |
 | `LOG_LEVEL` | `INFO` | `DEBUG`, `INFO`, `WARNING`, `ERROR` or `CRITICAL` |
+| `LOG_FORMAT` | `text` | `text` (readable lines) or `json` (one JSON object per line, for log collectors). See [development.md](development.md#logging) |
 | `ALLOW_DELETE` | `false` | Enables document deletion for the signed-in user |
 | `AUTH_ENABLED` | `true` | Requires login; `false` only for local development (a warning is logged) |
 | `APP_PASSWORD` | — (required when auth is on) | Login password |
@@ -64,7 +65,7 @@ These live in `core/settings.py` with defaults and are intentionally not in `.en
 The app refuses to start if `GEMINI_API_KEY` is missing or `CHROMA_DIR` does not contain a ChromaDB
 (`chroma.sqlite3`). It never creates an empty database by itself. With `AUTH_ENABLED=true` it also refuses to start if
 `APP_PASSWORD` or `SESSION_SECRET` is missing, before loading the models, so a forgotten setting never leaves the app
-open. An invalid value (e.g. `TOKEN_LIMIT=abc`, `TOKEN_WINDOW_HOURS=5`, `LOG_LEVEL=VERBOSE`, a `SESSION_SECRET` shorter
+open. An invalid value (e.g. `TOKEN_LIMIT=abc`, `TOKEN_WINDOW_HOURS=5`, `LOG_LEVEL=VERBOSE`, `LOG_FORMAT=xml`, a `SESSION_SECRET` shorter
 than 32 characters) also stops the app at startup.
 
 After loading the models, the app runs one search and one rerank with a fixed question (`WARM_UP_QUESTION` in
