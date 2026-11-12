@@ -1,0 +1,32 @@
+#Dependabot: bağımlılıkların yeni sürümleri için PR açar, hiçbir şeyi kendisi merge etmez
+#Güvenlik uyarıları (alerts) ve güvenlik PR'ları GitHub > Settings > Code security'den ayrıca açılır
+version: 2
+updates:
+  #Frontend: küçük güncellemeler (minor/patch) tek PR'da toplanır; major sürümler ayrı PR olarak gelir
+  - package-ecosystem: "npm"
+    directory: "/rag-frontend"
+    schedule:
+      interval: "weekly"
+    groups:
+      frontend-minor-patch:
+        update-types: ["minor", "patch"]
+
+  #Backend: her paket ayrı PR; chromadb, sentence-transformers, langchain, pypdf güncellemelerinde eval yeniden çalıştırılmalı
+  #(docs/development.md > Dependency updates)
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    ignore:
+      #torch sürümü 3 yerde sabit (requirements.txt, Dockerfile, ci.yml); Dependabot yalnızca birini değiştirir, elle güncellenir
+      - dependency-name: "torch"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "monthly"
