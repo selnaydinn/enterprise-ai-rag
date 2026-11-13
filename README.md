@@ -44,7 +44,7 @@ docker compose build
 # add --allow-empty to start without documents
 docker compose run --rm rag-backend python scripts/build_db.py --target chroma_db_new --allow-download
 # set CHROMA_DIR=chroma_db_new in .env
-docker compose up             # backend: http://localhost:8000/docs
+docker compose up             # backend: http://localhost:8000/docs ("docker ps" shows "healthy" when ready)
 
 cd rag-frontend
 npm ci
@@ -119,5 +119,5 @@ documents contain no direct information; none got an invented answer. Details in
 - **Search after restart;** the approximate vector index is rebuilt when the database is opened and can occasionally
   miss a near chunk ([notes.md](notes.md) item 41). The evaluation uses an exact ranking, so its numbers are not
   affected.
-- **Development Docker setup** (`--reload`, full bind mount, root user, no healthcheck); not production-ready. The
+- **Development Docker setup** (`--reload`, full bind mount, root user); not production-ready. The
   backend port is published on `127.0.0.1` only, so it is not reachable from other devices on the network.

@@ -17,15 +17,17 @@ Ayrıntılar (dosyalar, riskler, ek RAM) "Yol haritası" tablosunda; gerekçeler
 - ✅ uvicorn loglarını aynı formata bağlama (uvicorn'un erişim satırı da kalıyor, kullanıcı kararı)
 
 **Faz 2: Health ve Docker (§10, §11, §17; notes.md #25)**
-- ❌ Önce ölçüm: Docker yavaşlığının kaynağını bulmak (§17, deneme A–D, DB kopyasıyla)
-- ❌ `/health/live` ve `/health/ready` endpoint'leri
+- ✅ Yedek: `Desktop\Enterprise_AI_yedek_2026-11-13\` (DB, PDF'ler, `usage.db`; MD5 ile doğrulandı)
+- ✅ Önce ölçüm (§17): asıl sebep WSL2 belleği (2 GB → 3 GB yapıldı); ölçüm aracı `scripts/time_retrieval.py`
+- ✅ `/health/live` ve `/health/ready` endpoint'leri (oturumsuz, yalnızca durum; ready DB'den tek id okur, Gemini'ye gitmez; başarılı kontroller loglanmaz)
 - ❌ Docker dev/prod ayrımı (`--reload` ve `.:/app` yalnızca dev override'da)
-- ❌ Docker healthcheck
+- ✅ Docker healthcheck (`Dockerfile` HEALTHCHECK: 30 sn aralık, 120 sn açılış payı, 3 deneme; imaj yeniden derlenince geçerli)
 - ❌ Graceful shutdown
 - ❌ Container'da root olmayan kullanıcı
 - ❌ `version` alanını silme, sabit `dns` ayarını gözden geçirme
-- ❌ Ölçüme göre: DB'yi Docker volume'una almak ve/veya CPU sınırını ayarlamak
-- ❌ Sonra tekrar ölçüm (Faz 2 öncesi ve sonrası karşılaştırması)
+- ❌ `.dockerignore`'a `notes2.md`, `docs/`, `tests/`, `eval/` eklemek: imaj açılıp okunabilir, çalışma için gerekmeyen iç notlar ve setler imaja girmesin. İstisna: `scripts/time_retrieval.py` soruları `eval/golden_set.jsonl`'den okuyor; o dosyayı bırakmak veya ölçümü host'tan yapmak 4. adımda netleşecek
+- ❌ Compose bellek sınırını sanal makineden küçük yapmak (~2.5 GB; bugünkü 3000M, 3 GB'lık VM'de anlamsız)
+- ❌ Sonra tekrar ölçüm (`--reload` kalkınca reranker); CPU sınırı (`cpus: 3` + `OMP_NUM_THREADS=3`) bu ölçüme göre. DB'yi volume'a taşımaya gerek yok (§17)
 
 **Faz L: Sahte LLM modu ve yük testi (§16)**
 - ❌ `LLM_MODE=fake`: Gemini yerine gecikmeli sahte cevap, isteğe bağlı sahte hata
@@ -69,6 +71,7 @@ Ayrıntılar (dosyalar, riskler, ek RAM) "Yol haritası" tablosunda; gerekçeler
 - ❌ Sunucu firewall'u (yalnızca 22, 80, 443)
 - ❌ Proxy header'ları (doğru istemci IP'si)
 - ❌ Prod CORS ve `ALLOW_DELETE`
+- ❌ Bozulunca kendini toparlama: Docker Compose `unhealthy` container'ı yeniden başlatmıyor (healthcheck yalnızca etiket). Sunucuda autoheal (küçük ek container, `unhealthy` olanı yeniden başlatır) ve çökmeye karşı `restart: unless-stopped`. Yerelde bilerek eklenmedi (kullanıcı kararı, 2026-11-13). Haber verme Faz 3 (Sentry) / Faz 6 (Grafana alarmı)
 
 **Faz B2: Deploy (§15)**
 - ❌ İmajı GHCR'a push eden workflow
@@ -80,12 +83,14 @@ Ayrıntılar (dosyalar, riskler, ek RAM) "Yol haritası" tablosunda; gerekçeler
 - ❌ q23 (vektör araması doğru parçayı kaçırıyor)
 - ❌ Hibrit arama denemesi (anahtar kelime + vektör)
 - ❌ Deneme C (Gemini kotası uygunken)
+- ❌ Reranker hızı: native'de bile sürenin çoğu reranker (10 aday için 2.27 sn, Docker'da 4–7 sn; §17). Seçenekler: aday sayısı 10 → 5, parçanın ilk 256 token'ı, ONNX/int8 sıkıştırma, daha küçük model. Her biri golden + negatif setle ölçülmeden değişmez (mMiniLM + 10 aday eval ile seçilmişti)
 
 **Faz S: Streaming (notes.md #43)**
 - ❌ Cevabın parça parça gelmesi (ayrı endpoint, mevcut `/query` bozulmadan)
 
 **Faz 11: Öğrenme denemesi (opsiyonel)**
 - ❌ Chroma server mode + ayrı ingestion worker (DB kopyasında)
+- ⚠️ Ön koşul: chromadb'nin sunucu modu açıkları (pre-auth code injection, code injection, RBAC/tenant yetki açıkları; GitHub Dependabot uyarıları 2026-11-12'de "embedded kullanılıyor" gerekçesiyle dismiss edildi) düzeltilmiş bir sürüm çıkmadan bu faz yapılmaz. Sunucu modunda bu açıklar doğrudan geçerli olur
 
 **Verilecek kararlar**
 - ❌ Sentry için SaaS ücretsiz plan mı? (Self-hosted ~4 GB+ RAM istiyor, önerilmez)
@@ -353,27 +358,27 @@ Testler `unittest` ile yazılıyor (`python -m unittest discover tests`; README'
 
 ## 17. Docker yavaşlığı (Faz 2'nin parçası)
 
-**Durum:** notes.md GUNCEL 9'da aynı soru Docker'da ~28 sn, native ~9 sn sürüyordu. Sonradan `OMP_NUM_THREADS=2` eklendi; etkisi yeniden ölçülmedi.
+**Durum (önce):** notes.md GUNCEL 9'da aynı soru Docker'da ~28 sn, native ~9 sn sürüyordu; 2026-11-12'de Docker'da bir soruda arama 6.93 sn, reranker 9.65 sn.
 
-**Olası sebepler (olasılık sırasıyla, ölçülmedi):**
-1. **Windows klasör köprüsü (`.:/app`):** Docker Desktop container'ları WSL2 sanal makinesinde çalıştırıyor; Windows klasörüne erişim yavaş. Chroma (SQLite + HNSW) çok sayıda küçük okuma yapıyor.
-2. **`--reload` dosya izlemesi:** köprü üzerinden tüm proje klasörünü (venv, node_modules, DB) tarıyor, 2 çekirdeklik kotadan CPU yiyor.
-3. **CPU kotası:** native 4 çekirdek, Docker 2 çekirdek; e5 ve reranker CPU yoğun.
-4. **WSL2'nin kendi yükü:** genelde en küçük pay.
+**Ölçüm (2026-11-13).** Native ve geçici container: `scripts/time_retrieval.py` (5 golden soru × 3 tur, Gemini çağrılmaz, ortanca). Uygulama açıkken: frontend'den sorulan 5 golden sorunun `Süreler:` logu (ilk soru hariç; script uygulama container'ında çalıştırılamaz, modeller ikinci kez yüklenir ve bellek taşar).
 
-**Deney (DB'nin kopyasıyla; asıl DB'ye dokunulmaz):**
+| Ortam                                                               | Arama        | Reranker      |
+|---------------------------------------------------------------------|--------------|---------------|
+| Native (Windows, torch 4 iş parçacığı)                              | 0.13 sn      | 2.27 sn       |
+| Docker, geçici container (uygulama yok, `--reload` yok, 2 çekirdek) | 0.31 sn      | 4.21 sn       |
+| Docker, uygulama açık, WSL2 2 GB (2026-11-12)                       | 6.93 sn      | 9.65 sn       |
+| **Docker, uygulama açık, WSL2 3 GB**                                | 0.43–0.62 sn | 5.8–7.6 sn    |
 
-| Deneme | Değişen | Ne öğreniriz |
+**Sebepler ve payları:**
+
+| Sebep | Etki | Durum |
 |---|---|---|
-| A | Bugünkü Docker | Referans |
-| B | `--reload` kapalı | Dosya izlemenin payı |
-| C | B + DB kopyası Docker named volume'unda | Windows köprüsünün payı |
-| D | C + 3 çekirdek | CPU kotasının payı |
-| Native | Docker'sız | Hedef |
+| WSL2 belleği 2 GB (`%USERPROFILE%\.wslconfig`); uygulama ~2 GB istiyor, ~480 MB swap'a gidiyordu. Compose'daki 3000M sınırı VM'den büyük olduğu için etkisizdi | Arama ~13 kat | ✅ `memory=3GB` (Docker 2.84 GB görüyor; swap ~480 MB → ~145 MB) |
+| `--reload` dosya izleyicisi: `.:/app` tüm klasörü izliyor, frontend dev (`rag-frontend/.next`) sürekli dosya yazıyor; boşta ~%10 CPU | Reranker ~1.5 kat | Faz 2: prod hâlinde `--reload` yok |
+| CPU sınırı: Docker 2 çekirdek, native torch 4 iş parçacığı | Reranker ~2 kat | Faz 2 sonrası ölçüme göre `cpus: 3` |
+| Windows klasör köprüsü | Arama 0.13 → 0.31 sn (küçük) | Değişiklik gerekmiyor; DB yerinde kalır |
 
-Her denemede aynı 5 soru; yalnızca `log_timings`'teki **arama + reranker** süresine bakılır (Gemini süresi her yerde aynı, kota harcamamak için sahte mod da kullanılabilir). İlk sorgu (ısınma) ayrı tutulur.
-
-**Faz 2'ye etkisi:** prod hâlinde `--reload` yok (sebep 2 gider) ve kod imajın içinde (sebep 1'in bir kısmı gider). Deney C anlamlı fark gösterirse DB named volume'a taşınır; bu durumda yedekleme ve sunucuya taşıma adımları (§15) buna göre güncellenir. Linux sunucuda sebep 1 ve 4 yaşanmaz.
+**Notlar:** Açılıştan sonraki ilk soru yavaş (soğuk disk önbelleği; ısınma bunu tamamen gidermiyor). Native'de bile sürenin çoğu reranker'da (2.27 / 2.41 sn) → Faz R "reranker hızı". Linux sunucuda klasör köprüsü ve WSL2 yok.
 
 ---
 
@@ -396,8 +401,8 @@ Etiketler: 🔴 Production için gerekli · 🟡 Faydalı iyileştirme · ⚪ İ
 | 8 | Frontend: `X-Request-ID` gönderme ve hata mesajında gösterme, fetch timeout (AbortController), `error.tsx`, beklenen hatalarda `console.error` yerine `warn`, cevap `console.log`'unun kaldırılması; backend: PDF cevabında `Cache-Control: private, no-cache` | 🟡 (PDF önbelleği Faz B'den önce 🔴) | `rag-frontend/services/api.ts`, `components/Workspace.tsx`, `app/error.tsx`, `main.py`, test | PDF açılışlarının yavaşlaması (tarayıcı `304` yerine her seferinde tam indirirse; Network sekmesinde kontrol) | 0 |
 | 9 | Sentry (frontend, `@sentry/nextjs`) | ⚪ | `rag-frontend/` config dosyaları | Build ağırlaşır | 0 (backend) |
 | 10 | Frontend container'ı (standalone) compose'a; bulutta frontend de sunucuda olacaksa Faz B2'ye taşınır | 🟡 (bulut) / ⚪ | yeni `rag-frontend/Dockerfile`, compose | Build-time env | ~150 MB |
-| R | Retrieval kalitesi (notes.md #13): q23, hibrit arama denemesi, Deneme C (Gemini kotası uygunken) | 🟡 | `services/query.py`, `eval/`, yeni deneme klasörü | Eval sonuçları golden + negatif setle ölçülmeden production'a girmez; mevcut DB'ye dokunulmaz (deneme kopyada) | hibrit aramaya göre |
+| R | Retrieval kalitesi (notes.md #13): q23, hibrit arama denemesi, Deneme C (Gemini kotası uygunken), reranker hızı (aday sayısı, token sınırı, ONNX/int8) | 🟡 | `services/query.py`, `eval/`, yeni deneme klasörü | Eval sonuçları golden + negatif setle ölçülmeden production'a girmez; mevcut DB'ye dokunulmaz (deneme kopyada) | hibrit aramaya göre |
 | S | Streaming cevap (notes.md #43) | 🟡 | `main.py`, `services/query.py`, `rag-frontend/services/api.ts`, `ChatArea.tsx`, test | Token sayımı ve hata yönetiminin stream içinde yapılması; mevcut `/query` API'si bozulmamalı (ayrı endpoint) | 0 |
-| 11 | Chroma server mode + ayrı ingestion worker (öğrenme denemesi, DB **kopyasında**) | ⚪ | çok sayıda | Yüksek: RAM, tutarlılık, yeniden mimari | +1.3–2 GB |
+| 11 | Chroma server mode + ayrı ingestion worker (öğrenme denemesi, DB **kopyasında**) | ⚪ | çok sayıda | Yüksek: RAM, tutarlılık, yeniden mimari; chromadb sunucu modu açıkları (düzeltilmiş sürüm çıkmadan yapılmaz) | +1.3–2 GB |
 
 **Her fazda süreç:** uygulamadan önce kısa plan ve onay → uygulama → `ruff check .` + `python -m unittest discover tests` → (Docker fazlarında) build + healthcheck + smoke test → değişen dosyalar, test çıktısı ve kalan sorunlarla rapor.

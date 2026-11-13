@@ -3,7 +3,7 @@
 Interactive documentation with request/response schemas: http://localhost:8000/docs (Swagger).
 Response models are defined in `schemas.py`; the matching frontend types are in `rag-frontend/types/api.ts`.
 
-Every endpoint except `/`, `/auth/login` and `/auth/logout` requires a session (see [Authentication](#authentication));
+Every endpoint except `/`, `/health/*`, `/auth/login` and `/auth/logout` requires a session (see [Authentication](#authentication));
 without one it returns `401` before the endpoint runs, so no model, database or Gemini call is made.
 
 | Method | Path | Description |
@@ -19,6 +19,11 @@ without one it returns `401` before the endpoint runs, so no model, database or 
 | `GET` | `/features/` | Feature flags for the frontend: `{"allow_delete": bool}` |
 | `GET` | `/static-pdfs/{name}` | Serves an uploaded PDF inline (used by the preview `iframe`) |
 | `GET` | `/` | Health message. Public |
+| `GET` | `/health/live` | Liveness: `{"status": "ok"}` while the process answers. Public |
+| `GET` | `/health/ready` | Readiness: `{"status": "ok"}` when the database can be read, otherwise `503` `{"status": "unavailable"}`. Does not call Gemini. Public (used by the Docker `HEALTHCHECK`) |
+
+The health endpoints return only a status, never document names, counts or error details (the reason of a failed
+check is logged). Successful health checks are not logged; failed ones are.
 
 ## Authentication
 

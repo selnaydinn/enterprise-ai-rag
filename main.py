@@ -132,6 +132,28 @@ def client_key(request: Request):
 def read_root():
     return {"status": "Enterprise AI projesi ayakta."}
 
+# SAĞLIK KONTROLÜ (Docker HEALTHCHECK, notes2.md Faz 2)
+#Oturum istemez (Docker parola bilmiyor); bu yüzden yalnızca durum döner: doküman adı, sayı veya hata ayrıntısı yok
+#Başarılı kontroller loglanmaz, yalnızca sorun olduğunda (core/log_setup.py is_quiet_health_check)
+
+#Program cevap verebiliyor mu; hiçbir şeye bağlı değil. Cevap gelmiyorsa süreç kilitlenmiş demektir
+@app.get("/health/live")
+def health_live():
+    return {"status": "ok"}
+
+#İş yapabilir mi: DB okunabiliyor mu (tek bir id, içerik okunmaz). Modeller açılışta (lifespan) yüklendiği için uygulama
+#cevap veriyorsa yüklüdür. Gemini'ye istek atılmaz: kontrol sık yapılıyor, kota harcanmaz
+#Boş DB sağlıklıdır (doküman yüklenmemiş olabilir); yalnızca DB'ye erişilemezse 503
+@app.get("/health/ready")
+def health_ready():
+    try:
+        get_db().get(limit=1, include=[])
+    except Exception as exc:
+        #Ayrıntı yalnızca logda; tür adı yeterli, mesaj yol vb. içerebilir
+        logger.warning(f"Hazırlık kontrolü başarısız: veritabanı okunamadı ({type(exc).__name__}).")
+        return JSONResponse(status_code=503, content={"status": "unavailable"})
+    return {"status": "ok"}
+
 # KİMLİK DOĞRULAMA
 #Parola doğruysa imzalı oturum cookie'si kurulur (204, gövde yok); parola ve token loglanmaz
 #Kilitliyken parola hiç kontrol edilmez (429); 429 yalnızca bu endpoint'te giriş kilidi anlamında, frontend'deki

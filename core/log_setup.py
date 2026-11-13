@@ -16,6 +16,10 @@ VALID_REQUEST_ID = re.compile(r"[A-Za-z0-9-]{1,64}")
 #İstek dışındaki loglarda (açılış, model yükleme) görünen değer
 NO_REQUEST_ID = "-"
 
+#Docker HEALTHCHECK bu yolları ~30 sn'de bir çağırıyor; başarılı olanlar loglanmaz (saatte ~240 satır gürültü),
+#sorun olursa (4xx/5xx) loglanır
+HEALTH_PATH_PREFIX = "/health/"
+
 TEXT_FORMAT = "%(asctime)s %(levelname)s [%(request_id)s] %(name)s: %(message)s"
 TEXT_DATEFMT = "%Y-%m-%d %H:%M:%S"
 
@@ -29,6 +33,19 @@ logger = logging.getLogger("EnterpriseAI")
 
 def get_request_id() -> str:
     return request_id_var.get()
+
+
+def is_quiet_health_check(path: str, status: int) -> bool:
+    return path.startswith(HEALTH_PATH_PREFIX) and status < 400
+
+
+#uvicorn'un erişim satırı için aynı kural; kaydın argümanları: (istemci, yöntem, yol, HTTP sürümü, durum kodu)
+class QuietHealthCheckFilter(logging.Filter):
+    def filter(self, record):
+        args = record.args
+        if isinstance(args, tuple) and len(args) == 5:
+            return not is_quiet_health_check(str(args[2]), args[4])
+        return True
 
 
 #Her log kaydına o anki isteğin ID'si eklenir; formatter'lar %(request_id)s / record.request_id ile kullanır
@@ -76,6 +93,11 @@ def setup_logging(level: str, fmt: str) -> None:
         uvicorn_logger.handlers = []
         uvicorn_logger.propagate = True
 
+    #Başarılı sağlık kontrollerinin erişim satırı yazılmaz; tekrar çağrılınca filtre ikinci kez eklenmez
+    access_logger = logging.getLogger("uvicorn.access")
+    access_logger.filters = [f for f in access_logger.filters if not isinstance(f, QuietHealthCheckFilter)]
+    access_logger.addFilter(QuietHealthCheckFilter())
+
 
 #Her isteğe bir ID verir, cevaba X-Request-ID başlığını ekler ve istek bitince tek satırlık özet loglar
 #Saf ASGI middleware: isteği aynı task'te çalıştırır, böylece ID beklenmeyen hata yakalayıcısında da görünür
@@ -110,6 +132,7 @@ class RequestIdMiddleware:
         try:
             await self.app(scope, receive, send_with_request_id)
         finally:
-            elapsed_ms = (time.perf_counter() - start) * 1000
-            level = logging.WARNING if status >= 500 else logging.INFO
-            logger.log(level, f"{scope['method']} {scope['path']} {status} ({elapsed_ms:.0f} ms)")
+            if not is_quiet_health_check(scope["path"], status):
+                elapsed_ms = (time.perf_counter() - start) * 1000
+                level = logging.WARNING if status >= 500 else logging.INFO
+                logger.log(level, f"{scope['method']} {scope['path']} {status} ({elapsed_ms:.0f} ms)")
