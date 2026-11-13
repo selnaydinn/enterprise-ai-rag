@@ -20,7 +20,7 @@ Ayrıntılar (dosyalar, riskler, ek RAM) "Yol haritası" tablosunda; gerekçeler
 - ✅ Yedek: `Desktop\Enterprise_AI_yedek_2026-11-13\` (DB, PDF'ler, `usage.db`; MD5 ile doğrulandı)
 - ✅ Önce ölçüm (§17): asıl sebep WSL2 belleği (2 GB → 3 GB yapıldı); ölçüm aracı `scripts/time_retrieval.py`
 - ✅ `/health/live` ve `/health/ready` endpoint'leri (oturumsuz, yalnızca durum; ready DB'den tek id okur, Gemini'ye gitmez; başarılı kontroller loglanmaz)
-- ❌ Docker dev/prod ayrımı (`--reload` ve `.:/app` yalnızca dev override'da)
+- ✅ Docker dev/prod ayrımı (`--reload` ve `.:/app` yalnızca `docker-compose.override.yml`'de; taban: kod imajda, veri klasörleri `.env`'deki yollarla bağlı, `LOG_FORMAT=json`). `usage.db` şimdilik tek dosya olarak bağlı; root olmayan kullanıcıya geçişte (aşağıda) `data/` klasörü kararı
 - ✅ Docker healthcheck (`Dockerfile` HEALTHCHECK: 30 sn aralık, 120 sn açılış payı, 3 deneme; imaj yeniden derlenince geçerli)
 - ❌ Graceful shutdown
 - ❌ Container'da root olmayan kullanıcı

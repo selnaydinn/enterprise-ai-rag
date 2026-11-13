@@ -12,7 +12,8 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir torch==2.12.1 --index-url https://download.pytorch.org/whl/cpu
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Proje dosyalarını (kodlar, data, chroma_db) içeri alıyoruz
+# Kodu imaja kopyalıyoruz; veri (DB, PDF'ler, usage.db), .env ve venv .dockerignore ile dışarıda kalır
+# Veriler docker-compose.yml'de dışarıdan bağlanıyor
 COPY . .
 
 # FastAPI sunucumuzun dış dünyaya açılacağı kapı
@@ -26,4 +27,5 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=120s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/ready', timeout=4)" || exit 1
 
 # Konteyner başladığında otomatik olarak FastAPI'yi (main.py) ayağa kaldıracak komut
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+# --reload yok (production); geliştirmede docker-compose.override.yml --reload ile değiştiriyor
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

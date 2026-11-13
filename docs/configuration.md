@@ -143,6 +143,27 @@ screen comes back.
 
 ## Docker
 
+There are two compose files:
+
+| File | Role |
+|---|---|
+| `docker-compose.yml` | Production base: the code is inside the image, no `--reload`, JSON logs. Only the data is mounted from the project folder: the database (`CHROMA_DIR`), `uploaded_pdfs/` and `usage.db` (`USAGE_DB_PATH`), plus the `hf_cache` model volume |
+| `docker-compose.override.yml` | Development additions: the whole project folder mounted at `/app`, `--reload`, text logs |
+
+`docker compose up` reads both files automatically, so day-to-day use runs the development setup. To run the
+production setup, name the base file explicitly (the override is then not read):
+
+```bash
+docker compose up -d                                    # development (both files)
+docker compose -f docker-compose.yml up -d --build      # production (code from the image; rebuild after code changes)
+docker compose config                                   # show the merged configuration
+```
+
+The data mounts use `CHROMA_DIR` and `USAGE_DB_PATH` from `.env` (Compose reads `.env` for `${...}` in the compose
+file too), so changing `CHROMA_DIR` also changes the mount. Only relative paths are supported there. `usage.db` is
+mounted as a single file: if it does not exist on the host, Docker creates a directory with that name instead, so create
+it first (start the app once without Docker, or create an empty file).
+
 `.env` is read when the container is created. After changing it, recreate the container:
 
 ```bash
@@ -164,8 +185,9 @@ On a first setup, build the database inside the container so the models are down
 docker compose run --rm rag-backend python scripts/build_db.py --target chroma_db_new --allow-download
 ```
 
-`--allow-download` turns `HF_HUB_OFFLINE` off for that run only; the app itself stays offline. The project folder is
-mounted at `/app`, so the database and the manifest are written to the project folder on the host. Then set
+`--allow-download` turns `HF_HUB_OFFLINE` off for that run only; the app itself stays offline. In the development setup
+the project folder is mounted at `/app`, so the database and the manifest are written to the project folder on the
+host (run this command with both compose files, as above, not with `-f docker-compose.yml`). Then set
 `CHROMA_DIR=chroma_db_new` in `.env` and start the app. If only a model changed and no database needs to be built, set
 `HF_HUB_OFFLINE=0` in `docker-compose.yml`, start once, then set it back to `1`.
 
