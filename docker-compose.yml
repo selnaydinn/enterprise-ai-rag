@@ -28,6 +28,11 @@ services:
       #Silmek için: docker volume ls ile adını bulup docker volume rm
       - hf_cache:/models
 
+    #Kapatırken (stop/down) Docker'ın uygulamayı bekleyeceği süre; dolunca zorla öldürür (varsayılan 10 sn)
+    #Uvicorn'un kendi süresi (Dockerfile: 110 sn) bundan kısa; süren soru ve PDF yüklemeleri bitebilsin
+    #İş yoksa uygulama 1-2 sn'de kapanır; bekleme yalnızca süren bir iş varsa olur
+    stop_grace_period: 120s
+
     #Proje klasöründeki .env dosyasını container içine yükler (imaja girmez)
     env_file:
       - .env

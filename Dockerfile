@@ -28,4 +28,7 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=120s --retries=3 \
 
 # Konteyner başladığında otomatik olarak FastAPI'yi (main.py) ayağa kaldıracak komut
 # --reload yok (production); geliştirmede docker-compose.override.yml --reload ile değiştiriyor
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Düzgün kapanma: kapatma sinyalinde yeni istek alınmaz, süren işler (soru, PDF yükleme) en fazla 110 sn beklenir.
+# Docker'ın bekleme süresinden (docker-compose.yml stop_grace_period: 120s) kısa: süre dolarsa uygulamayı uvicorn
+# kapatır, Docker zorla öldürmez. Zorla öldürülen upload'da geri alma (rollback) çalışamaz, yarım parçalar kalır
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--timeout-graceful-shutdown", "110"]

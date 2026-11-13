@@ -9,7 +9,8 @@ services:
   rag-backend:
     #Kod değişince uygulama kendini yeniden başlatır. Proje klasörünü izlediği için boştayken de CPU harcar
     #(frontend dev sunucusu rag-frontend/.next'e yazdıkça); production'da yok (notes2.md §17)
-    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    #Dockerfile CMD'nin yerine geçtiği için kapanma süresi burada da yazılı (Dockerfile'daki açıklama)
+    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload", "--timeout-graceful-shutdown", "110"]
     volumes:
       #Bütün proje klasörü: kod değişiklikleri imajı yeniden derlemeden gelir; scripts/build_db.py DB'yi proje klasörüne yazar
       - .:/app

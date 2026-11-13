@@ -22,7 +22,8 @@ Ayrıntılar (dosyalar, riskler, ek RAM) "Yol haritası" tablosunda; gerekçeler
 - ✅ `/health/live` ve `/health/ready` endpoint'leri (oturumsuz, yalnızca durum; ready DB'den tek id okur, Gemini'ye gitmez; başarılı kontroller loglanmaz)
 - ✅ Docker dev/prod ayrımı (`--reload` ve `.:/app` yalnızca `docker-compose.override.yml`'de; taban: kod imajda, veri klasörleri `.env`'deki yollarla bağlı, `LOG_FORMAT=json`). `usage.db` şimdilik tek dosya olarak bağlı; root olmayan kullanıcıya geçişte (aşağıda) `data/` klasörü kararı
 - ✅ Docker healthcheck (`Dockerfile` HEALTHCHECK: 30 sn aralık, 120 sn açılış payı, 3 deneme; imaj yeniden derlenince geçerli)
-- ❌ Graceful shutdown
+- ✅ Graceful shutdown: `stop_grace_period: 120s` (compose) + `--timeout-graceful-shutdown 110` (Dockerfile ve dev override). Docker varsayılanı 10 sn'ydi; uzun soru/upload zorla kesiliyor ve kesilen upload'da geri alma çalışamıyordu
+- ❌ Sahipsiz parçaları temizleme: 120 sn'yi aşan bir upload sırasında kapatılırsa veya süreç zorla öldürülürse (bellek bitmesi, elektrik) geri alma çalışmaz; DB'de diskteki PDF'lerle eşleşmeyen parçalar kalabilir. Fikir: açılışta (veya bir script/endpoint ile) DB'deki `source_file`/`pdf_hash` listesini `uploaded_pdfs/` ile karşılaştırıp eşleşmeyenleri raporlamak, onayla silmek (`delete_chunks_by_hash`). Diskte kalan ama DB'de olmayan PDF'ler de raporlanır. Otomatik silme yapılmaz (önce rapor)
 - ❌ Container'da root olmayan kullanıcı
 - ❌ `version` alanını silme, sabit `dns` ayarını gözden geçirme
 - ❌ `.dockerignore`'a `notes2.md`, `docs/`, `tests/`, `eval/` eklemek: imaj açılıp okunabilir, çalışma için gerekmeyen iç notlar ve setler imaja girmesin. İstisna: `scripts/time_retrieval.py` soruları `eval/golden_set.jsonl`'den okuyor; o dosyayı bırakmak veya ölçümü host'tan yapmak 4. adımda netleşecek

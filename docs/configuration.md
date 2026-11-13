@@ -164,6 +164,12 @@ file too), so changing `CHROMA_DIR` also changes the mount. Only relative paths 
 mounted as a single file: if it does not exist on the host, Docker creates a directory with that name instead, so create
 it first (start the app once without Docker, or create an empty file).
 
+**Shutdown.** On `docker compose stop`/`down` the app stops accepting requests and waits up to 110 s for running
+questions and uploads to finish (`--timeout-graceful-shutdown`); Docker waits 120 s (`stop_grace_period`) before
+killing the container. With nothing running it stops in a second or two. An upload that is still running after that
+is cut off; a killed process cannot roll back, so its chunks may stay in the database (see the cleanup item in
+`notes2.md`, Faz 2).
+
 `.env` is read when the container is created. After changing it, recreate the container:
 
 ```bash
