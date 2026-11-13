@@ -30,6 +30,8 @@ class Settings(BaseSettings):
     llm_model: str = "gemini-2.5-flash"
     llm_temperature: float = 0.2
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
+    #text: okunaklı satırlar (yerel kullanım); json: satır başına bir JSON nesnesi (log toplayan araçlar için, core/log_setup.py)
+    log_format: Literal["text", "json"] = "text"
     #Kimlik doğrulama yokken herkes silebileceği için varsayılan kapalı; açmak bilinçli bir karar olmalı
     allow_delete: bool = False
 
@@ -145,6 +147,14 @@ class Settings(BaseSettings):
     def upper_log_level(cls, value):
         if isinstance(value, str):
             return value.strip().upper()
+        return value
+
+    #"JSON" da kabul edilir; text/json dışında bir değer uygulamayı başlatmaz
+    @field_validator("log_format", mode="before")
+    @classmethod
+    def lower_log_format(cls, value):
+        if isinstance(value, str):
+            return value.strip().lower()
         return value
 
     #.env'de virgülle ayrılmış liste: "http://a,http://b" (pydantic-settings varsayılan olarak JSON bekliyor)

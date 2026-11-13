@@ -14,6 +14,7 @@ from pydantic import BaseModel, StringConstraints
 from services.ingestion import PdfUnreadableError, process_pdf, hash_bytes, hash_pdf, is_file_already_processed, delete_document_chunks, delete_chunks_by_hash
 from core.auth import check_auth_config, check_password, clear_session_cookie, login_guard, require_auth, set_session_cookie
 from core.config import get_db, get_llm, get_reranker
+from core.log_setup import REQUEST_ID_HEADER, RequestIdMiddleware, get_request_id, setup_logging
 from core.settings import get_settings
 from schemas import DeleteResponse, DocumentItem, FeaturesResponse, QueryResponse, UploadResponse, UsageStatus
 from services.query import LLMUnavailableError, prepare_chunks_with_metadata, warm_up
@@ -65,12 +66,9 @@ LLM_ERRORS = {
 #Soru sınırı; frontenddeki MAX_QUESTION_LENGTH ile aynı olmalı (ChatArea.tsx)
 MAX_QUESTION_LENGTH = settings.max_question_length
 
-#Tüm modüller "EnterpriseAI" logger'ını kullanıyor; seviye .env'deki LOG_LEVEL'dan
-logging.basicConfig(
-    level=settings.log_level,
-    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-)
+#Tüm modüller "EnterpriseAI" logger'ını kullanıyor; seviye LOG_LEVEL'dan, biçim (text/json) LOG_FORMAT'tan
+#Her satırda isteğin ID'si var (core/log_setup.py)
+setup_logging(settings.log_level, settings.log_format)
 logger = logging.getLogger("EnterpriseAI")
 
 #Frontend adresleri .env'den okunur; tanımlı değilse localhost:3000 varsayılır
@@ -84,8 +82,13 @@ app.add_middleware(
     allow_origins=CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["GET", "POST", "DELETE"],
-    allow_headers=["Content-Type"],
+    allow_headers=["Content-Type", REQUEST_ID_HEADER],
+    #Tarayıcı bu listede olmayan cevap başlıklarını JavaScript'ten gizler; frontend request ID'yi okuyabilsin
+    expose_headers=[REQUEST_ID_HEADER],
 )
+
+#En dışa ekleniyor (son eklenen en dışta): CORS'un kendi cevapladığı preflight istekleri de ID ve özet log alır
+app.add_middleware(RequestIdMiddleware)
 
 #GLOBAL HATA YAKALAYICI
 #Hiçbir yerde yakalanmayan hatalar düz metin "Internal Server Error" yerine JSON 500 olarak döner
@@ -96,7 +99,9 @@ app.add_middleware(
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception):
     logger.exception(f"Beklenmeyen hata ({request.method} {request.url.path})", exc_info=exc)
-    headers = {}
+    #Bu cevap RequestIdMiddleware'in dışında üretiliyor; başlığı o ekleyemediği için burada ekleniyor
+    #Kullanıcı "500 aldım" dediğinde logdaki traceback bu ID ile bulunur
+    headers = {REQUEST_ID_HEADER: get_request_id()}
     origin = request.headers.get("origin")
     if origin in CORS_ORIGINS:
         headers["Access-Control-Allow-Origin"] = origin
@@ -260,7 +265,8 @@ async def upload_pdf(file: UploadFile = File(...)):
             with open(target_file_path, "wb") as f:
                 f.write(content)
 
-            logger.info(f"Dosya kalıcı olarak kaydedildi: {target_file_path}")
+            #Tam yol değil yalnızca ad: yol sunucunun klasör yapısını (native'de Windows kullanıcı adını) loga taşır
+            logger.info(f"Dosya kalıcı olarak kaydedildi: {filename}")
 
             #PDFi vektörize eden fonksiyonu çağırdık
             #Embedding CPU yoğun; thread'de çalışınca diğer istekler (sorgu, liste) beklemiyor

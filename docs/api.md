@@ -89,7 +89,10 @@ recorded without clipping.
 
 ## Errors
 
-Errors are returned as HTTP status codes with `{"detail": "..."}`:
+Errors are returned as HTTP status codes with `{"detail": "..."}`. Every response, including errors, carries an
+`X-Request-ID` header; the same ID is in the server log lines of that request
+([development.md](development.md#logging)). A client may send its own `X-Request-ID` (up to 64 characters, letters,
+digits and `-`).
 
 | Code | When |
 |---|---|

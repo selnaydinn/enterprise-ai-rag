@@ -21,6 +21,7 @@ The Docker image uses Python 3.13 like the local venv and CI.
 | API | `main.py`, `schemas.py` | Endpoints, request/response models, startup checks (`lifespan`) |
 | Authentication | `core/auth.py` | Password check, signed session token and cookie, `require_auth` dependency, login lockout (`LoginGuard`) |
 | Settings | `core/settings.py` | All settings in one `pydantic-settings` class |
+| Logging | `core/log_setup.py` | Text/JSON log format, request ID (`RequestIdMiddleware`, `X-Request-ID`), per-request summary line |
 | Model / DB / LLM | `core/config.py` | Created lazily once (`get_embeddings`, `get_db`, `get_llm`, `get_reranker`), loaded at startup |
 | Ingestion | `services/ingestion.py` | PDF → chunks (`split_pages`, `prepare_chunks`) → ChromaDB (`process_pdf`), document deletion |
 | Database build | `scripts/build_db.py` | Builds a new database from the PDFs; see [configuration.md](configuration.md#building-a-database) |
@@ -91,4 +92,21 @@ npm run lint                           # ESLint
 ## Logging
 
 All modules log to the `EnterpriseAI` logger; the level comes from `LOG_LEVEL`. With `LOG_LEVEL=DEBUG` you also see
-chunks rejected by the score threshold and embedding progress. Questions are currently logged in full.
+chunks rejected by the score threshold and embedding progress. Questions are logged in full (a deliberate choice);
+passwords and API keys never are.
+
+**Request ID.** Every request gets an ID (`core/log_setup.py`). A valid incoming `X-Request-ID` header (up to 64
+characters, letters, digits and `-`) is kept; otherwise a new one is generated. The ID is returned in the
+`X-Request-ID` response header (also on unhandled `500` errors) and appears in every log line of that request,
+including code running in the thread pool (`/query/`, PDF processing) and uvicorn's access line. Log lines outside a
+request (startup, model loading) show `-`. When a request finishes, one summary line is logged
+(`GET /documents/ 200 (45 ms)`; `WARNING` for `5xx`). To follow one request, search the log for its ID.
+
+**Format.** `LOG_FORMAT=text` (default):
+
+```
+2026-11-12 18:03:14 WARNING [a3f9c2...] EnterpriseAI: Gemini çağrısı başarısız (timeout, ReadTimeout).
+```
+
+`LOG_FORMAT=json` writes one JSON object per line (`ts` in UTC, `level`, `logger`, `request_id`, `msg`, and `exc`
+with the traceback when there is an error), for tools such as Sentry or Loki. uvicorn's own logs use the same format.

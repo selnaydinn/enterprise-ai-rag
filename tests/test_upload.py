@@ -235,6 +235,15 @@ class UploadEndpointTests(unittest.TestCase):
         self.assertEqual(self.upload("rapor.pdf").status_code, 200)
         self.rollback.assert_not_called()
 
+    #Loglarda dosyanın tam yolu değil yalnızca adı geçer (notes2.md Faz 0b)
+    def test_upload_logs_name_not_full_path(self):
+        with self.assertLogs("EnterpriseAI", level="INFO") as logs:
+            self.assertEqual(self.upload("rapor.pdf").status_code, 200)
+        output = "\n".join(logs.output)
+        self.assertIn("rapor.pdf", output)
+        self.assertNotIn(str(self.upload_dir), output)
+        self.assertNotIn(self.root.name, output)
+
 
 class InternalErrorTests(unittest.TestCase):
 
