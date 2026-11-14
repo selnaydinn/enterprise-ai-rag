@@ -35,7 +35,7 @@ Ayrıntılar (dosyalar, riskler, ek RAM) "Yol haritası" tablosunda; gerekçeler
 
   - 34 sayfa / 159 parçalık PDF yüklemesi 302 sn. Kapatma bekleme süresi (120 sn) bu hızda büyük PDF'lere yetmiyor: yükleme sırasında kapatılırsa geri alma çalışmaz, sahipsiz parçalar kalabilir. Süre kararı ölçümden sonra tekrar ele alınacak.  
 
-  AÇIK MADDELER SUNUCUDA BAKILACAK.
+  AÇIK MADDELERE SUNUCUDA BAKILACAK.
 
 **Faz L: Sahte LLM modu ve yük testi (§16)**
 - ❌ `LLM_MODE=fake`: Gemini yerine gecikmeli sahte cevap, isteğe bağlı sahte hata

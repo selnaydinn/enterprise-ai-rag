@@ -31,10 +31,23 @@ def hash_pdf(pdf_path):
 def normalize_blank_lines(text):
     return re.sub(r"\n[^\S\n]+(?=\n)", "\n", text)
 
-#Aynı pdf kontrolü
-def is_file_already_processed(file_hash):
-    existing_docs = get_db().get(where={"pdf_hash": file_hash}, limit=1)
-    return len(existing_docs["ids"]) > 0
+#Bir PDF'in DB'deki durumu (aynı PDF kontrolü ve yarım kalan yüklemeler; notes2.md Faz 2, sahipsiz parçalar)
+#  missing:    hiç parçası yok
+#  complete:   parça sayısı chunk_total'a eşit
+#  incomplete: parça sayısı chunk_total'dan az; yükleme yarıda kalmış (uygulama yükleme sırasında öldürüldü)
+#  legacy:     parçalarda chunk_total yok (bu alandan önce yüklenmiş); tam mı bilinemez, tam sayılır
+#found: DB'deki parça sayısı, total: beklenen sayı (legacy ve missing'de None)
+def document_status(file_hash, db=None):
+    db = db if db is not None else get_db()
+    metadatas = db.get(where={"pdf_hash": file_hash}, include=["metadatas"])["metadatas"]
+    found = len(metadatas)
+    if found == 0:
+        return {"state": "missing", "found": 0, "total": None}
+    totals = {meta.get("chunk_total") for meta in metadatas}
+    if None in totals:
+        return {"state": "legacy", "found": found, "total": None}
+    total = max(totals)
+    return {"state": "incomplete" if found < total else "complete", "found": found, "total": total}
 
 #Bir dokümanın tüm chunk'larını DB'den siler, silinen chunk sayısını döner
 #source_file ile arıyoruz: aynı adla farklı içerik yüklenemediği için (409) ad tek bir PDF'i gösteriyor
@@ -104,6 +117,8 @@ def prepare_chunks(pdf_path, strategy=None):
     chunk_ids = []
 
     #Metadata ataması
+    #chunk_total: PDF'in toplam parça sayısı; DB'deki parça sayısı bundan azsa yükleme yarıda kalmıştır (notes2.md Faz 2,
+    #sahipsiz parçalar). Bu alandan önce yüklenmiş parçalarda yok. Metadata vektöre girmez, aramayı etkilemez
     for idx, chunk in enumerate(chunks):
         if "page" in chunk.metadata:
             page_num_of_chunk = int(chunk.metadata["page"]) + 1
@@ -118,6 +133,7 @@ def prepare_chunks(pdf_path, strategy=None):
         chunk.metadata["source_file"] = pdf_name
         chunk.metadata["page_number"] = page_num_of_chunk
         chunk.metadata["pdf_hash"] = pdf_hash
+        chunk.metadata["chunk_total"] = len(chunks)
 
         final_chunks.append(chunk)
         chunk_ids.append(unique_id_of_chunk)

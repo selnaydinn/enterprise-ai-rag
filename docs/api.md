@@ -105,7 +105,7 @@ digits and `-`).
 | `401` | No session, or the session cookie is invalid or expired (the frontend shows the login screen). `/auth/login`: wrong password |
 | `403` | Deletion disabled |
 | `404` | Document not found (`DELETE /documents/{name}`, `GET /static-pdfs/{name}`) |
-| `409` | Duplicate upload (same content under another name, or same name with different content) |
+| `409` | Duplicate upload (same content under another name, or same name with different content). A PDF whose earlier upload was cut off (fewer chunks in the database than its `chunk_total`) is not a duplicate: its chunks are deleted and it is processed again |
 | `413` | File larger than 20 MB |
 | `422` | Empty or too long question. `/upload-pdf/`: the file is a PDF but cannot be processed (corrupted, encrypted, or no extractable text such as a scanned PDF) |
 | `429` | `/query/`: token limit reached (the message includes the reset time). Only the app's own limit; the frontend locks the input on `429`. `/auth/login`: too many wrong passwords (the message includes the minutes left) |

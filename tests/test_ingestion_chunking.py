@@ -73,6 +73,13 @@ class PrepareAndProcessTests(unittest.TestCase):
         self.assertEqual((first.metadata["source_file"], first.metadata["page_number"], first.metadata["pdf_hash"]), ("rapor.pdf", 1, "deadbeef"))
         self.assertEqual(last.metadata["page_number"], 5)
 
+    #Her parça PDF'in toplam parça sayısını taşır; yarım kalan yükleme DB'deki sayıyla karşılaştırılarak bulunur
+    def test_every_chunk_carries_chunk_total(self):
+        prepared = self.prepare()
+        total = len(prepared["chunks"])
+        self.assertGreater(total, 1)
+        self.assertEqual({c.metadata["chunk_total"] for c in prepared["chunks"]}, {total})
+
     def test_strategy_defaults_to_settings(self):
         with mock.patch.object(self.ingestion, "split_pages", wraps=self.ingestion.split_pages) as split:
             self.prepare()
@@ -128,7 +135,11 @@ class FakeDb:
     def get(self, where, include=None, limit=None):
         (key, value), = where.items()
         ids = [i for i, meta in self.records.items() if meta.get(key) == value]
-        return {"ids": ids[:limit] if limit else ids}
+        ids = ids[:limit] if limit else ids
+        result = {"ids": ids}
+        if include and "metadatas" in include:
+            result["metadatas"] = [dict(self.records[i]) for i in ids]
+        return result
 
     def delete(self, ids):
         for chunk_id in ids:
@@ -138,8 +149,8 @@ class FakeDb:
         return {meta["pdf_hash"] for meta in self.records.values()}
 
 
-#Yarıda kalan yükleme (notes.md #45): geri alma yalnızca o PDF'in chunk'larını siler, PDF yeniden yüklenebilir
-class RollbackTests(unittest.TestCase):
+#Gerçek process_pdf ile sahte DB'ye yazan testlerin ortak hazırlığı (PDF okuma ve hash sahte)
+class ProcessIntoFakeDb(unittest.TestCase):
 
     def setUp(self):
         self.ingestion = import_ingestion()
@@ -154,6 +165,10 @@ class RollbackTests(unittest.TestCase):
         self.hash.return_value = pdf_hash
         with self.assertLogs("EnterpriseAI", level="INFO"):
             return self.ingestion.process_pdf(f"{pdf_hash}.pdf", db=db, strategy="page")
+
+
+#Yarıda kalan yükleme (notes.md #45): geri alma yalnızca o PDF'in chunk'larını siler, PDF yeniden yüklenebilir
+class RollbackTests(ProcessIntoFakeDb):
 
     def test_rollback_after_failed_batch_removes_only_that_pdf(self):
         db = FakeDb()
@@ -170,8 +185,7 @@ class RollbackTests(unittest.TestCase):
         self.assertEqual(db.records, other)
 
         #Duplikasyon kontrolü artık reddetmiyor; aynı PDF baştan yüklenebilir
-        with mock.patch.object(self.ingestion, "get_db", return_value=db):
-            self.assertFalse(self.ingestion.is_file_already_processed("deadbeef"))
+        self.assertEqual(self.ingestion.document_status("deadbeef", db=db)["state"], "missing")
         db.fail_on_call = None
         result = self.process(db, "deadbeef")
         self.assertEqual(len(db.records), len(other) + result["total_chunks"])
@@ -194,6 +208,56 @@ class RollbackTests(unittest.TestCase):
             self.assertEqual(self.ingestion.delete_chunks_by_hash("deadbeef"), 1)
         app_db.get.assert_called_once_with(where={"pdf_hash": "deadbeef"}, include=[])
         app_db.delete.assert_called_once_with(ids=["h_deadbeef_p1_c0"])
+
+
+#PDF'in DB'deki durumu: yarım kalan yükleme, chunk_total ile parça sayısı karşılaştırılarak bulunur
+#(notes2.md Faz 2, sahipsiz parçalar). PDF'ler process_pdf ile sahte DB'ye gerçekten yazılıyor
+class DocumentStatusTests(ProcessIntoFakeDb):
+
+    def test_missing(self):
+        self.assertEqual(self.ingestion.document_status("deadbeef", db=FakeDb()),
+                         {"state": "missing", "found": 0, "total": None})
+
+    def test_complete_after_full_upload(self):
+        db = FakeDb()
+        result = self.process(db, "deadbeef")
+        total = result["total_chunks"]
+        self.assertEqual(self.ingestion.document_status("deadbeef", db=db),
+                         {"state": "complete", "found": total, "total": total})
+
+    #Uygulama ikinci paketten önce öldürülmüş gibi: ilk 32 parça DB'de kaldı, geri alma çalışmadı
+    def test_incomplete_when_upload_stopped_midway(self):
+        db = FakeDb(fail_on_call=2)
+        with self.assertRaises(RuntimeError):
+            self.process(db, "deadbeef")
+        status = self.ingestion.document_status("deadbeef", db=db)
+        self.assertEqual(status["state"], "incomplete")
+        self.assertEqual(status["found"], 32)
+        self.assertGreater(status["total"], 32)
+
+    #chunk_total alanından önce yüklenmiş parçalar: tam mı bilinemez
+    def test_legacy_chunks_without_total(self):
+        db = FakeDb()
+        self.process(db, "deadbeef")
+        for meta in db.records.values():
+            meta.pop("chunk_total")
+        status = self.ingestion.document_status("deadbeef", db=db)
+        self.assertEqual(status["state"], "legacy")
+        self.assertIsNone(status["total"])
+
+    #Başka PDF'lerin parçaları sayılmaz
+    def test_other_pdfs_are_not_counted(self):
+        db = FakeDb()
+        self.process(db, "eskipdf1")
+        self.assertEqual(self.ingestion.document_status("deadbeef", db=db)["state"], "missing")
+
+    #db verilmezse uygulamanın DB'si
+    def test_without_db_uses_app_db(self):
+        app_db = mock.Mock()
+        app_db.get.return_value = {"ids": ["a"], "metadatas": [{"pdf_hash": "deadbeef", "chunk_total": 1}]}
+        with mock.patch.object(self.ingestion, "get_db", return_value=app_db):
+            self.assertEqual(self.ingestion.document_status("deadbeef")["state"], "complete")
+        app_db.get.assert_called_once_with(where={"pdf_hash": "deadbeef"}, include=["metadatas"])
 
 
 if __name__ == "__main__":

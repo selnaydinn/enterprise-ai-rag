@@ -205,7 +205,7 @@ def verify(partial: Path, prepared: list, embeddings, collection_name: str, quer
             present = sorted(i for i in want if i in got)
             sample = present[:: max(1, len(present) // CONSISTENCY_SAMPLE_SIZE)][:CONSISTENCY_SAMPLE_SIZE]
             fresh = embeddings.embed_documents([want[i][0] for i in sample]) if sample else []
-            fields = ("source_file", "page_number", "pdf_hash")
+            fields = ("source_file", "page_number", "pdf_hash", "chunk_total")
             count = col.count()
             result = {
                 "count": count,
