@@ -12,9 +12,20 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir torch==2.12.1 --index-url https://download.pytorch.org/whl/cpu
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Kodu imaja kopyalıyoruz; veri (DB, PDF'ler, usage.db), .env ve venv .dockerignore ile dışarıda kalır
+# Uygulamayı çalıştıracak sınırlı kullanıcı (root değil; notes2.md Faz 2, 4d). uid 1000: Linux sunucuda veri
+# klasörlerinin sahibi de bu numara yapılır
+RUN useradd --create-home --uid 1000 appuser
+
+# Kodu imaja kopyalıyoruz; veri (DB, PDF'ler, data/usage.db), .env ve venv .dockerignore ile dışarıda kalır
 # Veriler docker-compose.yml'de dışarıdan bağlanıyor
+# Kod root'a ait kalır: appuser kodu okuyabilir ama değiştiremez (en az yetki)
 COPY . .
+
+# appuser'ın yazabildiği iki klasör (imajın içinde); dışarıdan bağlanan klasörlerin izinleri host'tan gelir
+#   /app/data: usage.db (SQLite yanına geçici dosya yazdığı için tek dosya değil klasör)
+#   /models:   model önbelleği; boş bir hf_cache volume'u bu sahiplikle başlar (production'da salt okunur bağlanır)
+RUN mkdir -p /app/data /models && chown appuser:appuser /app/data /models
+USER appuser
 
 # FastAPI sunucumuzun dış dünyaya açılacağı kapı
 EXPOSE 8000

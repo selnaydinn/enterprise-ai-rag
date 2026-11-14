@@ -12,7 +12,7 @@ Copy `.env.example` to `.env` and fill in the values. All settings are defined i
 | `CHROMA_DIR` | `chroma_db_normalization` | ChromaDB folder, relative to the project root |
 | `TOKEN_LIMIT` | `10000` | Global token limit per window |
 | `TOKEN_WINDOW_HOURS` | `6` | Window length in hours (must divide 24) |
-| `USAGE_DB_PATH` | `usage.db` | SQLite file for the token counter (created automatically) |
+| `USAGE_DB_PATH` | `data/usage.db` | SQLite file for the token counter (file and folder created automatically). In Docker it is always `data/usage.db` (the `data/` folder is mounted) |
 | `LLM_MODEL` | `gemini-2.5-flash` | Gemini model |
 | `LLM_TEMPERATURE` | `0.2` | Gemini temperature |
 | `LOG_LEVEL` | `INFO` | `DEBUG`, `INFO`, `WARNING`, `ERROR` or `CRITICAL` |
@@ -147,8 +147,8 @@ There are two compose files:
 
 | File | Role |
 |---|---|
-| `docker-compose.yml` | Production base: the code is inside the image, no `--reload`, JSON logs. Only the data is mounted from the project folder: the database (`CHROMA_DIR`), `uploaded_pdfs/` and `usage.db` (`USAGE_DB_PATH`), plus the `hf_cache` model volume |
-| `docker-compose.override.yml` | Development additions: the whole project folder mounted at `/app`, `--reload`, text logs |
+| `docker-compose.yml` | Production base: the code is inside the image, no `--reload`, JSON logs, runs as the non-root user `appuser`. Only the data is mounted from the project folder: the database (`CHROMA_DIR`), `uploaded_pdfs/` and `data/` (token counter), plus the `hf_cache` model volume **read-only** |
+| `docker-compose.override.yml` | Development additions: the whole project folder mounted at `/app`, `--reload`, text logs, `hf_cache` writable (for downloading models) |
 
 `docker compose up` reads both files automatically, so day-to-day use runs the development setup. To run the
 production setup, name the base file explicitly (the override is then not read):
@@ -159,10 +159,18 @@ docker compose -f docker-compose.yml up -d --build      # production (code from 
 docker compose config                                   # show the merged configuration
 ```
 
-The data mounts use `CHROMA_DIR` and `USAGE_DB_PATH` from `.env` (Compose reads `.env` for `${...}` in the compose
-file too), so changing `CHROMA_DIR` also changes the mount. Only relative paths are supported there. `usage.db` is
-mounted as a single file: if it does not exist on the host, Docker creates a directory with that name instead, so create
-it first (start the app once without Docker, or create an empty file).
+The database mount uses `CHROMA_DIR` from `.env` (Compose reads `.env` for `${...}` in the compose file too), so
+changing `CHROMA_DIR` also changes the mount. Only relative paths are supported there. The token counter is mounted as
+the `data/` folder, not as a single file, because SQLite writes a temporary file next to it.
+
+**Non-root user.** The app runs as `appuser` (uid 1000). It can read the code but not change it, and writes only to
+the mounted data folders (and to the model cache in the development setup). On Windows, Docker Desktop lets it write to
+the mounted project folders. On a Linux server the data folders must be owned by uid 1000. The model volume created
+before this change was owned by root; give it to `appuser` once (files are not deleted or downloaded again):
+
+```bash
+docker run --rm -v enterprise_ai_hf_cache:/models alpine chown -R 1000:1000 /models
+```
 
 **Shutdown.** On `docker compose stop`/`down` the app stops accepting requests and waits up to 110 s for running
 questions and uploads to finish (`--timeout-graceful-shutdown`); Docker waits 120 s (`stop_grace_period`) before

@@ -120,6 +120,6 @@ documents contain no direct information; none got an invented answer. Details in
   miss a near chunk ([notes.md](notes.md) item 41). The evaluation uses an exact ranking, so its numbers are not
   affected.
 - **Docker:** `docker compose up` runs the development setup (`--reload`, whole project mounted); the production base
-  (`docker compose -f docker-compose.yml up`, code in the image) still runs as root
+  (`docker compose -f docker-compose.yml up`, code in the image, non-root user, read-only models)
   ([configuration.md](docs/configuration.md#docker)). The backend port is published on `127.0.0.1` only, so it is not
   reachable from other devices on the network.

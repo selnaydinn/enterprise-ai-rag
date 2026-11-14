@@ -7,6 +7,8 @@ __pycache__/
 chroma_db*/
 uploaded_pdfs/
 usage.db
+#Token sayacı (USAGE_DB_PATH=data/usage.db); Docker bu klasörü bağlıyor
+data/
 *.pyc
 *.pyo
 *.pyd

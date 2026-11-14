@@ -1,6 +1,7 @@
 import sqlite3
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from core.settings import get_settings
 
 #Token kullanımı şimdilik global (kullanıcı bazlı sınır auth ile gelecek); restart'ta kaybolmasın diye SQLite'ta tutuluyor
@@ -16,8 +17,10 @@ TURKEY_TZ = timezone(timedelta(hours=3))
 
 
 #sqlite3'ün "with conn" bloğu commit eder ama bağlantıyı kapatmaz; kapatmayı biz yapıyoruz
+#Klasör yoksa (ilk kurulum, data/) oluşturulur; SQLite yalnızca dosyayı oluşturabiliyor
 @contextmanager
 def _connect():
+    Path(USAGE_DB_PATH).parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(USAGE_DB_PATH, timeout=10)
     try:
         with conn:

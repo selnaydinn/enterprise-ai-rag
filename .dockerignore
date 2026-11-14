@@ -23,6 +23,7 @@ rag-frontend/
 chroma_db*/
 uploaded_pdfs/
 usage.db
+data/
 
 # Değerlendirme çıktıları ve notlar
 eval/results/

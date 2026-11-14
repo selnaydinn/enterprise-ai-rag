@@ -24,7 +24,7 @@ Ayrıntılar (dosyalar, riskler, ek RAM) "Yol haritası" tablosunda; gerekçeler
 - ✅ Docker healthcheck (`Dockerfile` HEALTHCHECK: 30 sn aralık, 120 sn açılış payı, 3 deneme; imaj yeniden derlenince geçerli)
 - ✅ Graceful shutdown: `stop_grace_period: 120s` (compose) + `--timeout-graceful-shutdown 110` (Dockerfile ve dev override). Docker varsayılanı 10 sn'ydi; uzun soru/upload zorla kesiliyor ve kesilen upload'da geri alma çalışamıyordu
 - ❌ Sahipsiz parçaları temizleme: 120 sn'yi aşan bir upload sırasında kapatılırsa veya süreç zorla öldürülürse (bellek bitmesi, elektrik) geri alma çalışmaz; DB'de diskteki PDF'lerle eşleşmeyen parçalar kalabilir. Fikir: açılışta (veya bir script/endpoint ile) DB'deki `source_file`/`pdf_hash` listesini `uploaded_pdfs/` ile karşılaştırıp eşleşmeyenleri raporlamak, onayla silmek (`delete_chunks_by_hash`). Diskte kalan ama DB'de olmayan PDF'ler de raporlanır. Otomatik silme yapılmaz (önce rapor)
-- ❌ Container'da root olmayan kullanıcı
+- ✅ Container'da root olmayan kullanıcı (`appuser`, uid 1000; kod root'a ait, yalnızca okunur). `usage.db` → `data/usage.db` (klasör bağlanıyor; varsayılan yol da bu). Production'da `hf_cache` salt okunur (`:ro`), geliştirmede yazılabilir. Eski volume için bir kerelik `chown 1000` (docs/configuration.md)
 - ❌ `version` alanını silme, sabit `dns` ayarını gözden geçirme
 - ❌ `.dockerignore`'a `notes2.md`, `docs/`, `tests/`, `eval/` eklemek: imaj açılıp okunabilir, çalışma için gerekmeyen iç notlar ve setler imaja girmesin. İstisna: `scripts/time_retrieval.py` soruları `eval/golden_set.jsonl`'den okuyor; o dosyayı bırakmak veya ölçümü host'tan yapmak 4. adımda netleşecek
 - ❌ Compose bellek sınırını sanal makineden küçük yapmak (~2.5 GB; bugünkü 3000M, 3 GB'lık VM'de anlamsız)
@@ -78,6 +78,7 @@ Ayrıntılar (dosyalar, riskler, ek RAM) "Yol haritası" tablosunda; gerekçeler
 - ❌ İmajı GHCR'a push eden workflow
 - ❌ Sunucu kurulumu
 - ❌ Veriyi sunucuya kopyalama
+- ❌ Sunucuda veri klasörlerinin (DB, `uploaded_pdfs/`, `data/`) sahibini uid 1000 (`appuser`) yapmak; Linux'ta Windows'taki gibi gevşek izin yok, yoksa uygulama yazamaz
 - ❌ Yedekleme
 
 **Faz R: Retrieval kalitesi (notes.md #13)**

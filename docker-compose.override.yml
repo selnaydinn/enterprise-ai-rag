@@ -14,6 +14,9 @@ services:
     volumes:
       #Bütün proje klasörü: kod değişiklikleri imajı yeniden derlemeden gelir; scripts/build_db.py DB'yi proje klasörüne yazar
       - .:/app
+      #Model önbelleği yazılabilir (tabanda salt okunur): ilk kurulumda ve model değişince modeller buraya iner
+      #(build_db.py --allow-download). Aynı hedef (/models) olduğu için tabandaki :ro bağlantının yerine geçer
+      - hf_cache:/models
     environment:
       #Göz için okunaklı satırlar
       - LOG_FORMAT=text

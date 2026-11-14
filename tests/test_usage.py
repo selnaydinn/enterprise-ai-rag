@@ -37,6 +37,14 @@ class TempUsageDb(unittest.TestCase):
 
 class UsageTests(TempUsageDb):
 
+    #İlk kurulumda data/ klasörü yok; sayaç ilk kullanımda klasörü de oluşturur
+    def test_missing_folder_is_created(self):
+        path = self.root / "data" / "usage.db"
+        with mock.patch.object(usage, "USAGE_DB_PATH", path):
+            usage.record_usage(5, now=at(10))
+            self.assertEqual(usage.get_status(now=at(10))["used"], 5)
+        self.assertTrue(path.is_file())
+
     def test_window_follows_turkey_time(self):
         self.assertEqual(usage.window_bounds(at(13, 45)), (at(12), at(18)))
         self.assertEqual(usage.window_bounds(at(5, 59)), (at(0), at(6)))

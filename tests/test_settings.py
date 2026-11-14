@@ -24,6 +24,8 @@ class SettingsTests(unittest.TestCase):
         self.assertIsNone(s.gemini_api_key)
         self.assertEqual(s.cors_origins, ["http://localhost:3000", "http://127.0.0.1:3000"])
         self.assertEqual(s.chroma_dir, PROJECT_ROOT / "chroma_db_normalization")
+        #Docker data/ klasörünü bağlıyor; native ve Docker aynı dosyayı kullansın
+        self.assertEqual(s.usage_db_path, PROJECT_ROOT / "data" / "usage.db")
         self.assertEqual((s.token_limit, s.token_window_hours), (10000, 6))
         self.assertEqual((s.retrieval_k, s.score_threshold), (3, 0.72))
         self.assertEqual(s.max_upload_bytes, 20 * 1024 * 1024)

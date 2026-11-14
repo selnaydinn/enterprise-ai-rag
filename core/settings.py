@@ -26,7 +26,8 @@ class Settings(BaseSettings):
     chroma_dir: Path = Path("chroma_db_normalization")
     token_limit: int = 10000
     token_window_hours: int = 6
-    usage_db_path: Path = Path("usage.db")
+    #data/ klasöründe: Docker'da bu klasör bağlanıyor (SQLite dosyanın yanına geçici dosya yazar, klasör yazılabilir olmalı)
+    usage_db_path: Path = Path("data/usage.db")
     llm_model: str = "gemini-2.5-flash"
     llm_temperature: float = 0.2
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
