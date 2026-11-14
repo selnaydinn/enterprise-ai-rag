@@ -1,5 +1,3 @@
-version: '3.8'
-
 #PRODUCTION TABANI (notes2.md Faz 2)
 #Kod imajın içinde (Dockerfile COPY); yalnızca değişen veriler dışarıdan bağlanır. --reload yok, loglar JSON
 #Geliştirme ayarları docker-compose.override.yml'de: "docker compose up" ikisini otomatik birleştirir (--reload, .:/app)
@@ -55,17 +53,14 @@ services:
       #Container içinde token sayacı her zaman bağlanan data/ klasöründe (.env'deki değerin önüne geçer)
       - USAGE_DB_PATH=data/usage.db
 
-    #Gemini API bağlantı sorunlarını ve retrying hatalarını çözen DNS ayarı
-    dns:
-      - 8.8.8.8
-      - 8.8.4.4
-
-    # Bilgisayarının kilitlenmesini engelleyen 3 GB RAM ve işlemci sınırı:
+    # Bilgisayarının kilitlenmesini engelleyen RAM ve işlemci sınırı:
     deploy:
       resources:
         limits:
           cpus: '2.0'       # İşlemcinin (Ryzen) en fazla 2 çekirdeğini kullanabilir
-          memory: 3000M     # RAM kullanımı 3000 MB'ı (3 GB) kesinlikle geçemez
+          #Ölçülen en yüksek kullanım 1.88 GB (soru + 34 sayfalık PDF yükleme, 2026-11-14); ~600 MB pay
+          #Docker'ın WSL belleğinden (3 GB, .wslconfig) küçük olmalı, yoksa sınır işe yaramaz
+          memory: 2500M
 
 #Docker'ın yönettiği kalıcı alan (proje klasöründe görünmez)
 volumes:

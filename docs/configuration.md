@@ -205,5 +205,7 @@ host (run this command with both compose files, as above, not with `-f docker-co
 `CHROMA_DIR=chroma_db_new` in `.env` and start the app. If only a model changed and no database needs to be built, set
 `HF_HUB_OFFLINE=0` in `docker-compose.yml`, start once, then set it back to `1`.
 
-The container is limited to 3 GB RAM and 2 CPUs. With both models loaded the app uses about 1.6 GB (about 1.85 GB
-while embedding an upload; measured locally), and reranking is slower than on an unrestricted CPU.
+The container is limited to 2.5 GB RAM and 2 CPUs. With both models loaded the app uses about 1.2–1.6 GB (at most
+about 1.9 GB while answering and embedding an upload; measured locally), and reranking is slower than on an
+unrestricted CPU. The memory limit must stay below the memory of Docker's VM (on Windows, `memory` in `.wslconfig`),
+otherwise it has no effect.

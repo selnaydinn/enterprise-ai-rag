@@ -25,10 +25,13 @@ Ayrıntılar (dosyalar, riskler, ek RAM) "Yol haritası" tablosunda; gerekçeler
 - ✅ Graceful shutdown: `stop_grace_period: 120s` (compose) + `--timeout-graceful-shutdown 110` (Dockerfile ve dev override). Docker varsayılanı 10 sn'ydi; uzun soru/upload zorla kesiliyor ve kesilen upload'da geri alma çalışamıyordu
 - ❌ Sahipsiz parçaları temizleme: 120 sn'yi aşan bir upload sırasında kapatılırsa veya süreç zorla öldürülürse (bellek bitmesi, elektrik) geri alma çalışmaz; DB'de diskteki PDF'lerle eşleşmeyen parçalar kalabilir. Fikir: açılışta (veya bir script/endpoint ile) DB'deki `source_file`/`pdf_hash` listesini `uploaded_pdfs/` ile karşılaştırıp eşleşmeyenleri raporlamak, onayla silmek (`delete_chunks_by_hash`). Diskte kalan ama DB'de olmayan PDF'ler de raporlanır. Otomatik silme yapılmaz (önce rapor)
 - ✅ Container'da root olmayan kullanıcı (`appuser`, uid 1000; kod root'a ait, yalnızca okunur). `usage.db` → `data/usage.db` (klasör bağlanıyor; varsayılan yol da bu). Production'da `hf_cache` salt okunur (`:ro`), geliştirmede yazılabilir. Eski volume için bir kerelik `chown 1000` (docs/configuration.md)
-- ❌ `version` alanını silme, sabit `dns` ayarını gözden geçirme
-- ❌ `.dockerignore`'a `notes2.md`, `docs/`, `tests/`, `eval/` eklemek: imaj açılıp okunabilir, çalışma için gerekmeyen iç notlar ve setler imaja girmesin. İstisna: `scripts/time_retrieval.py` soruları `eval/golden_set.jsonl`'den okuyor; o dosyayı bırakmak veya ölçümü host'tan yapmak 4. adımda netleşecek
-- ❌ Compose bellek sınırını sanal makineden küçük yapmak (~2.5 GB; bugünkü 3000M, 3 GB'lık VM'de anlamsız)
-- ❌ Sonra tekrar ölçüm (`--reload` kalkınca reranker); CPU sınırı (`cpus: 3` + `OMP_NUM_THREADS=3`) bu ölçüme göre. DB'yi volume'a taşımaya gerek yok (§17)
+- ✅ `version` alanı silindi; sabit `dns` (8.8.8.8) kaldırıldı: Docker'ın kendi DNS'iyle Gemini cevap verdi (2026-11-14). Sabit DNS, Google DNS'ini engelleyen bir sunucuda Gemini'yi tamamen keserdi
+- ✅ `.dockerignore`: `tests/`, `docs/`, `.github/`, notlar, `requirements-dev.txt`, `ruff.toml` imaja girmiyor; `eval/`'den yalnızca `golden_set.jsonl` (time_retrieval production container'ında soruları oradan okuyor). Eski `usage.db` satırı silindi (`.gitignore`'dan da)
+- ✅ Compose bellek sınırı 2500M: ölçülen en yüksek 1.88 GB (soru + 34 sayfalık PDF yükleme), boşta 1.22 GB. Eski 3000M, 2.84 GB'lık VM'den büyük olduğu için işe yaramıyordu
+- ✅ Saat dilimi (TZ) eklenmedi, gerek yok: token sayacı Türkiye saatini kendi hesaplıyor (`services/usage.py`), production JSON logları bilerek UTC. Yalnızca geliştirmedeki düz metin logların saati UTC görünüyor
+- ❌ Sonra tekrar ölçüm (`--reload` kalkınca reranker); CPU sınırı (`cpus: 3` + `OMP_NUM_THREADS=3`) bu ölçüme göre. DB'yi volume'a taşımaya gerek yok (§17). 4e testinde (production, 2026-11-14) görülen iki yavaşlık da burada incelenecek:
+  - Arama 4.7–6.1 sn (3 GB'a geçince dev modda 0.4–0.6 sn ölçülmüştü; swap yalnızca 60 MB, sebep bellek gibi görünmüyor)
+  - 34 sayfa / 159 parçalık PDF yüklemesi 302 sn. Kapatma bekleme süresi (120 sn) bu hızda büyük PDF'lere yetmiyor: yükleme sırasında kapatılırsa geri alma çalışmaz, sahipsiz parçalar kalabilir. Süre kararı ölçümden sonra tekrar ele alınacak
 
 **Faz L: Sahte LLM modu ve yük testi (§16)**
 - ❌ `LLM_MODE=fake`: Gemini yerine gecikmeli sahte cevap, isteğe bağlı sahte hata
@@ -243,7 +246,7 @@ Next.js (host'ta, compose'da değil) ──fetch──► FastAPI (tek container
 - `profiles`: `monitoring` (prometheus, grafana), `tracing` (jaeger). Varsayılan açılışta ek RAM harcanmaz.
 - Opsiyonel `frontend` servisi (Next.js standalone build, ~150 MB RAM). `NEXT_PUBLIC_API_URL` build-time olduğu için build arg gerekir.
 - Ayrıca: Dockerfile'da non-root kullanıcı (faydalı), `version:` alanının kaldırılması (deprecated), `container_name` sabit kalır.
-- Kaynak limitleri (2 CPU / 3 GB) korunur. Sabit `dns` ayarı Gemini bağlantı sorunu için eklenmişti; kaldırılmadan önce gerekip gerekmediği denenecek.
+- Kaynak limitleri (2 CPU / 3 GB) korunur. Sabit `dns` ayarı Gemini bağlantı sorunu için eklenmişti; kaldırılmadan önce gerekip gerekmediği denenecek. (Yapıldı: dns kaldırıldı, bellek 2500M; yukarıdaki Faz 2 listesi.)
 - Port zaten yalnızca `127.0.0.1`'e açık.
 
 ## 12. Güvenlik ve veri gizliliği
