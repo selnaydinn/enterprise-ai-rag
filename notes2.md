@@ -31,7 +31,11 @@ Ayrıntılar (dosyalar, riskler, ek RAM) "Yol haritası" tablosunda; gerekçeler
 - ✅ Saat dilimi (TZ) eklenmedi, gerek yok: token sayacı Türkiye saatini kendi hesaplıyor (`services/usage.py`), production JSON logları bilerek UTC. Yalnızca geliştirmedeki düz metin logların saati UTC görünüyor
 - ❌ Sonra tekrar ölçüm (`--reload` kalkınca reranker); CPU sınırı (`cpus: 3` + `OMP_NUM_THREADS=3`) bu ölçüme göre. DB'yi volume'a taşımaya gerek yok (§17). 4e testinde (production, 2026-11-14) görülen iki yavaşlık da burada incelenecek:
   - Arama 4.7–6.1 sn (3 GB'a geçince dev modda 0.4–0.6 sn ölçülmüştü; swap yalnızca 60 MB, sebep bellek gibi görünmüyor)
-  - 34 sayfa / 159 parçalık PDF yüklemesi 302 sn. Kapatma bekleme süresi (120 sn) bu hızda büyük PDF'lere yetmiyor: yükleme sırasında kapatılırsa geri alma çalışmaz, sahipsiz parçalar kalabilir. Süre kararı ölçümden sonra tekrar ele alınacak
+  Arama docker ve dockersız çalıştırıldı. Dockersız hızlı çalışıyor. Docker kullanınca ard arda sorularda hızlı ama 1-2 dk beklenince hız 4-5 snye düşüyor. Nedeni windows köprüsü mü diye bakılması için db linux tarafına volume olarak verildi. Ama sonuç değişmedi.
+
+  - 34 sayfa / 159 parçalık PDF yüklemesi 302 sn. Kapatma bekleme süresi (120 sn) bu hızda büyük PDF'lere yetmiyor: yükleme sırasında kapatılırsa geri alma çalışmaz, sahipsiz parçalar kalabilir. Süre kararı ölçümden sonra tekrar ele alınacak.  
+
+  AÇIK MADDELER SUNUCUDA BAKILACAK.
 
 **Faz L: Sahte LLM modu ve yük testi (§16)**
 - ❌ `LLM_MODE=fake`: Gemini yerine gecikmeli sahte cevap, isteğe bağlı sahte hata

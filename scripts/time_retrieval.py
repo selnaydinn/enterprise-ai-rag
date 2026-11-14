@@ -9,6 +9,10 @@
 #  python scripts/time_retrieval.py                               (Windows, Docker'sız)
 #  docker exec meb_rag_backend python scripts/time_retrieval.py   (container içinde)
 #  python scripts/time_retrieval.py --questions 10 --rounds 5
+#  python scripts/time_retrieval.py --questions 3 --rounds 1 --pause 180   (boşta bekleme etkisi, ~10 dk sürer)
+#
+#--pause: her sorudan önce verilen süre beklenir, soru bir kez "bekledikten sonra" bir kez de hemen arkasından
+#sorulur; iki grup ayrı raporlanır (uygulamada birkaç dakika boşta kalınca ilk soru yavaşlıyordu, notes2.md Faz 2)
 #
 #Başka bir DB'yi (ör. bir kopyayı) ölçmek için CHROMA_DIR ortam değişkeni verilir; .env'deki değerin önüne geçer
 
@@ -49,6 +53,8 @@ def main():
     parser = argparse.ArgumentParser(description="Arama ve reranker süresini ölçer (Gemini çağrılmaz).")
     parser.add_argument("--questions", type=int, default=5, help="Golden set'ten kaç soru (varsayılan 5)")
     parser.add_argument("--rounds", type=int, default=3, help="Her soru kaç kez (varsayılan 3)")
+    parser.add_argument("--pause", type=float, default=0,
+                        help="Her sorudan önce kaç sn beklensin; verilirse soru hemen arkasından bir kez daha sorulur (varsayılan 0)")
     args = parser.parse_args()
 
     #search_in_db her soruyu INFO'da logluyor; ölçüm çıktısı kalabalıklaşmasın
@@ -69,6 +75,9 @@ def main():
     print(f"  DB:                {settings.chroma_dir}")
     print(f"  Reranker:          {'açık' if settings.reranker_enabled else 'kapalı'}")
     print(f"  Ölçüm:             {len(questions)} soru × {args.rounds} tur")
+    if args.pause:
+        total_minutes = len(questions) * args.rounds * args.pause / 60
+        print(f"  Bekleme:           her sorudan önce {args.pause:.0f} sn (toplam ~{total_minutes:.0f} dk)")
     print()
 
     #Model yükleme ve ısınma ayrı ölçülür; uygulama bunları açılışta yapıyor, kullanıcı sorusunun süresine girmez
@@ -82,30 +91,47 @@ def main():
     warm_up()
     warm_up_seconds = time.perf_counter() - step
 
-    search_times, rerank_times, total_times = [], [], []
+    #Her grup: arama, reranker, toplam süre listeleri
+    def new_group():
+        return {"search": [], "rerank": [], "total": []}
+
+    #services/query.py answer_question'daki sırayla: arama → e5 barajı → reranker (Gemini'den önce durur)
+    def measure(question, group):
+        start = time.perf_counter()
+        matched = search_in_db(question)
+        group["search"].append(time.perf_counter() - start)
+
+        passed = [(doc, score) for doc, score in matched if score >= settings.score_threshold]
+        #Uygulamadaki gibi: reranker yalnızca açıkken ve barajı geçen parça varken çalışır
+        if settings.reranker_enabled and passed:
+            step = time.perf_counter()
+            rerank_chunks(question, passed)
+            group["rerank"].append(time.perf_counter() - step)
+
+        group["total"].append(time.perf_counter() - start)
+
+    after_pause, right_after = new_group(), new_group()
     for _ in range(args.rounds):
         for question in questions:
-            #services/query.py answer_question'daki sırayla: arama → e5 barajı → reranker (Gemini'den önce durur)
-            start = time.perf_counter()
-            matched = search_in_db(question)
-            search_seconds = time.perf_counter() - start
+            if args.pause:
+                time.sleep(args.pause)
+                measure(question, after_pause)
+            measure(question, right_after)
 
-            passed = [(doc, score) for doc, score in matched if score >= settings.score_threshold]
-            #Uygulamadaki gibi: reranker yalnızca açıkken ve barajı geçen parça varken çalışır
-            if settings.reranker_enabled and passed:
-                step = time.perf_counter()
-                rerank_chunks(question, passed)
-                rerank_times.append(time.perf_counter() - step)
-
-            search_times.append(search_seconds)
-            total_times.append(time.perf_counter() - start)
+    def print_group(title, group):
+        print(f"  {title}")
+        print(f"    Arama:             {summarize(group['search'])}")
+        print(f"    Reranker:          {summarize(group['rerank'])}")
+        print(f"    Arama + reranker:  {summarize(group['total'])}")
 
     print("Sonuç")
     print(f"  Model yükleme:     {load_seconds:.2f} sn")
     print(f"  Isınma:            {warm_up_seconds:.2f} sn")
-    print(f"  Arama:             {summarize(search_times)}")
-    print(f"  Reranker:          {summarize(rerank_times)}")
-    print(f"  Arama + reranker:  {summarize(total_times)}")
+    if args.pause:
+        print_group(f"{args.pause:.0f} sn bekledikten sonra:", after_pause)
+        print_group("Hemen arkasından (aynı soru):", right_after)
+    else:
+        print_group("Sorular arka arkaya:", right_after)
 
 
 if __name__ == "__main__":
