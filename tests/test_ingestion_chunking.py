@@ -1,5 +1,8 @@
 import importlib
+import shutil
+import tempfile
 import unittest
+from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
 
@@ -132,9 +135,13 @@ class FakeDb:
         for doc, chunk_id in zip(documents, ids):
             self.records[chunk_id] = dict(doc.metadata)
 
-    def get(self, where, include=None, limit=None):
-        (key, value), = where.items()
-        ids = [i for i, meta in self.records.items() if meta.get(key) == value]
+    #where verilmezse bütün kayıtlar (açılış kontrolü bütün metadata'yı okuyor)
+    def get(self, where=None, include=None, limit=None):
+        if where:
+            (key, value), = where.items()
+            ids = [i for i, meta in self.records.items() if meta.get(key) == value]
+        else:
+            ids = list(self.records)
         ids = ids[:limit] if limit else ids
         result = {"ids": ids}
         if include and "metadatas" in include:
@@ -258,6 +265,103 @@ class DocumentStatusTests(ProcessIntoFakeDb):
         with mock.patch.object(self.ingestion, "get_db", return_value=app_db):
             self.assertEqual(self.ingestion.document_status("deadbeef")["state"], "complete")
         app_db.get.assert_called_once_with(where={"pdf_hash": "deadbeef"}, include=["metadatas"])
+
+
+#Açılış kontrolü (main.py lifespan): yarım kalmış yükleme geri alınır, diğer tutarsızlıklar yalnızca raporlanır
+#Gerçek dosyalar geçici klasörde, DB sahte; hash'ler dosya içeriğinden (hash_bytes) gerçekten hesaplanıyor
+class CheckDocumentsTests(unittest.TestCase):
+
+    def setUp(self):
+        self.ingestion = import_ingestion()
+        self.db = FakeDb()
+        self.dir = Path(tempfile.mkdtemp(prefix="check_docs_"))
+        self.addCleanup(shutil.rmtree, self.dir, True)
+
+    #Diskte PDF dosyası; içeriği (dolayısıyla hash'i) ada göre farklı
+    def write(self, name, content=None):
+        content = content or f"%PDF-1.4 {name}".encode()
+        (self.dir / name).write_bytes(content)
+        return self.ingestion.hash_bytes(content)
+
+    #DB'ye found adet parça; total None ise chunk_total yok (eski kayıt)
+    def add_chunks(self, name, pdf_hash, found, total):
+        for i in range(found):
+            meta = {"source_file": name, "page_number": 1, "pdf_hash": pdf_hash}
+            if total is not None:
+                meta["chunk_total"] = total
+            self.db.records[f"h_{pdf_hash}_p1_c{i}"] = meta
+
+    def check(self):
+        with self.assertLogs("EnterpriseAI", level="INFO") as logs:
+            report = self.ingestion.check_documents(str(self.dir), db=self.db)
+        return report, "\n".join(logs.output)
+
+    def files(self):
+        return sorted(p.name for p in self.dir.iterdir())
+
+    def test_clean_state_logs_one_summary_line(self):
+        self.add_chunks("tam.pdf", self.write("tam.pdf"), 48, 48)
+        self.add_chunks("eski.pdf", self.write("eski.pdf"), 10, None)
+        report, output = self.check()
+        self.assertNotIn("WARNING", output)
+        self.assertIn("Doküman kontrolü: 2 doküman (1 tam, 1 eski kayıt); sorun yok.", output)
+        self.assertEqual(len(self.db.records), 58)
+        self.assertEqual(self.files(), ["eski.pdf", "tam.pdf"])
+
+    #Asıl durum: yükleme sırasında uygulama öldürüldü, 32/48 parça ve dosya kaldı
+    def test_incomplete_upload_is_rolled_back_with_its_file(self):
+        self.add_chunks("tam.pdf", self.write("tam.pdf"), 48, 48)
+        half = self.write("yarim.pdf")
+        self.add_chunks("yarim.pdf", half, 32, 48)
+        report, output = self.check()
+        self.assertIn("Yarım kalmış yükleme geri alındı: yarim.pdf (32/48 parça silindi, dosya kaldırıldı)", output)
+        self.assertEqual(self.db.hashes(), {self.ingestion.hash_bytes(b"%PDF-1.4 tam.pdf")})
+        self.assertEqual(self.files(), ["tam.pdf"])
+
+    def test_incomplete_upload_without_file_is_still_rolled_back(self):
+        self.add_chunks("yarim.pdf", "deadbeef", 32, 48)
+        _, output = self.check()
+        self.assertIn("yarim.pdf (32/48 parça silindi, dosyası yoktu)", output)
+        self.assertEqual(self.db.records, {})
+
+    #Aynı ad ama farklı içerik (dosya elle değiştirilmiş): yarım parçalar silinir, dosyaya dokunulmaz
+    def test_file_with_same_name_but_other_content_is_kept(self):
+        self.add_chunks("rapor.pdf", "deadbeef", 32, 48)
+        self.write("rapor.pdf", b"%PDF-1.4 baska icerik")
+        _, output = self.check()
+        self.assertEqual(self.db.records, {})
+        self.assertEqual(self.files(), ["rapor.pdf"])
+        self.assertIn("DB'de parçası olmayan PDF: rapor.pdf", output)
+
+    #Kesin olmayan durumlar silinmez, yalnızca raporlanır
+    def test_uncertain_cases_are_only_reported(self):
+        self.add_chunks("kayip.pdf", "deadbeef", 48, 48)
+        self.add_chunks("eski_kayip.pdf", "cafebabe", 10, None)
+        self.write("fazla.pdf")
+        report, output = self.check()
+        self.assertEqual(len(self.db.records), 58)
+        self.assertEqual(self.files(), ["fazla.pdf"])
+        self.assertIn("Dosyası olmayan doküman: kayip.pdf (48 parça DB'de", output)
+        self.assertIn("Dosyası olmayan doküman: eski_kayip.pdf (10 parça DB'de", output)
+        self.assertIn("DB'de parçası olmayan PDF: fazla.pdf", output)
+        self.assertIn("; 3 sorun (yukarıda).", output)
+        self.assertEqual(report["files_without_chunks"], ["fazla.pdf"])
+
+    #inspect yalnızca bakar
+    def test_inspect_changes_nothing(self):
+        half = self.write("yarim.pdf")
+        self.add_chunks("yarim.pdf", half, 32, 48)
+        report = self.ingestion.inspect_documents(str(self.dir), db=self.db)
+        self.assertEqual(len(self.db.records), 32)
+        self.assertEqual(self.files(), ["yarim.pdf"])
+        (doc,) = report["documents"]
+        self.assertEqual((doc["state"], doc["found"], doc["total"], doc["on_disk"]), ("incomplete", 32, 48, ["yarim.pdf"]))
+
+    def test_missing_upload_dir_is_not_an_error(self):
+        self.add_chunks("tam.pdf", "deadbeef", 48, 48)
+        with self.assertLogs("EnterpriseAI", level="INFO"):
+            report = self.ingestion.check_documents(str(self.dir / "yok"), db=self.db)
+        self.assertEqual(report["files_without_chunks"], [])
 
 
 if __name__ == "__main__":

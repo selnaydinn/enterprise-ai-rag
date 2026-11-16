@@ -437,7 +437,8 @@ class CorsTests(unittest.TestCase):
 class ConcurrencyTests(unittest.TestCase):
 
     #TestClient "with" ile açılıyor: eş istekler aynı event loop'ta çalışsın (UPLOAD_LOCK tek bir loop'a bağlanır)
-    #"with" lifespan'ı da çalıştırıyor; gerçek model/Gemini yüklenmesin diye get_llm, get_db, get_reranker ve warm_up sahte
+    #"with" lifespan'ı da çalıştırıyor; gerçek model/Gemini yüklenmesin diye get_llm, get_db, get_reranker, warm_up ve
+    #açılış doküman kontrolü (check_documents) sahte
     #Auth ayar kontrolü de sahte: CI'da .env yok, APP_PASSWORD tanımsız olduğu için lifespan başlamazdı
     def setUp(self):
         self.main = import_main()
@@ -449,7 +450,8 @@ class ConcurrencyTests(unittest.TestCase):
                       mock.patch.object(self.main, "get_llm"),
                       mock.patch.object(self.main, "get_db"),
                       mock.patch.object(self.main, "get_reranker"),
-                      mock.patch.object(self.main, "warm_up")):
+                      mock.patch.object(self.main, "warm_up"),
+                      mock.patch.object(self.main, "check_documents")):
             patch.start()
             self.addCleanup(patch.stop)
         self.client = TestClient(self.main.app)
@@ -505,6 +507,35 @@ class ConcurrencyTests(unittest.TestCase):
                 t.join(10)
         self.assertEqual(sorted(codes), [200, 409])
         process.assert_called_once()
+
+
+#Açılış doküman kontrolü (main.py lifespan, services/ingestion.py check_documents)
+class StartupCheckTests(unittest.TestCase):
+
+    def setUp(self):
+        self.main = import_main()
+        for patch in (mock.patch.object(self.main, "check_auth_config"),
+                      mock.patch.object(self.main, "get_llm"),
+                      mock.patch.object(self.main, "get_db"),
+                      mock.patch.object(self.main, "get_reranker"),
+                      mock.patch.object(self.main, "warm_up")):
+            patch.start()
+            self.addCleanup(patch.stop)
+
+    def test_check_runs_on_startup_with_upload_dir(self):
+        with mock.patch.object(self.main, "check_documents") as check, TestClient(self.main.app):
+            pass
+        check.assert_called_once_with(str(self.main.settings.upload_dir))
+
+    #Kontrolün kendisi hata verirse uygulama yine açılır, WARNING yazılır
+    def test_failed_check_does_not_stop_startup(self):
+        with mock.patch.object(self.main, "check_documents", side_effect=RuntimeError("kontrol hatası")), \
+             self.assertLogs("EnterpriseAI", level="WARNING") as logs, \
+             TestClient(self.main.app) as client:
+            self.assertEqual(client.get("/health/live").status_code, 200)
+        output = "\n".join(logs.output)
+        self.assertIn("Doküman kontrolü yapılamadı; uygulama yine de açılıyor.", output)
+        self.assertIn("kontrol hatası", output)
 
 
 if __name__ == "__main__":

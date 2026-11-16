@@ -23,7 +23,11 @@ Ayrıntılar (dosyalar, riskler, ek RAM) "Yol haritası" tablosunda; gerekçeler
 - ✅ Docker dev/prod ayrımı (`--reload` ve `.:/app` yalnızca `docker-compose.override.yml`'de; taban: kod imajda, veri klasörleri `.env`'deki yollarla bağlı, `LOG_FORMAT=json`). `usage.db` şimdilik tek dosya olarak bağlı; root olmayan kullanıcıya geçişte (aşağıda) `data/` klasörü kararı
 - ✅ Docker healthcheck (`Dockerfile` HEALTHCHECK: 30 sn aralık, 120 sn açılış payı, 3 deneme; imaj yeniden derlenince geçerli)
 - ✅ Graceful shutdown: `stop_grace_period: 120s` (compose) + `--timeout-graceful-shutdown 110` (Dockerfile ve dev override). Docker varsayılanı 10 sn'ydi; uzun soru/upload zorla kesiliyor ve kesilen upload'da geri alma çalışamıyordu
-- ❌ Sahipsiz parçaları temizleme: 120 sn'yi aşan bir upload sırasında kapatılırsa veya süreç zorla öldürülürse (bellek bitmesi, elektrik) geri alma çalışmaz; DB'de diskteki PDF'lerle eşleşmeyen parçalar kalabilir. Fikir: açılışta (veya bir script/endpoint ile) DB'deki `source_file`/`pdf_hash` listesini `uploaded_pdfs/` ile karşılaştırıp eşleşmeyenleri raporlamak, onayla silmek (`delete_chunks_by_hash`). Diskte kalan ama DB'de olmayan PDF'ler de raporlanır. Otomatik silme yapılmaz (önce rapor)
+- 🟡 Sahipsiz parçaları temizleme: 120 sn'yi aşan bir upload sırasında kapatılırsa veya süreç zorla öldürülürse (bellek bitmesi, elektrik) geri alma çalışmaz; DB'de yarım parçalar kalır, dosya listede normal görünür
+  - ✅ Parça 1: her parçada `chunk_total` (PDF'in toplam parça sayısı; yalnızca yeni yüklemelerde)
+  - ✅ Parça 2: upload'da `document_status`; yarım kalmış PDF 409 almaz, parçaları silinip baştan yüklenir. Gerçek denemeyle doğrulandı (2026-11-16: `docker kill` → 32/48 parça kaldı → yeniden yükleme → 48/48)
+  - ✅ Parça 3: açılışta `check_documents`; yarım kalmış yükleme otomatik geri alınır (parçalar + dosya; dosya yalnızca adı ve içeriği tutarsa), diğer tutarsızlıklar yalnızca WARNING. Kontrol hata verirse uygulama yine açılır. Tek uygulama kopyası varsayılıyor (Faz 11)
+  - ❌ Parça 4: elle çalıştırılan script (rapor, `--deep` ile eski kayıtları yeniden parçalayıp sayma, onaylı silme); Parça 3'ten sonra gerekip gerekmediğine bakılacak
 - ✅ Container'da root olmayan kullanıcı (`appuser`, uid 1000; kod root'a ait, yalnızca okunur). `usage.db` → `data/usage.db` (klasör bağlanıyor; varsayılan yol da bu). Production'da `hf_cache` salt okunur (`:ro`), geliştirmede yazılabilir. Eski volume için bir kerelik `chown 1000` (docs/configuration.md)
 - ✅ `version` alanı silindi; sabit `dns` (8.8.8.8) kaldırıldı: Docker'ın kendi DNS'iyle Gemini cevap verdi (2026-11-14). Sabit DNS, Google DNS'ini engelleyen bir sunucuda Gemini'yi tamamen keserdi
 - ✅ `.dockerignore`: `tests/`, `docs/`, `.github/`, notlar, `requirements-dev.txt`, `ruff.toml` imaja girmiyor; `eval/`'den yalnızca `golden_set.jsonl` (time_retrieval production container'ında soruları oradan okuyor). Eski `usage.db` satırı silindi (`.gitignore`'dan da)
@@ -64,7 +68,10 @@ Ayrıntılar (dosyalar, riskler, ek RAM) "Yol haritası" tablosunda; gerekçeler
 - ❌ Fetch timeout (AbortController)
 - ❌ `error.tsx` hata sayfası
 - ❌ Beklenen hatalar (503, 504, 429) `console.error` yerine `console.warn` veya hiç; yalnızca beklenmeyenler `console.error` (dev modda Next.js hata rozeti/penceresi gürültüsü, `Workspace.tsx:253`)
+- ❌ Yüklemede de aynı ayrım (`Workspace.tsx:217`): beklenen hatalar (400 geçersiz ad/içerik, 409 zaten var, 413 boyut, 422 okunamayan PDF) bugün düz `Error` olarak fırlatılıyor (`services/api.ts:133`), gerçek hatalarla aynı yoldan `console.error`'a düşüp dev modda kırmızı hata penceresini açıyor (2026-11-16, 409 ile görüldü). Toast'taki Türkçe mesaj doğru; yalnızca konsol seviyesi değişmeli (ör. HTTP koduyla ayrı bir hata sınıfı)
+- ❌ Ağ hatası mesajı: backend'e hiç ulaşılamazsa (çökme, kapalı, bağlantı koptu) `fetch` `TypeError: Failed to fetch` fırlatıyor ve bu İngilizce mesaj olduğu gibi toast'a basılıyor (`Workspace.tsx:216`; 2026-11-16, yükleme sırasında `docker kill` ile görüldü). Türkçe mesaj: "Sunucuya ulaşılamadı, lütfen tekrar deneyin." Bütün istekler için `services/api.ts` `request` içinde tek yerde
 - ❌ Her cevabı konsola yazan `console.log("LLM frontende yanıtını döndü.", result)` satırını kaldırma (`Workspace.tsx:240`)
+- ❌ Yükleme sonrası `console.log("PDF yüklendi ve frontende yanıtını döndü.")` satırı da kaldırılabilir (`Workspace.tsx:198`)
 - ❌ PDF önbelleği: `/static-pdfs/{name}` cevabına `Cache-Control: private, no-cache` (`main.py` `read_pdf`) + test. Bugün tarayıcı PDF'i önbellekten açıyor, istek backend'e gitmiyor ve oturum kontrol edilmiyor (çıkıştan sonra da açılabilir). Sonrasında her açılışta istek gider, değişmemişse `304` döner. Faz B'den (internete açılmadan) önce yapılmalı
 
 **Faz 9: Sentry frontend**
@@ -100,6 +107,7 @@ Ayrıntılar (dosyalar, riskler, ek RAM) "Yol haritası" tablosunda; gerekçeler
 
 **Faz 11: Öğrenme denemesi (opsiyonel)**
 - ❌ Chroma server mode + ayrı ingestion worker (DB kopyasında)
+- ❌ Birden fazla uygulama kopyasına geçerken: açılıştaki yarım yükleme temizliği (`check_documents`) devam eden yüklemeyi yarım sanıp siler. Yükleme durum kaydı + kalp atışı (yalnızca uzun süredir sinyal gelmeyenler temizlenir) veya temizliği tek ingestion işçisine vermek. Kullanıcıya özel dokümanlarda silme hash'e göre olduğu için kullanıcı bilgisi de gerekir; frontend'de yükleme durumu (yükleniyor / başarısız)
 - ⚠️ Ön koşul: chromadb'nin sunucu modu açıkları (pre-auth code injection, code injection, RBAC/tenant yetki açıkları; GitHub Dependabot uyarıları 2026-11-12'de "embedded kullanılıyor" gerekçesiyle dismiss edildi) düzeltilmiş bir sürüm çıkmadan bu faz yapılmaz. Sunucu modunda bu açıklar doğrudan geçerli olur
 
 **Verilecek kararlar**

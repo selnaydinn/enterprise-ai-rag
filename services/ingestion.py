@@ -49,6 +49,102 @@ def document_status(file_hash, db=None):
     total = max(totals)
     return {"state": "incomplete" if found < total else "complete", "found": found, "total": total}
 
+#DOKÜMAN KONTROLÜ (açılışta, main.py lifespan; notes2.md Faz 2, sahipsiz parçalar)
+#inspect_documents yalnızca bakar; repair_incomplete yalnızca yarım kalmış yüklemeleri geri alır
+#Yarım kalma kesin (parça sayısı < chunk_total): silinen şey, uygulama çökmeseydi upload'daki geri almanın sileceğinin aynısı
+#Diğer tutarsızlıklar (dosyası olmayan parçalar, parçası olmayan dosyalar, eski kayıtlar) yalnızca raporlanır
+#UYARI: Tek uygulama kopyası varsayılıyor. Açılışta devam eden yükleme olamayacağı için "eksik" = "çökmüş"tür.
+#Birden fazla kopya çalışırsa bir kopyanın süren yüklemesi diğerine yarım görünür ve silinir; o zaman yükleme durum
+#kaydı (kalp atışı) veya tek bir ingestion işçisi gerekir (notes2.md Faz 11)
+
+#DB'deki her PDF (pdf_hash'e göre) ve uploaded_pdfs/'teki dosyalar karşılaştırılır
+#documents: her PDF için state (complete / incomplete / legacy), found, total, names (DB'deki adlar) ve
+#  on_disk (diskte aynı adla VE aynı içerikle duran dosyalar; boşsa parçaların dosyası yok)
+#files_without_chunks: diskte olup DB'de hiç parçası olmayan PDF'ler
+def inspect_documents(upload_dir, db=None):
+    db = db if db is not None else get_db()
+    groups = {}
+    for meta in db.get(include=["metadatas"])["metadatas"]:
+        meta = meta or {}
+        group = groups.setdefault(meta.get("pdf_hash"), {"names": set(), "found": 0, "totals": set()})
+        group["names"].add(meta.get("source_file"))
+        group["found"] += 1
+        group["totals"].add(meta.get("chunk_total"))
+
+    disk = {}
+    if os.path.isdir(upload_dir):
+        for name in sorted(os.listdir(upload_dir)):
+            path = os.path.join(upload_dir, name)
+            if name.endswith(".pdf") and os.path.isfile(path):
+                disk[name] = hash_pdf(path)
+
+    documents = []
+    for pdf_hash, group in groups.items():
+        names = sorted(n for n in group["names"] if n)
+        #pdf_hash'i olmayan parçalar da eski kayıt sayılır: hangi yüklemeye ait olduğu bilinemez, dokunulmaz
+        if None in group["totals"] or pdf_hash is None:
+            state, total = "legacy", None
+        else:
+            total = max(group["totals"])
+            state = "incomplete" if group["found"] < total else "complete"
+        documents.append({
+            "pdf_hash": pdf_hash, "names": names, "found": group["found"], "total": total, "state": state,
+            "on_disk": [n for n in names if disk.get(n) == pdf_hash],
+        })
+    documents.sort(key=lambda d: (d["names"] or [""])[0])
+    files_without_chunks = [name for name, file_hash in disk.items() if file_hash not in groups]
+    return {"documents": documents, "files_without_chunks": files_without_chunks}
+
+
+#Yarım kalmış yüklemeleri geri alır: parçalar hash ile silinir, dosya yalnızca adı ve içeriği o yüklemeyle birebir
+#aynıysa silinir (silmeden hemen önce hash yeniden kontrol edilir). Geri alınan PDF'lerin listesini döner
+def repair_incomplete(report, upload_dir, db=None):
+    repaired = []
+    for doc in report["documents"]:
+        if doc["state"] != "incomplete":
+            continue
+        deleted = delete_chunks_by_hash(doc["pdf_hash"], db=db)
+        removed = []
+        for name in doc["on_disk"]:
+            path = os.path.join(upload_dir, name)
+            if os.path.isfile(path) and hash_pdf(path) == doc["pdf_hash"]:
+                os.remove(path)
+                removed.append(name)
+        repaired.append({**doc, "deleted": deleted, "removed_files": removed})
+    return repaired
+
+
+#Açılış kontrolü: yarım kalmışları geri alır, gerisini loglar. Raporu döner
+def check_documents(upload_dir, db=None):
+    db = db if db is not None else get_db()
+    report = inspect_documents(upload_dir, db=db)
+    problems = 0
+
+    for doc in repair_incomplete(report, upload_dir, db=db):
+        problems += 1
+        name = ", ".join(doc["names"]) or doc["pdf_hash"]
+        file_part = "dosya kaldırıldı" if doc["removed_files"] else "dosyası yoktu"
+        logger.warning(f"Yarım kalmış yükleme geri alındı: {name} ({doc['found']}/{doc['total']} parça silindi, "
+                       f"{file_part}); PDF yeniden yüklenmeli.")
+
+    for doc in report["documents"]:
+        if doc["state"] != "incomplete" and not doc["on_disk"]:
+            problems += 1
+            name = ", ".join(doc["names"]) or f"(adsız, pdf_hash {doc['pdf_hash']})"
+            logger.warning(f"Dosyası olmayan doküman: {name} ({doc['found']} parça DB'de, uploaded_pdfs/ içinde "
+                           f"aynı içerikli dosya yok); kaynağa tıklanınca PDF açılmaz.")
+
+    for name in report["files_without_chunks"]:
+        problems += 1
+        logger.warning(f"DB'de parçası olmayan PDF: {name} (listede görünür ama aramada çıkmaz).")
+
+    counts = {state: sum(d["state"] == state for d in report["documents"]) for state in ("complete", "legacy")}
+    result = "sorun yok" if problems == 0 else f"{problems} sorun (yukarıda)"
+    logger.info(f"Doküman kontrolü: {len(report['documents'])} doküman ({counts['complete']} tam, "
+                f"{counts['legacy']} eski kayıt); {result}.")
+    return report
+
+
 #Bir dokümanın tüm chunk'larını DB'den siler, silinen chunk sayısını döner
 #source_file ile arıyoruz: aynı adla farklı içerik yüklenemediği için (409) ad tek bir PDF'i gösteriyor
 def delete_document_chunks(pdf_name):

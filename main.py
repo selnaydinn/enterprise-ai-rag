@@ -11,7 +11,7 @@ from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, StringConstraints
-from services.ingestion import PdfUnreadableError, process_pdf, hash_bytes, hash_pdf, document_status, delete_document_chunks, delete_chunks_by_hash
+from services.ingestion import PdfUnreadableError, process_pdf, hash_bytes, hash_pdf, document_status, check_documents, delete_document_chunks, delete_chunks_by_hash
 from core.auth import check_auth_config, check_password, clear_session_cookie, login_guard, require_auth, set_session_cookie
 from core.config import get_db, get_llm, get_reranker
 from core.log_setup import REQUEST_ID_HEADER, RequestIdMiddleware, get_request_id, setup_logging
@@ -36,6 +36,13 @@ async def lifespan(app):
         get_reranker()
     #Arama ve reranker bir kez çalıştırılır; ilk soru ısınmayı beklemez. Hata verirse uygulama başlamaz
     warm_up()
+    #İstek kabul edilmeden önce: yarım kalmış yüklemeler geri alınır, diğer tutarsızlıklar loglanır
+    #(services/ingestion.py check_documents; tek uygulama kopyası varsayılıyor). Kontrolün kendisi hata verirse
+    #uygulama yine açılır: temizlik hatası yüzünden hiç açılamamak daha kötü
+    try:
+        check_documents(str(settings.upload_dir))
+    except Exception:
+        logger.warning("Doküman kontrolü yapılamadı; uygulama yine de açılıyor.", exc_info=True)
     yield
 
 
