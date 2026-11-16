@@ -93,6 +93,7 @@ Ayrıntılar (dosyalar, riskler, ek RAM) "Yol haritası" tablosunda; gerekçeler
 - ❌ Hibrit arama denemesi (anahtar kelime + vektör)
 - ❌ Deneme C (Gemini kotası uygunken)
 - ❌ Reranker hızı: native'de bile sürenin çoğu reranker (10 aday için 2.27 sn, Docker'da 4–7 sn; §17). Seçenekler: aday sayısı 10 → 5, parçanın ilk 256 token'ı, ONNX/int8 sıkıştırma, daha küçük model. Her biri golden + negatif setle ölçülmeden değişmez (mMiniLM + 10 aday eval ile seçilmişti)
+- ❌ Soruda adı geçen dokümana öncelik: arama her zaman bütün PDF'lerde yapılıyor. Genel ifadeli sorularda (ör. 2026-11-16: "Okul aile birliği yönetmeliğinin uygulanması sırasında çıkabilecek problemlerin çözümü ve takibi nasıl yapılır?") 3 kaynak 3 farklı yönetmelikten geldi; çoğu yönetmelikte neredeyse aynı kalıp madde var ("uygulamada çıkabilecek sorunları çözmeye ... yetkilidir"). Fikir: soruda bir dokümanın adı geçiyorsa (dosya adı / başlık eşleşmesi) o dokümanın parçalarına öncelik vermek veya filtrelemek; isteğe bağlı olarak frontend'de doküman seçimi. Golden + negatif setle ölçülmeden açılmaz (yanlış eşleşme doğru cevabı dışarıda bırakabilir)
 
 **Faz S: Streaming (notes.md #43)**
 - ❌ Cevabın parça parça gelmesi (ayrı endpoint, mevcut `/query` bozulmadan)
