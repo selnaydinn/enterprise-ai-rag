@@ -30,7 +30,12 @@ settings = get_settings()
 async def lifespan(app):
     #Auth ayarları modeller yüklenmeden önce kontrol ediliyor; eksikse beklemeden hata verir (core/auth.py)
     check_auth_config()
-    get_llm()
+    #Sahte modda Gemini istemcisi kurulmaz, key gerekmez (services/fake_llm.py)
+    if settings.llm_mode == "fake":
+        logger.warning("Sahte LLM modu AÇIK (LLM_MODE=fake): Gemini çağrılmıyor, cevaplar gerçek değil, "
+                       "token sayacı ve sınırı kullanılmıyor. Yalnızca yük testi ve deneme için.")
+    else:
+        get_llm()
     get_db()
     if settings.reranker_enabled:
         get_reranker()
@@ -151,6 +156,7 @@ def health_live():
 #İş yapabilir mi: DB okunabiliyor mu (tek bir id, içerik okunmaz). Modeller açılışta (lifespan) yüklendiği için uygulama
 #cevap veriyorsa yüklüdür. Gemini'ye istek atılmaz: kontrol sık yapılıyor, kota harcanmaz
 #Boş DB sağlıklıdır (doküman yüklenmemiş olabilir); yalnızca DB'ye erişilemezse 503
+#llm_mode (gemini/fake): yük testi script'i sahte mod açık değilse çalışmayı reddediyor
 @app.get("/health/ready")
 def health_ready():
     try:
@@ -159,7 +165,7 @@ def health_ready():
         #Ayrıntı yalnızca logda; tür adı yeterli, mesaj yol vb. içerebilir
         logger.warning(f"Hazırlık kontrolü başarısız: veritabanı okunamadı ({type(exc).__name__}).")
         return JSONResponse(status_code=503, content={"status": "unavailable"})
-    return {"status": "ok"}
+    return {"status": "ok", "llm_mode": settings.llm_mode}
 
 # KİMLİK DOĞRULAMA
 #Parola doğruysa imzalı oturum cookie'si kurulur (204, gövde yok); parola ve token loglanmaz
@@ -363,10 +369,14 @@ async def delete_document(name: str):
 #async değil: FastAPI def endpoint'leri thread'de çalıştırıyor, Gemini çağrısı sürerken diğer istekler donmuyor
 @app.post("/query/", response_model=QueryResponse, dependencies=[Depends(require_auth)])
 def query(request: QueryRequest):
+    #Sahte modda (LLM_MODE=fake) Gemini çağrılmadığı için token sınırı kontrol edilmez ve kullanım yazılmaz;
+    #yük testi gerçek sayacı tüketmez, dolu sayaç da yük testini durdurmaz
+    fake_mode = settings.llm_mode == "fake"
+
     #Token sınırı aşım kontrolü; istek hatalı değil, kota dolu olduğu için 429
     #Sınır saate bağlı pencerelerle (Türkiye saati) sıfırlanıyor, kullanıcıya sıfırlanma saatini gösteriyoruz
     usage = get_status()
-    if usage["limited"]:
+    if usage["limited"] and not fake_mode:
        reset_time = datetime.fromisoformat(usage["resets_at"]).strftime("%H:%M")
        raise HTTPException(
            status_code=429,
@@ -379,10 +389,12 @@ def query(request: QueryRequest):
 
         #O anki isteğin token miktarı
         current_token = response.get("token_usage", 0)
-        logger.info(f"Bu sorunun token kullanımı: {current_token}")
-
-        #Gerçek tüketimi kaydediyoruz; kırpma yok, son istek sınırı biraz aşabilir
-        record_usage(current_token)
+        if fake_mode:
+            logger.info(f"Bu sorunun token kullanımı: {current_token} (sahte, sayaca yazılmadı)")
+        else:
+            logger.info(f"Bu sorunun token kullanımı: {current_token}")
+            #Gerçek tüketimi kaydediyoruz; kırpma yok, son istek sınırı biraz aşabilir
+            record_usage(current_token)
         usage = get_status()
 
         #Frontend sayaç ve kilit için kullanımı da yanıta ekliyoruz

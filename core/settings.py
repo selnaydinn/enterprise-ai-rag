@@ -50,6 +50,18 @@ class Settings(BaseSettings):
     #true: cookie yalnızca HTTPS üzerinden gönderilir (bulut). Yerelde (http://localhost) false olmalı, yoksa giriş tutmaz
     cookie_secure: bool = False
 
+    #SAHTE LLM MODU (notes2.md Faz L): yük testi ve deneme için Gemini yerine gecikmeli sahte cevap (services/fake_llm.py)
+    #fake: Gemini çağrılmaz, key gerekmez, token sayacına yazılmaz ve sınır kontrol edilmez; cevaplar "[SAHTE CEVAP]" ile
+    #başlar. Arama, reranker, log ve hata yolları gerçek çalışır. Production'da açılmamalı: açılışta WARNING, /health/ready modu gösterir
+    llm_mode: Literal["gemini", "fake"] = "gemini"
+    #Başarılı sahte cevaptan önceki bekleme (sn)
+    fake_llm_delay_seconds: float = 3
+    #İsteklerin bu oranı (0-1) sahte hatayla biter
+    fake_llm_error_rate: float = 0
+    #timeout: gerçek en kötü durum kadar bekler (llm_timeout_seconds × llm_max_attempts) ve 504; connection: hemen 503;
+    #mixed: ikisi yarı yarıya
+    fake_llm_error_kind: Literal["timeout", "connection", "mixed"] = "mixed"
+
     #Kodda sabit tutulanlar (.env.example'da yok)
     #Değişirse DB yeniden kurulmalı
     embedding_model: str = "intfloat/multilingual-e5-base"
@@ -140,6 +152,28 @@ class Settings(BaseSettings):
     def attempts_at_least_one(cls, value):
         if value < 1:
             raise ValueError("LLM_MAX_ATTEMPTS en az 1 olmalı (1 = yeniden deneme yok).")
+        return value
+
+    #"FAKE" da kabul edilir; listede olmayan bir değer uygulamayı başlatmaz
+    @field_validator("llm_mode", "fake_llm_error_kind", mode="before")
+    @classmethod
+    def lower_fake_llm_choices(cls, value):
+        if isinstance(value, str):
+            return value.strip().lower()
+        return value
+
+    @field_validator("fake_llm_delay_seconds")
+    @classmethod
+    def fake_delay_not_negative(cls, value):
+        if value < 0:
+            raise ValueError("FAKE_LLM_DELAY_SECONDS 0 veya daha büyük olmalı.")
+        return value
+
+    @field_validator("fake_llm_error_rate")
+    @classmethod
+    def fake_error_rate_is_ratio(cls, value):
+        if not 0 <= value <= 1:
+            raise ValueError("FAKE_LLM_ERROR_RATE 0 ile 1 arasında olmalı (ör. 0.1 = isteklerin %10'u).")
         return value
 
     #"debug" da kabul edilir; listede olmayan bir seviye uygulamayı başlatmaz

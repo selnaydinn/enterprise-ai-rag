@@ -32,11 +32,21 @@ class HealthEndpointTests(unittest.TestCase):
         #DB'ye hiç bakmıyor
         self.get_db.assert_not_called()
 
+    def with_mode(self, mode):
+        return mock.patch.object(self.main, "settings", self.main.settings.model_copy(update={"llm_mode": mode}))
+
     def test_ready_is_ok_without_session_and_reads_one_id(self):
-        response = self.client.get("/health/ready")
+        with self.with_mode("gemini"):
+            response = self.client.get("/health/ready")
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json(), {"status": "ok"})
+        self.assertEqual(response.json(), {"status": "ok", "llm_mode": "gemini"})
         self.get_db.return_value.get.assert_called_once_with(limit=1, include=[])
+
+    #Yük testi script'i buna bakıp gerçek Gemini'ye yük göndermeyi reddediyor
+    def test_ready_shows_fake_mode(self):
+        with self.with_mode("fake"):
+            response = self.client.get("/health/ready")
+        self.assertEqual(response.json(), {"status": "ok", "llm_mode": "fake"})
 
     #Doküman yüklenmemiş olabilir; boş DB hazır sayılır
     def test_empty_db_is_ready(self):

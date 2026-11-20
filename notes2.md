@@ -23,11 +23,11 @@ Ayrıntılar (dosyalar, riskler, ek RAM) "Yol haritası" tablosunda; gerekçeler
 - ✅ Docker dev/prod ayrımı (`--reload` ve `.:/app` yalnızca `docker-compose.override.yml`'de; taban: kod imajda, veri klasörleri `.env`'deki yollarla bağlı, `LOG_FORMAT=json`). `usage.db` şimdilik tek dosya olarak bağlı; root olmayan kullanıcıya geçişte (aşağıda) `data/` klasörü kararı
 - ✅ Docker healthcheck (`Dockerfile` HEALTHCHECK: 30 sn aralık, 120 sn açılış payı, 3 deneme; imaj yeniden derlenince geçerli)
 - ✅ Graceful shutdown: `stop_grace_period: 120s` (compose) + `--timeout-graceful-shutdown 110` (Dockerfile ve dev override). Docker varsayılanı 10 sn'ydi; uzun soru/upload zorla kesiliyor ve kesilen upload'da geri alma çalışamıyordu
-- 🟡 Sahipsiz parçaları temizleme: 120 sn'yi aşan bir upload sırasında kapatılırsa veya süreç zorla öldürülürse (bellek bitmesi, elektrik) geri alma çalışmaz; DB'de yarım parçalar kalır, dosya listede normal görünür
+- ✅ Sahipsiz parçaları temizleme: 120 sn'yi aşan bir upload sırasında kapatılırsa veya süreç zorla öldürülürse (bellek bitmesi, elektrik) geri alma çalışmaz; DB'de yarım parçalar kalır, dosya listede normal görünür
   - ✅ Parça 1: her parçada `chunk_total` (PDF'in toplam parça sayısı; yalnızca yeni yüklemelerde)
   - ✅ Parça 2: upload'da `document_status`; yarım kalmış PDF 409 almaz, parçaları silinip baştan yüklenir. Gerçek denemeyle doğrulandı (2026-11-16: `docker kill` → 32/48 parça kaldı → yeniden yükleme → 48/48)
   - ✅ Parça 3: açılışta `check_documents`; yarım kalmış yükleme otomatik geri alınır (parçalar + dosya; dosya yalnızca adı ve içeriği tutarsa), diğer tutarsızlıklar yalnızca WARNING. Kontrol hata verirse uygulama yine açılır. Tek uygulama kopyası varsayılıyor (Faz 11)
-  - ❌ Parça 4: elle çalıştırılan script (rapor, `--deep` ile eski kayıtları yeniden parçalayıp sayma, onaylı silme); Parça 3'ten sonra gerekip gerekmediğine bakılacak
+  - ❌ Parça 4: elle çalıştırılan script (rapor, `--deep` ile eski kayıtları yeniden parçalayıp sayma, onaylı silme); Parça 3'ten sonra gerekip gerekmediğine bakılacak(şu anlık yazmıyoruz)
 - ✅ Container'da root olmayan kullanıcı (`appuser`, uid 1000; kod root'a ait, yalnızca okunur). `usage.db` → `data/usage.db` (klasör bağlanıyor; varsayılan yol da bu). Production'da `hf_cache` salt okunur (`:ro`), geliştirmede yazılabilir. Eski volume için bir kerelik `chown 1000` (docs/configuration.md)
 - ✅ `version` alanı silindi; sabit `dns` (8.8.8.8) kaldırıldı: Docker'ın kendi DNS'iyle Gemini cevap verdi (2026-11-14). Sabit DNS, Google DNS'ini engelleyen bir sunucuda Gemini'yi tamamen keserdi
 - ✅ `.dockerignore`: `tests/`, `docs/`, `.github/`, notlar, `requirements-dev.txt`, `ruff.toml` imaja girmiyor; `eval/`'den yalnızca `golden_set.jsonl` (time_retrieval production container'ında soruları oradan okuyor). Eski `usage.db` satırı silindi (`.gitignore`'dan da)
@@ -35,16 +35,17 @@ Ayrıntılar (dosyalar, riskler, ek RAM) "Yol haritası" tablosunda; gerekçeler
 - ✅ Saat dilimi (TZ) eklenmedi, gerek yok: token sayacı Türkiye saatini kendi hesaplıyor (`services/usage.py`), production JSON logları bilerek UTC. Yalnızca geliştirmedeki düz metin logların saati UTC görünüyor
 - ❌ Sonra tekrar ölçüm (`--reload` kalkınca reranker); CPU sınırı (`cpus: 3` + `OMP_NUM_THREADS=3`) bu ölçüme göre. DB'yi volume'a taşımaya gerek yok (§17). 4e testinde (production, 2026-11-14) görülen iki yavaşlık da burada incelenecek:
   - Arama 4.7–6.1 sn (3 GB'a geçince dev modda 0.4–0.6 sn ölçülmüştü; swap yalnızca 60 MB, sebep bellek gibi görünmüyor)
-  Arama docker ve dockersız çalıştırıldı. Dockersız hızlı çalışıyor. Docker kullanınca ard arda sorularda hızlı ama 1-2 dk beklenince hız 4-5 snye düşüyor. Nedeni windows köprüsü mü diye bakılması için db linux tarafına volume olarak verildi. Ama sonuç değişmedi.
+  
+  - 34 sayfa / 159 parçalık PDF yüklemesi 302 sn. Kapatma bekleme süresi (120 sn) bu hızda büyük PDF'lere yetmiyor: yükleme sırasında kapatılırsa geri alma çalışmaz, sahipsiz parçalar kalabilir. Süre kararı ölçümden sonra tekrar ele alınacak.
 
-  - 34 sayfa / 159 parçalık PDF yüklemesi 302 sn. Kapatma bekleme süresi (120 sn) bu hızda büyük PDF'lere yetmiyor: yükleme sırasında kapatılırsa geri alma çalışmaz, sahipsiz parçalar kalabilir. Süre kararı ölçümden sonra tekrar ele alınacak.  
-
+  BULGU:
+  Arama docker ve dockersız çalıştırıldı. Dockersız hızlı çalışıyor. Docker kullanınca ard arda sorularda hızlı ama 1-2 dk beklenince hız 4-5 snye düşüyor. Nedeni windows köprüsü mü diye bakılması için db linux tarafına volume olarak verildi. Ama sonuç değişmedi. Neden windows köprüsü değilmiş.
   AÇIK MADDELERE SUNUCUDA BAKILACAK.
 
 **Faz L: Sahte LLM modu ve yük testi (§16)**
-- ❌ `LLM_MODE=fake`: Gemini yerine gecikmeli sahte cevap, isteğe bağlı sahte hata
-- ❌ Sahte modda token'lar gerçek kullanım sınırını tüketmesin
-- ❌ Sahte mod açıkken açılışta WARNING; varsayılan her zaman `gemini`
+- ✅  `LLM_MODE=fake`: Gemini yerine gecikmeli sahte cevap, isteğe bağlı sahte hata
+- ✅  Sahte modda token'lar gerçek kullanım sınırını tüketmesin
+- ✅  Sahte mod açıkken açılışta WARNING; varsayılan her zaman `gemini`
 - ❌ Yük testi scripti (golden + negatif set soruları, ayarlanabilir eşzamanlılık)
 
 **Faz 3: Sentry backend (§6)**

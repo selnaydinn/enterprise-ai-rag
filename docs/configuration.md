@@ -23,6 +23,10 @@ Copy `.env.example` to `.env` and fill in the values. All settings are defined i
 | `SESSION_SECRET` | — (required when auth is on) | Signs the session cookie; at least 32 characters, never shared |
 | `SESSION_HOURS` | `12` | Session length; after it the password is asked again |
 | `COOKIE_SECURE` | `false` | `true` sends the cookie over HTTPS only; keep `false` on `http://localhost` or the login will not stick |
+| `LLM_MODE` | `gemini` | `fake` replaces Gemini with a fake answer for load tests; **never in production**. See [Fake LLM mode](#fake-llm-mode) |
+| `FAKE_LLM_DELAY_SECONDS` | `3` | Fake mode: wait before a fake answer |
+| `FAKE_LLM_ERROR_RATE` | `0` | Fake mode: share of requests (0–1) that end with a fake error |
+| `FAKE_LLM_ERROR_KIND` | `mixed` | Fake mode: `timeout`, `connection` or `mixed` (half each) |
 
 Relative paths are resolved from the project root, so the same values work in Docker (`/app`) and locally.
 
@@ -36,6 +40,19 @@ python -c "import secrets; print(secrets.token_urlsafe(48))"
 
 `.env` values need no quotes. Avoid spaces, `#` and quotes in the password so it is read the same way locally and by
 Docker. Changing `SESSION_SECRET` signs everyone out. How the login and the cookie work: [api.md](api.md#authentication).
+
+### Fake LLM mode
+
+`LLM_MODE=fake` (`services/fake_llm.py`) is for load tests and trying the app without spending the Gemini quota. Only
+the Gemini call changes; search, reranker, thresholds, logs and error handling run for real.
+
+- Answers start with `[SAHTE CEVAP]` and quote the first retrieved chunk; sources are the real ones.
+- Each answer waits `FAKE_LLM_DELAY_SECONDS`. A share of requests (`FAKE_LLM_ERROR_RATE`) fails like Gemini would:
+  `timeout` waits `llm_timeout_seconds × llm_max_attempts` (40 s by default) and returns `504`; `connection` returns
+  `503` at once.
+- No Gemini client is created, so `GEMINI_API_KEY` is not needed. Token usage is estimated and shown in the answer but
+  not written to the counter, and the token limit is not checked.
+- A `WARNING` is logged at startup and `GET /health/ready` returns `"llm_mode": "fake"`.
 
 ### Settings kept in code
 
@@ -62,7 +79,7 @@ These live in `core/settings.py` with defaults and are intentionally not in `.en
 
 ### Startup checks
 
-The app refuses to start if `GEMINI_API_KEY` is missing or `CHROMA_DIR` does not contain a ChromaDB
+The app refuses to start if `GEMINI_API_KEY` is missing (unless `LLM_MODE=fake`) or `CHROMA_DIR` does not contain a ChromaDB
 (`chroma.sqlite3`). It never creates an empty database by itself. With `AUTH_ENABLED=true` it also refuses to start if
 `APP_PASSWORD` or `SESSION_SECRET` is missing, before loading the models, so a forgotten setting never leaves the app
 open. An invalid value (e.g. `TOKEN_LIMIT=abc`, `TOKEN_WINDOW_HOURS=5`, `LOG_LEVEL=VERBOSE`, `LOG_FORMAT=xml`, a `SESSION_SECRET` shorter

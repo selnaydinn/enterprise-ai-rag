@@ -132,6 +132,25 @@ class QueryUsageEndpointTests(TempUsageDb):
         self.assertEqual(self.ask().status_code, 429)
         self.prepare.assert_called_once()
 
+    #Sahte mod (LLM_MODE=fake): Gemini çağrılmadığı için kullanım yazılmaz, sınır da kontrol edilmez
+    def fake_mode(self):
+        return mock.patch.object(self.main, "settings", self.main.settings.model_copy(update={"llm_mode": "fake"}))
+
+    def test_fake_mode_does_not_record_usage(self):
+        with self.fake_mode():
+            response = self.ask()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["usage"]["used"], 0)
+        self.assertEqual(usage.get_status()["used"], 0)
+
+    def test_fake_mode_skips_token_limit(self):
+        usage.record_usage(LIMIT)
+        with self.fake_mode():
+            response = self.ask()
+        self.assertEqual(response.status_code, 200)
+        self.prepare.assert_called_once()
+        self.assertEqual(usage.get_status()["used"], LIMIT)
+
     def test_usage_endpoint(self):
         usage.record_usage(250)
         response = self.client.get("/usage/")

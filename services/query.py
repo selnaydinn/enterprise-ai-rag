@@ -7,6 +7,7 @@ from google.genai import errors as genai_errors
 from langchain_core.prompts import ChatPromptTemplate
 from core.config import get_db, get_llm, get_reranker
 from core.settings import get_settings
+from services.fake_llm import invoke_fake_llm
 
 logger = logging.getLogger("EnterpriseAI")
 
@@ -85,6 +86,13 @@ def format_document(source_name, page, text):
 @lru_cache
 def get_qa_chain():
     return prompt | get_llm()
+
+#LLM_MODE=fake ise Gemini yerine sahte cevap (services/fake_llm.py); Gemini'nin çağrıldığı tek nokta burası
+def invoke_llm(chain_input):
+    settings = get_settings()
+    if settings.llm_mode == "fake":
+        return invoke_fake_llm(chain_input, settings)
+    return get_qa_chain().invoke(chain_input)
 
 # LLM ERRORS
 #Gemini'ye geçici olarak ulaşılamadığında fırlatılır; main.py türüne göre 503/504 döner
@@ -182,18 +190,24 @@ def warm_up():
 
 # TIMING
 #Sorgu başına tek satır: arama (embedding + Chroma), rerank ve Gemini süreleri; soru metni yazılmaz
-#Çalışmayan aşama "yok" (Gemini için "çağrılmadı") yazılır; Gemini çağrıldıysa token dağılımı da eklenir
-def log_timings(timings, total, tokens=None):
+#Çalışmayan aşama "yok" (LLM için "çağrılmadı") yazılır; LLM çağrıldıysa token dağılımı da eklenir
+#llm_name: loglarda LLM aşamasının adı; sahte modda "Sahte LLM" (Gemini'ye gidilmediği logdan anlaşılsın)
+def log_timings(timings, total, tokens=None, llm_name="Gemini"):
     parts = []
     for name, seconds in timings.items():
         if seconds is not None:
             parts.append(f"{name} {seconds:.2f} sn")
         else:
-            parts.append(f"{name} çağrılmadı" if name == "Gemini" else f"{name} yok")
+            parts.append(f"{name} çağrılmadı" if name == llm_name else f"{name} yok")
     line = f"Süreler: {' · '.join(parts)} · toplam {total:.2f} sn"
     if tokens:
-        line += " | Gemini token: " + " · ".join(f"{name} {count}" for name, count in tokens.items())
+        line += f" | {llm_name} token: " + " · ".join(f"{name} {count}" for name, count in tokens.items())
     logger.info(line)
+
+LLM_LOG_NAMES = {"gemini": "Gemini", "fake": "Sahte LLM"}
+
+def llm_log_name():
+    return LLM_LOG_NAMES[get_settings().llm_mode]
 
 #Gemini'nin token dağılımı; output_tokens düşünme (thinking) token'larını da içeriyor, cevap = çıktı - düşünme
 #usage_metadata gelmezse boş döner (count_tokens o durumda tahmin kullanıyor)
@@ -206,15 +220,16 @@ def gemini_token_breakdown(llm_message):
 
 #Süreler hata olsa da (ör. Gemini hata verirse) o ana kadar ölçüldüğü kadarıyla loglanır
 def prepare_chunks_with_metadata(user_input):
-    timings = {"arama": None, "rerank": None, "Gemini": None}
+    llm_name = llm_log_name()
+    timings = {"arama": None, "rerank": None, llm_name: None}
     tokens = {}
     start = time.perf_counter()
     try:
-        return answer_question(user_input, timings, tokens)
+        return answer_question(user_input, timings, tokens, llm_name)
     finally:
-        log_timings(timings, time.perf_counter() - start, tokens)
+        log_timings(timings, time.perf_counter() - start, tokens, llm_name)
 
-def answer_question(user_input, timings, tokens):
+def answer_question(user_input, timings, tokens, llm_name="Gemini"):
     documents = []
     #Optimized treshold değeri (core/settings.py)
     score_threshold = get_settings().score_threshold
@@ -278,7 +293,10 @@ def answer_question(user_input, timings, tokens):
         return no_result_response(0)
 
     
-    logger.info(f"Gemini API çağrılıyor ({len(valid_chunks)} parça tek prompt'ta).")
+    if llm_name == "Gemini":
+        logger.info(f"Gemini API çağrılıyor ({len(valid_chunks)} parça tek prompt'ta).")
+    else:
+        logger.info(f"Sahte LLM çağrılıyor (Gemini'ye gidilmiyor, {len(valid_chunks)} parça).")
     
     #LLM tetiklendi
     #Soru da etiketlerden temizleniyor: "</soru>" yazarak soru bloğunun dışına çıkılamasın
@@ -288,16 +306,16 @@ def answer_question(user_input, timings, tokens):
     }
     step = time.perf_counter()
     try:
-        llm_message = get_qa_chain().invoke(chain_input)
+        llm_message = invoke_llm(chain_input)
     except Exception as exc:
         kind = classify_llm_error(exc)
         if kind is None:
             raise
         #Ham hata metni loglanmıyor (Google mesajları kota ve model ayrıntısı içeriyor); tür ve sınıf yeterli
-        logger.warning(f"Gemini çağrısı başarısız ({kind}, {type(exc).__name__}).")
+        logger.warning(f"{llm_name} çağrısı başarısız ({kind}, {type(exc).__name__}).")
         raise LLMUnavailableError(kind) from exc
     finally:
-        timings["Gemini"] = time.perf_counter() - step
+        timings[llm_name] = time.perf_counter() - step
     tokens.update(gemini_token_breakdown(llm_message))
 
     #.text, content liste halinde gelse de düz metni verir (StrOutputParser'ın yaptığı gibi)

@@ -125,6 +125,21 @@ class SettingsTests(unittest.TestCase):
             with self.subTest(env=env), self.assertRaises(ValidationError):
                 make_settings(**env)
 
+    #Sahte mod yazılmazsa her zaman gerçek Gemini (notes2.md Faz L)
+    def test_fake_llm_defaults(self):
+        s = make_settings()
+        self.assertEqual(s.llm_mode, "gemini")
+        self.assertEqual((s.fake_llm_delay_seconds, s.fake_llm_error_rate, s.fake_llm_error_kind), (3, 0, "mixed"))
+        s = make_settings(LLM_MODE="FAKE", FAKE_LLM_ERROR_KIND=" Timeout ", FAKE_LLM_ERROR_RATE="1", FAKE_LLM_DELAY_SECONDS="0")
+        self.assertEqual((s.llm_mode, s.fake_llm_error_kind, s.fake_llm_error_rate, s.fake_llm_delay_seconds),
+                         ("fake", "timeout", 1, 0))
+
+    def test_invalid_fake_llm_values_are_rejected(self):
+        for env in ({"LLM_MODE": "mock"}, {"FAKE_LLM_ERROR_KIND": "fatal"}, {"FAKE_LLM_ERROR_RATE": "1.5"},
+                    {"FAKE_LLM_ERROR_RATE": "-0.1"}, {"FAKE_LLM_DELAY_SECONDS": "-1"}):
+            with self.subTest(env=env), self.assertRaises(ValidationError):
+                make_settings(**env)
+
     def test_invalid_number_is_rejected(self):
         with self.assertRaises(ValidationError):
             make_settings(TOKEN_LIMIT="on bin")

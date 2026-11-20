@@ -20,7 +20,7 @@ without one it returns `401` before the endpoint runs, so no model, database or 
 | `GET` | `/static-pdfs/{name}` | Serves an uploaded PDF inline (used by the preview `iframe`) |
 | `GET` | `/` | Health message. Public |
 | `GET` | `/health/live` | Liveness: `{"status": "ok"}` while the process answers. Public |
-| `GET` | `/health/ready` | Readiness: `{"status": "ok"}` when the database can be read, otherwise `503` `{"status": "unavailable"}`. Does not call Gemini. Public (used by the Docker `HEALTHCHECK`) |
+| `GET` | `/health/ready` | Readiness: `{"status": "ok", "llm_mode": "gemini"}` (or `"fake"`, see [configuration.md](configuration.md#fake-llm-mode)) when the database can be read, otherwise `503` `{"status": "unavailable"}`. Does not call Gemini. Public (used by the Docker `HEALTHCHECK`) |
 
 The health endpoints return only a status, never document names, counts or error details (the reason of a failed
 check is logged). Successful health checks are not logged; failed ones are.
