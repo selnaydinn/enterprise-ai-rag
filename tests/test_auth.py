@@ -16,7 +16,9 @@ PASSWORD = "dogru-parola"
 SECRET = "s" * 48
 
 #Oturum olmadan erişilebilen endpoint'ler; bunun dışındaki her endpoint 401 dönmeli (RouteScanTests)
-PUBLIC_ROUTES = {("GET", "/"), ("POST", "/auth/login"), ("POST", "/auth/logout")}
+#Sağlık kontrolleri Docker için oturumsuz; yalnızca durum döndürüyor (tests/test_health.py)
+PUBLIC_ROUTES = {("GET", "/"), ("POST", "/auth/login"), ("POST", "/auth/logout"),
+                 ("GET", "/health/live"), ("GET", "/health/ready")}
 
 
 #Auth ayarları testte sabit: gerçek .env okunmuyor (make_settings); core.auth ve main aynı ayar nesnesini görüyor

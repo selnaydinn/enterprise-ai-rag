@@ -24,6 +24,8 @@ class SettingsTests(unittest.TestCase):
         self.assertIsNone(s.gemini_api_key)
         self.assertEqual(s.cors_origins, ["http://localhost:3000", "http://127.0.0.1:3000"])
         self.assertEqual(s.chroma_dir, PROJECT_ROOT / "chroma_db_normalization")
+        #Docker data/ klasörünü bağlıyor; native ve Docker aynı dosyayı kullansın
+        self.assertEqual(s.usage_db_path, PROJECT_ROOT / "data" / "usage.db")
         self.assertEqual((s.token_limit, s.token_window_hours), (10000, 6))
         self.assertEqual((s.retrieval_k, s.score_threshold), (3, 0.72))
         self.assertEqual(s.max_upload_bytes, 20 * 1024 * 1024)
@@ -120,6 +122,21 @@ class SettingsTests(unittest.TestCase):
         s = make_settings(LLM_TIMEOUT_SECONDS="7.5", LLM_MAX_ATTEMPTS="1")
         self.assertEqual((s.llm_timeout_seconds, s.llm_max_attempts), (7.5, 1))
         for env in ({"LLM_TIMEOUT_SECONDS": "0"}, {"LLM_TIMEOUT_SECONDS": "-3"}, {"LLM_MAX_ATTEMPTS": "0"}):
+            with self.subTest(env=env), self.assertRaises(ValidationError):
+                make_settings(**env)
+
+    #Sahte mod yazılmazsa her zaman gerçek Gemini (notes2.md Faz L)
+    def test_fake_llm_defaults(self):
+        s = make_settings()
+        self.assertEqual(s.llm_mode, "gemini")
+        self.assertEqual((s.fake_llm_delay_seconds, s.fake_llm_error_rate, s.fake_llm_error_kind), (3, 0, "mixed"))
+        s = make_settings(LLM_MODE="FAKE", FAKE_LLM_ERROR_KIND=" Timeout ", FAKE_LLM_ERROR_RATE="1", FAKE_LLM_DELAY_SECONDS="0")
+        self.assertEqual((s.llm_mode, s.fake_llm_error_kind, s.fake_llm_error_rate, s.fake_llm_delay_seconds),
+                         ("fake", "timeout", 1, 0))
+
+    def test_invalid_fake_llm_values_are_rejected(self):
+        for env in ({"LLM_MODE": "mock"}, {"FAKE_LLM_ERROR_KIND": "fatal"}, {"FAKE_LLM_ERROR_RATE": "1.5"},
+                    {"FAKE_LLM_ERROR_RATE": "-0.1"}, {"FAKE_LLM_DELAY_SECONDS": "-1"}):
             with self.subTest(env=env), self.assertRaises(ValidationError):
                 make_settings(**env)
 

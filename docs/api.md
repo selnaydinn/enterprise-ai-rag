@@ -3,7 +3,7 @@
 Interactive documentation with request/response schemas: http://localhost:8000/docs (Swagger).
 Response models are defined in `schemas.py`; the matching frontend types are in `rag-frontend/types/api.ts`.
 
-Every endpoint except `/`, `/auth/login` and `/auth/logout` requires a session (see [Authentication](#authentication));
+Every endpoint except `/`, `/health/*`, `/auth/login` and `/auth/logout` requires a session (see [Authentication](#authentication));
 without one it returns `401` before the endpoint runs, so no model, database or Gemini call is made.
 
 | Method | Path | Description |
@@ -19,6 +19,11 @@ without one it returns `401` before the endpoint runs, so no model, database or 
 | `GET` | `/features/` | Feature flags for the frontend: `{"allow_delete": bool}` |
 | `GET` | `/static-pdfs/{name}` | Serves an uploaded PDF inline (used by the preview `iframe`) |
 | `GET` | `/` | Health message. Public |
+| `GET` | `/health/live` | Liveness: `{"status": "ok"}` while the process answers. Public |
+| `GET` | `/health/ready` | Readiness: `{"status": "ok", "llm_mode": "gemini"}` (or `"fake"`, see [configuration.md](configuration.md#fake-llm-mode)) when the database can be read, otherwise `503` `{"status": "unavailable"}`. Does not call Gemini. Public (used by the Docker `HEALTHCHECK`) |
+
+The health endpoints return only a status, never document names, counts or error details (the reason of a failed
+check is logged). Successful health checks are not logged; failed ones are.
 
 ## Authentication
 
@@ -100,7 +105,7 @@ digits and `-`).
 | `401` | No session, or the session cookie is invalid or expired (the frontend shows the login screen). `/auth/login`: wrong password |
 | `403` | Deletion disabled |
 | `404` | Document not found (`DELETE /documents/{name}`, `GET /static-pdfs/{name}`) |
-| `409` | Duplicate upload (same content under another name, or same name with different content) |
+| `409` | Duplicate upload (same content under another name, or same name with different content). A PDF whose earlier upload was cut off (fewer chunks in the database than its `chunk_total`) is not a duplicate: its chunks are deleted and it is processed again |
 | `413` | File larger than 20 MB |
 | `422` | Empty or too long question. `/upload-pdf/`: the file is a PDF but cannot be processed (corrupted, encrypted, or no extractable text such as a scanned PDF) |
 | `429` | `/query/`: token limit reached (the message includes the reset time). Only the app's own limit; the frontend locks the input on `429`. `/auth/login`: too many wrong passwords (the message includes the minutes left) |

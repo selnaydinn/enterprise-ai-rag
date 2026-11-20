@@ -1,0 +1,22 @@
+#GELİŞTİRME EKİ (notes2.md Faz 2)
+#"docker compose up" bu dosyayı docker-compose.yml'nin üstüne otomatik ekler:
+#  - tek değerli ayarlar (command) tabandakinin yerine geçer
+#  - listeler (volumes) tabandakilere eklenir; aynı isimli ortam değişkenlerinde (LOG_FORMAT) bu dosya kazanır
+#Production hâli için bu dosya okunmaz: docker compose -f docker-compose.yml up -d --build
+#Sunucuya yalnızca docker-compose.yml gider
+
+services:
+  rag-backend:
+    #Kod değişince uygulama kendini yeniden başlatır. Proje klasörünü izlediği için boştayken de CPU harcar
+    #(frontend dev sunucusu rag-frontend/.next'e yazdıkça); production'da yok (notes2.md §17)
+    #Dockerfile CMD'nin yerine geçtiği için kapanma süresi burada da yazılı (Dockerfile'daki açıklama)
+    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload", "--timeout-graceful-shutdown", "110"]
+    volumes:
+      #Bütün proje klasörü: kod değişiklikleri imajı yeniden derlemeden gelir; scripts/build_db.py DB'yi proje klasörüne yazar
+      - .:/app
+      #Model önbelleği yazılabilir (tabanda salt okunur): ilk kurulumda ve model değişince modeller buraya iner
+      #(build_db.py --allow-download). Aynı hedef (/models) olduğu için tabandaki :ro bağlantının yerine geçer
+      - hf_cache:/models
+    environment:
+      #Göz için okunaklı satırlar
+      - LOG_FORMAT=text

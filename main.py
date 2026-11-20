@@ -11,7 +11,7 @@ from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, StringConstraints
-from services.ingestion import PdfUnreadableError, process_pdf, hash_bytes, hash_pdf, is_file_already_processed, delete_document_chunks, delete_chunks_by_hash
+from services.ingestion import PdfUnreadableError, process_pdf, hash_bytes, hash_pdf, document_status, check_documents, delete_document_chunks, delete_chunks_by_hash
 from core.auth import check_auth_config, check_password, clear_session_cookie, login_guard, require_auth, set_session_cookie
 from core.config import get_db, get_llm, get_reranker
 from core.log_setup import REQUEST_ID_HEADER, RequestIdMiddleware, get_request_id, setup_logging
@@ -30,12 +30,24 @@ settings = get_settings()
 async def lifespan(app):
     #Auth ayarları modeller yüklenmeden önce kontrol ediliyor; eksikse beklemeden hata verir (core/auth.py)
     check_auth_config()
-    get_llm()
+    #Sahte modda Gemini istemcisi kurulmaz, key gerekmez (services/fake_llm.py)
+    if settings.llm_mode == "fake":
+        logger.warning("Sahte LLM modu AÇIK (LLM_MODE=fake): Gemini çağrılmıyor, cevaplar gerçek değil, "
+                       "token sayacı ve sınırı kullanılmıyor. Yalnızca yük testi ve deneme için.")
+    else:
+        get_llm()
     get_db()
     if settings.reranker_enabled:
         get_reranker()
     #Arama ve reranker bir kez çalıştırılır; ilk soru ısınmayı beklemez. Hata verirse uygulama başlamaz
     warm_up()
+    #İstek kabul edilmeden önce: yarım kalmış yüklemeler geri alınır, diğer tutarsızlıklar loglanır
+    #(services/ingestion.py check_documents; tek uygulama kopyası varsayılıyor). Kontrolün kendisi hata verirse
+    #uygulama yine açılır: temizlik hatası yüzünden hiç açılamamak daha kötü
+    try:
+        check_documents(str(settings.upload_dir))
+    except Exception:
+        logger.warning("Doküman kontrolü yapılamadı; uygulama yine de açılıyor.", exc_info=True)
     yield
 
 
@@ -131,6 +143,29 @@ def client_key(request: Request):
 @app.get("/")
 def read_root():
     return {"status": "Enterprise AI projesi ayakta."}
+
+# SAĞLIK KONTROLÜ (Docker HEALTHCHECK, notes2.md Faz 2)
+#Oturum istemez (Docker parola bilmiyor); bu yüzden yalnızca durum döner: doküman adı, sayı veya hata ayrıntısı yok
+#Başarılı kontroller loglanmaz, yalnızca sorun olduğunda (core/log_setup.py is_quiet_health_check)
+
+#Program cevap verebiliyor mu; hiçbir şeye bağlı değil. Cevap gelmiyorsa süreç kilitlenmiş demektir
+@app.get("/health/live")
+def health_live():
+    return {"status": "ok"}
+
+#İş yapabilir mi: DB okunabiliyor mu (tek bir id, içerik okunmaz). Modeller açılışta (lifespan) yüklendiği için uygulama
+#cevap veriyorsa yüklüdür. Gemini'ye istek atılmaz: kontrol sık yapılıyor, kota harcanmaz
+#Boş DB sağlıklıdır (doküman yüklenmemiş olabilir); yalnızca DB'ye erişilemezse 503
+#llm_mode (gemini/fake): yük testi script'i sahte mod açık değilse çalışmayı reddediyor
+@app.get("/health/ready")
+def health_ready():
+    try:
+        get_db().get(limit=1, include=[])
+    except Exception as exc:
+        #Ayrıntı yalnızca logda; tür adı yeterli, mesaj yol vb. içerebilir
+        logger.warning(f"Hazırlık kontrolü başarısız: veritabanı okunamadı ({type(exc).__name__}).")
+        return JSONResponse(status_code=503, content={"status": "unavailable"})
+    return {"status": "ok", "llm_mode": settings.llm_mode}
 
 # KİMLİK DOĞRULAMA
 #Parola doğruysa imzalı oturum cookie'si kurulur (204, gövde yok); parola ve token loglanmaz
@@ -250,8 +285,15 @@ async def upload_pdf(file: UploadFile = File(...)):
 
     #Kontrolden DB'ye kayda kadar tek yükleme çalışıyor; yoksa iki eş yükleme kontrolü birlikte geçip chunk'ları iki kez ekler
     async with UPLOAD_LOCK:
-        if is_file_already_processed(pdf_hash):
+        #Tam (veya chunk_total'dan önce yüklenmiş) PDF reddedilir; yarım kalmış olan silinip baştan yüklenir
+        #Üzerine yazmak yerine silme: arada parçalama ayarı değiştiyse id'ler de değişir, eski yarım parçalar kalırdı
+        status = document_status(pdf_hash)
+        if status["state"] in ("complete", "legacy"):
             raise HTTPException(status_code=409, detail=f"{filename} zaten veritabanında mevcut.")
+        if status["state"] == "incomplete":
+            logger.warning(f"Yarım kalmış yükleme bulundu: {filename} ({status['found']}/{status['total']} parça); "
+                           f"parçalar silinip yeniden yükleniyor.")
+            delete_chunks_by_hash(pdf_hash)
 
         #Kaydedilecek dosyanın tam yolunu oluşturuyoruz
         target_file_path = os.path.join(UPLOAD_DIR, filename)
@@ -285,7 +327,8 @@ async def upload_pdf(file: UploadFile = File(...)):
             raise HTTPException(status_code=422, detail=str(e))
 
         #Asıl hata önce loglanıyor, sonra chunk'lar geri alınıp dosya siliniyor (UPLOAD_LOCK hâlâ tutuluyor)
-        #Kapsam dışı: uygulama yükleme sürerken kapatılırsa bu blok çalışmaz (notes2.md Faz 2, graceful shutdown)
+        #Uygulama yükleme sürerken öldürülürse bu blok çalışmaz; yarım kalan parçalar aynı PDF yeniden yüklenince
+        #temizlenir (yukarıda, document_status "incomplete")
         except Exception:
             logger.exception("Upload hatası")
             rollback_chunks(pdf_hash, filename)
@@ -326,10 +369,14 @@ async def delete_document(name: str):
 #async değil: FastAPI def endpoint'leri thread'de çalıştırıyor, Gemini çağrısı sürerken diğer istekler donmuyor
 @app.post("/query/", response_model=QueryResponse, dependencies=[Depends(require_auth)])
 def query(request: QueryRequest):
+    #Sahte modda (LLM_MODE=fake) Gemini çağrılmadığı için token sınırı kontrol edilmez ve kullanım yazılmaz;
+    #yük testi gerçek sayacı tüketmez, dolu sayaç da yük testini durdurmaz
+    fake_mode = settings.llm_mode == "fake"
+
     #Token sınırı aşım kontrolü; istek hatalı değil, kota dolu olduğu için 429
     #Sınır saate bağlı pencerelerle (Türkiye saati) sıfırlanıyor, kullanıcıya sıfırlanma saatini gösteriyoruz
     usage = get_status()
-    if usage["limited"]:
+    if usage["limited"] and not fake_mode:
        reset_time = datetime.fromisoformat(usage["resets_at"]).strftime("%H:%M")
        raise HTTPException(
            status_code=429,
@@ -342,10 +389,12 @@ def query(request: QueryRequest):
 
         #O anki isteğin token miktarı
         current_token = response.get("token_usage", 0)
-        logger.info(f"Bu sorunun token kullanımı: {current_token}")
-
-        #Gerçek tüketimi kaydediyoruz; kırpma yok, son istek sınırı biraz aşabilir
-        record_usage(current_token)
+        if fake_mode:
+            logger.info(f"Bu sorunun token kullanımı: {current_token} (sahte, sayaca yazılmadı)")
+        else:
+            logger.info(f"Bu sorunun token kullanımı: {current_token}")
+            #Gerçek tüketimi kaydediyoruz; kırpma yok, son istek sınırı biraz aşabilir
+            record_usage(current_token)
         usage = get_status()
 
         #Frontend sayaç ve kilit için kullanımı da yanıta ekliyoruz

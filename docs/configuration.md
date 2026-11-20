@@ -12,7 +12,7 @@ Copy `.env.example` to `.env` and fill in the values. All settings are defined i
 | `CHROMA_DIR` | `chroma_db_normalization` | ChromaDB folder, relative to the project root |
 | `TOKEN_LIMIT` | `10000` | Global token limit per window |
 | `TOKEN_WINDOW_HOURS` | `6` | Window length in hours (must divide 24) |
-| `USAGE_DB_PATH` | `usage.db` | SQLite file for the token counter (created automatically) |
+| `USAGE_DB_PATH` | `data/usage.db` | SQLite file for the token counter (file and folder created automatically). In Docker it is always `data/usage.db` (the `data/` folder is mounted) |
 | `LLM_MODEL` | `gemini-2.5-flash` | Gemini model |
 | `LLM_TEMPERATURE` | `0.2` | Gemini temperature |
 | `LOG_LEVEL` | `INFO` | `DEBUG`, `INFO`, `WARNING`, `ERROR` or `CRITICAL` |
@@ -23,6 +23,10 @@ Copy `.env.example` to `.env` and fill in the values. All settings are defined i
 | `SESSION_SECRET` | — (required when auth is on) | Signs the session cookie; at least 32 characters, never shared |
 | `SESSION_HOURS` | `12` | Session length; after it the password is asked again |
 | `COOKIE_SECURE` | `false` | `true` sends the cookie over HTTPS only; keep `false` on `http://localhost` or the login will not stick |
+| `LLM_MODE` | `gemini` | `fake` replaces Gemini with a fake answer for load tests; **never in production**. See [Fake LLM mode](#fake-llm-mode) |
+| `FAKE_LLM_DELAY_SECONDS` | `3` | Fake mode: wait before a fake answer |
+| `FAKE_LLM_ERROR_RATE` | `0` | Fake mode: share of requests (0–1) that end with a fake error |
+| `FAKE_LLM_ERROR_KIND` | `mixed` | Fake mode: `timeout`, `connection` or `mixed` (half each) |
 
 Relative paths are resolved from the project root, so the same values work in Docker (`/app`) and locally.
 
@@ -36,6 +40,19 @@ python -c "import secrets; print(secrets.token_urlsafe(48))"
 
 `.env` values need no quotes. Avoid spaces, `#` and quotes in the password so it is read the same way locally and by
 Docker. Changing `SESSION_SECRET` signs everyone out. How the login and the cookie work: [api.md](api.md#authentication).
+
+### Fake LLM mode
+
+`LLM_MODE=fake` (`services/fake_llm.py`) is for load tests and trying the app without spending the Gemini quota. Only
+the Gemini call changes; search, reranker, thresholds, logs and error handling run for real.
+
+- Answers start with `[SAHTE CEVAP]` and quote the first retrieved chunk; sources are the real ones.
+- Each answer waits `FAKE_LLM_DELAY_SECONDS`. A share of requests (`FAKE_LLM_ERROR_RATE`) fails like Gemini would:
+  `timeout` waits `llm_timeout_seconds × llm_max_attempts` (40 s by default) and returns `504`; `connection` returns
+  `503` at once.
+- No Gemini client is created, so `GEMINI_API_KEY` is not needed. Token usage is estimated and shown in the answer but
+  not written to the counter, and the token limit is not checked.
+- A `WARNING` is logged at startup and `GET /health/ready` returns `"llm_mode": "fake"`.
 
 ### Settings kept in code
 
@@ -62,7 +79,7 @@ These live in `core/settings.py` with defaults and are intentionally not in `.en
 
 ### Startup checks
 
-The app refuses to start if `GEMINI_API_KEY` is missing or `CHROMA_DIR` does not contain a ChromaDB
+The app refuses to start if `GEMINI_API_KEY` is missing (unless `LLM_MODE=fake`) or `CHROMA_DIR` does not contain a ChromaDB
 (`chroma.sqlite3`). It never creates an empty database by itself. With `AUTH_ENABLED=true` it also refuses to start if
 `APP_PASSWORD` or `SESSION_SECRET` is missing, before loading the models, so a forgotten setting never leaves the app
 open. An invalid value (e.g. `TOKEN_LIMIT=abc`, `TOKEN_WINDOW_HOURS=5`, `LOG_LEVEL=VERBOSE`, `LOG_FORMAT=xml`, a `SESSION_SECRET` shorter
@@ -143,6 +160,41 @@ screen comes back.
 
 ## Docker
 
+There are two compose files:
+
+| File | Role |
+|---|---|
+| `docker-compose.yml` | Production base: the code is inside the image, no `--reload`, JSON logs, runs as the non-root user `appuser`. Only the data is mounted from the project folder: the database (`CHROMA_DIR`), `uploaded_pdfs/` and `data/` (token counter), plus the `hf_cache` model volume **read-only** |
+| `docker-compose.override.yml` | Development additions: the whole project folder mounted at `/app`, `--reload`, text logs, `hf_cache` writable (for downloading models) |
+
+`docker compose up` reads both files automatically, so day-to-day use runs the development setup. To run the
+production setup, name the base file explicitly (the override is then not read):
+
+```bash
+docker compose up -d                                    # development (both files)
+docker compose -f docker-compose.yml up -d --build      # production (code from the image; rebuild after code changes)
+docker compose config                                   # show the merged configuration
+```
+
+The database mount uses `CHROMA_DIR` from `.env` (Compose reads `.env` for `${...}` in the compose file too), so
+changing `CHROMA_DIR` also changes the mount. Only relative paths are supported there. The token counter is mounted as
+the `data/` folder, not as a single file, because SQLite writes a temporary file next to it.
+
+**Non-root user.** The app runs as `appuser` (uid 1000). It can read the code but not change it, and writes only to
+the mounted data folders (and to the model cache in the development setup). On Windows, Docker Desktop lets it write to
+the mounted project folders. On a Linux server the data folders must be owned by uid 1000. The model volume created
+before this change was owned by root; give it to `appuser` once (files are not deleted or downloaded again):
+
+```bash
+docker run --rm -v enterprise_ai_hf_cache:/models alpine chown -R 1000:1000 /models
+```
+
+**Shutdown.** On `docker compose stop`/`down` the app stops accepting requests and waits up to 110 s for running
+questions and uploads to finish (`--timeout-graceful-shutdown`); Docker waits 120 s (`stop_grace_period`) before
+killing the container. With nothing running it stops in a second or two. An upload that is still running after that
+is cut off; a killed process cannot roll back, so its chunks may stay in the database (see the cleanup item in
+`notes2.md`, Faz 2).
+
 `.env` is read when the container is created. After changing it, recreate the container:
 
 ```bash
@@ -164,10 +216,13 @@ On a first setup, build the database inside the container so the models are down
 docker compose run --rm rag-backend python scripts/build_db.py --target chroma_db_new --allow-download
 ```
 
-`--allow-download` turns `HF_HUB_OFFLINE` off for that run only; the app itself stays offline. The project folder is
-mounted at `/app`, so the database and the manifest are written to the project folder on the host. Then set
+`--allow-download` turns `HF_HUB_OFFLINE` off for that run only; the app itself stays offline. In the development setup
+the project folder is mounted at `/app`, so the database and the manifest are written to the project folder on the
+host (run this command with both compose files, as above, not with `-f docker-compose.yml`). Then set
 `CHROMA_DIR=chroma_db_new` in `.env` and start the app. If only a model changed and no database needs to be built, set
 `HF_HUB_OFFLINE=0` in `docker-compose.yml`, start once, then set it back to `1`.
 
-The container is limited to 3 GB RAM and 2 CPUs. With both models loaded the app uses about 1.6 GB (about 1.85 GB
-while embedding an upload; measured locally), and reranking is slower than on an unrestricted CPU.
+The container is limited to 2.5 GB RAM and 2 CPUs. With both models loaded the app uses about 1.2–1.6 GB (at most
+about 1.9 GB while answering and embedding an upload; measured locally), and reranking is slower than on an
+unrestricted CPU. The memory limit must stay below the memory of Docker's VM (on Windows, `memory` in `.wslconfig`),
+otherwise it has no effect.

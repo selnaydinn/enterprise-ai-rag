@@ -44,7 +44,7 @@ docker compose build
 # add --allow-empty to start without documents
 docker compose run --rm rag-backend python scripts/build_db.py --target chroma_db_new --allow-download
 # set CHROMA_DIR=chroma_db_new in .env
-docker compose up             # backend: http://localhost:8000/docs
+docker compose up             # backend: http://localhost:8000/docs ("docker ps" shows "healthy" when ready)
 
 cd rag-frontend
 npm ci
@@ -109,8 +109,11 @@ documents contain no direct information; none got an invented answer. Details in
 - **Data leaves the machine;** questions and retrieved chunks are sent to the Gemini API.
 - **Questions are logged in full** at `INFO` level (search log in `services/query.py`).
 - **Synchronous uploads;** large PDFs are processed during the upload request. A failed upload is rolled back (its
-  chunks are deleted, the file is removed), but if the app is stopped while an upload is running, part of its chunks
-  can stay in the database and uploading the same PDF again returns `409`.
+  chunks are deleted, the file is removed). If the app is killed while an upload is running, the next startup finds
+  the short chunk count, rolls the upload back the same way and logs a `WARNING`; the PDF has to be uploaded again
+  (uploading it before a restart also works). This only works for PDFs uploaded after the chunk count was added
+  (`chunk_total`); older ones are treated as complete. Other mismatches (chunks without a file, a file without chunks)
+  are only logged at startup. The startup rollback assumes a single app instance.
 - **Thresholds tuned on the evaluated questions;** the reranker threshold (−2.0) was chosen on the first 39
   unanswerable questions, where 4/28 near-domain ones reached Gemini; on 16 newer ones it let 4/16 through. The
   reranker adds about 2–3 s per question on CPU.
@@ -119,5 +122,7 @@ documents contain no direct information; none got an invented answer. Details in
 - **Search after restart;** the approximate vector index is rebuilt when the database is opened and can occasionally
   miss a near chunk ([notes.md](notes.md) item 41). The evaluation uses an exact ranking, so its numbers are not
   affected.
-- **Development Docker setup** (`--reload`, full bind mount, root user, no healthcheck); not production-ready. The
-  backend port is published on `127.0.0.1` only, so it is not reachable from other devices on the network.
+- **Docker:** `docker compose up` runs the development setup (`--reload`, whole project mounted); the production base
+  (`docker compose -f docker-compose.yml up`, code in the image, non-root user, read-only models)
+  ([configuration.md](docs/configuration.md#docker)). The backend port is published on `127.0.0.1` only, so it is not
+  reachable from other devices on the network.

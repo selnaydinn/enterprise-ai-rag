@@ -22,12 +22,22 @@ rag-frontend/
 # Veri: image'a gömülmez, volume/bind mount ile verilir
 chroma_db*/
 uploaded_pdfs/
-usage.db
+data/
 
-# Değerlendirme çıktıları ve notlar
-eval/results/
-eval/experiment_*_results/
+# Production'da gerekmeyenler: testler, dokümanlar, notlar, geliştirme araçları
+# (geliştirme modu bütün proje klasörünü bağladığı için orada hepsi yine görünür)
+tests/
+docs/
+.github/
 notes.md
+notes2.md
+requirements-dev.txt
+ruff.toml
+.ruff_cache/
+
+# Değerlendirme: yalnızca soru listesi imajda kalır (scripts/time_retrieval.py production container'ında soruları buradan okur)
+eval/*
+!eval/golden_set.jsonl
 
 # IDEs
 .vscode/

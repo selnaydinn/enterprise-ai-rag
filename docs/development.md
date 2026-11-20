@@ -101,6 +101,8 @@ characters, letters, digits and `-`) is kept; otherwise a new one is generated. 
 including code running in the thread pool (`/query/`, PDF processing) and uvicorn's access line. Log lines outside a
 request (startup, model loading) show `-`. When a request finishes, one summary line is logged
 (`GET /documents/ 200 (45 ms)`; `WARNING` for `5xx`). To follow one request, search the log for its ID.
+Successful health checks (`/health/*`, called by Docker every 30 s) are not logged, neither the summary nor uvicorn's
+access line; failed ones are.
 
 **Format.** `LOG_FORMAT=text` (default):
 

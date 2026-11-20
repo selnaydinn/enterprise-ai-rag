@@ -37,6 +37,14 @@ class TempUsageDb(unittest.TestCase):
 
 class UsageTests(TempUsageDb):
 
+    #İlk kurulumda data/ klasörü yok; sayaç ilk kullanımda klasörü de oluşturur
+    def test_missing_folder_is_created(self):
+        path = self.root / "data" / "usage.db"
+        with mock.patch.object(usage, "USAGE_DB_PATH", path):
+            usage.record_usage(5, now=at(10))
+            self.assertEqual(usage.get_status(now=at(10))["used"], 5)
+        self.assertTrue(path.is_file())
+
     def test_window_follows_turkey_time(self):
         self.assertEqual(usage.window_bounds(at(13, 45)), (at(12), at(18)))
         self.assertEqual(usage.window_bounds(at(5, 59)), (at(0), at(6)))
@@ -123,6 +131,25 @@ class QueryUsageEndpointTests(TempUsageDb):
         self.assertTrue(response.json()["usage"]["limited"])
         self.assertEqual(self.ask().status_code, 429)
         self.prepare.assert_called_once()
+
+    #Sahte mod (LLM_MODE=fake): Gemini çağrılmadığı için kullanım yazılmaz, sınır da kontrol edilmez
+    def fake_mode(self):
+        return mock.patch.object(self.main, "settings", self.main.settings.model_copy(update={"llm_mode": "fake"}))
+
+    def test_fake_mode_does_not_record_usage(self):
+        with self.fake_mode():
+            response = self.ask()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["usage"]["used"], 0)
+        self.assertEqual(usage.get_status()["used"], 0)
+
+    def test_fake_mode_skips_token_limit(self):
+        usage.record_usage(LIMIT)
+        with self.fake_mode():
+            response = self.ask()
+        self.assertEqual(response.status_code, 200)
+        self.prepare.assert_called_once()
+        self.assertEqual(usage.get_status()["used"], LIMIT)
 
     def test_usage_endpoint(self):
         usage.record_usage(250)

@@ -21,6 +21,12 @@ OPEN_USAGE = {"used": 0, "limit": 10000, "resets_at": "2026-10-24T18:00:00+03:00
 PROCESSED = {"filename": "rapor.pdf", "total_pages": 1, "total_chunks": 1, "message": "ok"}
 ANSWER = {"status": "success", "message": "ok", "answer": "Cevap", "sources": [], "token_usage": 0}
 
+#Sahte document_status dönüşleri (services/ingestion.py)
+MISSING = {"state": "missing", "found": 0, "total": None}
+COMPLETE = {"state": "complete", "found": 159, "total": 159}
+INCOMPLETE = {"state": "incomplete", "found": 64, "total": 159}
+LEGACY = {"state": "legacy", "found": 159, "total": None}
+
 
 #Model, DB ve LLM artık import anında yüklenmiyor (core/config.py); main doğrudan import edilebiliyor
 #DB/LLM'e dokunan fonksiyonlar her testte sahte değerlerle değiştiriliyor
@@ -84,9 +90,9 @@ class UploadEndpointTests(unittest.TestCase):
         self.upload_dir.mkdir()
         patches = [
             mock.patch.object(self.main, "UPLOAD_DIR", str(self.upload_dir)),
-            mock.patch.object(self.main, "is_file_already_processed", return_value=False),
+            mock.patch.object(self.main, "document_status", return_value=MISSING),
             mock.patch.object(self.main, "process_pdf", return_value=PROCESSED),
-            #Hata sonrası geri alma (main.rollback_chunks); gerçek DB'ye gitmesin
+            #Hata sonrası geri alma (main.rollback_chunks) ve yarım kalmış yüklemenin temizliği; gerçek DB'ye gitmesin
             mock.patch.object(self.main, "delete_chunks_by_hash", return_value=0),
         ]
         self.in_db = patches[1].start()
@@ -147,12 +153,36 @@ class UploadEndpointTests(unittest.TestCase):
         self.assertEqual(self.files(), ["tam.pdf"])
 
     def test_same_content_in_db_is_rejected_before_writing(self):
-        self.in_db.return_value = True
-        response = self.upload("rapor.pdf")
-        self.assertEqual(response.status_code, 409)
-        self.in_db.assert_called_once_with(hashlib.md5(PDF).hexdigest()[:8])
-        self.assertEqual(self.files(), [])
+        #chunk_total'dan önce yüklenmiş PDF'ler (legacy) de tam sayılır: bilinmeyen bir şey silinmez
+        for status in (COMPLETE, LEGACY):
+            with self.subTest(state=status["state"]):
+                self.in_db.reset_mock()
+                self.in_db.return_value = status
+                response = self.upload("rapor.pdf")
+                self.assertEqual(response.status_code, 409)
+                self.in_db.assert_called_once_with(hashlib.md5(PDF).hexdigest()[:8])
+                self.assertEqual(self.files(), [])
         self.process.assert_not_called()
+        self.rollback.assert_not_called()
+
+    #Yükleme sırasında uygulama öldürülmüştü: DB'de 64/159 parça kaldı. Aynı PDF yeniden yüklenince 409 yerine
+    #yarım parçalar silinir ve PDF baştan işlenir (notes2.md Faz 2, sahipsiz parçalar)
+    def test_incomplete_upload_is_cleaned_and_processed_again(self):
+        self.in_db.return_value = INCOMPLETE
+        #Diskte yarım yüklemeden kalan aynı dosya
+        (self.upload_dir / "rapor.pdf").write_bytes(PDF)
+        order = mock.Mock()
+        order.attach_mock(self.rollback, "delete")
+        order.attach_mock(self.process, "process")
+        with self.assertLogs("EnterpriseAI", level="WARNING") as logs:
+            response = self.upload("rapor.pdf")
+        self.assertEqual(response.status_code, 200)
+        pdf_hash = hashlib.md5(PDF).hexdigest()[:8]
+        #Önce eski parçalar silinir, sonra işlenir
+        self.assertEqual([c[0] for c in order.mock_calls], ["delete", "process"])
+        self.rollback.assert_called_once_with(pdf_hash)
+        self.assertIn("Yarım kalmış yükleme bulundu: rapor.pdf (64/159 parça)", "\n".join(logs.output))
+        self.assertEqual(self.files(), ["rapor.pdf"])
 
     def test_same_name_different_content_is_rejected_and_old_file_kept(self):
         old = b"%PDF-1.4\neski icerik"
@@ -407,7 +437,8 @@ class CorsTests(unittest.TestCase):
 class ConcurrencyTests(unittest.TestCase):
 
     #TestClient "with" ile açılıyor: eş istekler aynı event loop'ta çalışsın (UPLOAD_LOCK tek bir loop'a bağlanır)
-    #"with" lifespan'ı da çalıştırıyor; gerçek model/Gemini yüklenmesin diye get_llm, get_db, get_reranker ve warm_up sahte
+    #"with" lifespan'ı da çalıştırıyor; gerçek model/Gemini yüklenmesin diye get_llm, get_db, get_reranker, warm_up ve
+    #açılış doküman kontrolü (check_documents) sahte
     #Auth ayar kontrolü de sahte: CI'da .env yok, APP_PASSWORD tanımsız olduğu için lifespan başlamazdı
     def setUp(self):
         self.main = import_main()
@@ -419,7 +450,8 @@ class ConcurrencyTests(unittest.TestCase):
                       mock.patch.object(self.main, "get_llm"),
                       mock.patch.object(self.main, "get_db"),
                       mock.patch.object(self.main, "get_reranker"),
-                      mock.patch.object(self.main, "warm_up")):
+                      mock.patch.object(self.main, "warm_up"),
+                      mock.patch.object(self.main, "check_documents")):
             patch.start()
             self.addCleanup(patch.stop)
         self.client = TestClient(self.main.app)
@@ -443,7 +475,7 @@ class ConcurrencyTests(unittest.TestCase):
             if self.client.get("/documents/").status_code == 200:
                 listed.set()
 
-        with mock.patch.object(self.main, "is_file_already_processed", return_value=False), \
+        with mock.patch.object(self.main, "document_status", return_value=MISSING), \
              mock.patch.object(self.main, "process_pdf", side_effect=slow_process):
             uploader = threading.Thread(target=self.upload, args=("rapor.pdf",))
             uploader.start()
@@ -464,7 +496,7 @@ class ConcurrencyTests(unittest.TestCase):
             return PROCESSED
 
         codes = []
-        with mock.patch.object(self.main, "is_file_already_processed", side_effect=lambda h: h in processed), \
+        with mock.patch.object(self.main, "document_status", side_effect=lambda h: COMPLETE if h in processed else MISSING), \
              mock.patch.object(self.main, "process_pdf", side_effect=slow_process) as process:
             #Farklı adlar: aynı ad kontrolüne değil, DB duplikasyon kontrolüne takılsın
             threads = [threading.Thread(target=lambda n=name: codes.append(self.upload(n).status_code))
@@ -475,6 +507,35 @@ class ConcurrencyTests(unittest.TestCase):
                 t.join(10)
         self.assertEqual(sorted(codes), [200, 409])
         process.assert_called_once()
+
+
+#Açılış doküman kontrolü (main.py lifespan, services/ingestion.py check_documents)
+class StartupCheckTests(unittest.TestCase):
+
+    def setUp(self):
+        self.main = import_main()
+        for patch in (mock.patch.object(self.main, "check_auth_config"),
+                      mock.patch.object(self.main, "get_llm"),
+                      mock.patch.object(self.main, "get_db"),
+                      mock.patch.object(self.main, "get_reranker"),
+                      mock.patch.object(self.main, "warm_up")):
+            patch.start()
+            self.addCleanup(patch.stop)
+
+    def test_check_runs_on_startup_with_upload_dir(self):
+        with mock.patch.object(self.main, "check_documents") as check, TestClient(self.main.app):
+            pass
+        check.assert_called_once_with(str(self.main.settings.upload_dir))
+
+    #Kontrolün kendisi hata verirse uygulama yine açılır, WARNING yazılır
+    def test_failed_check_does_not_stop_startup(self):
+        with mock.patch.object(self.main, "check_documents", side_effect=RuntimeError("kontrol hatası")), \
+             self.assertLogs("EnterpriseAI", level="WARNING") as logs, \
+             TestClient(self.main.app) as client:
+            self.assertEqual(client.get("/health/live").status_code, 200)
+        output = "\n".join(logs.output)
+        self.assertIn("Doküman kontrolü yapılamadı; uygulama yine de açılıyor.", output)
+        self.assertIn("kontrol hatası", output)
 
 
 if __name__ == "__main__":

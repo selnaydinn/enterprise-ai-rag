@@ -1,4 +1,8 @@
-version: '3.8'
+#PRODUCTION TABANI (notes2.md Faz 2)
+#Kod imajın içinde (Dockerfile COPY); yalnızca değişen veriler dışarıdan bağlanır. --reload yok, loglar JSON
+#Geliştirme ayarları docker-compose.override.yml'de: "docker compose up" ikisini otomatik birleştirir (--reload, .:/app)
+#Yalnızca bu dosyayla (production hâli):  docker compose -f docker-compose.yml up -d --build
+#Birleşik hâli görmek için:              docker compose config
 
 services:
   rag-backend:
@@ -10,14 +14,27 @@ services:
       #Container içindeki uvicorn 0.0.0.0'da kalmalı (Dockerfile): Docker isteği container'a kendi sanal ağından iletir
       - "127.0.0.1:8000:8000"
     volumes:
-      - .:/app       # Kodda yapacağın değişikliklerin anında güncellenmesini sağlar
-      # PDF'LERİN UÇMASINI ENGELLEYEN KALICI VOLUME:
+      #Veriler imajda değil (.dockerignore): proje klasöründen bağlanır, container silinse de kalır
+      #DB yolu .env'deki CHROMA_DIR'den okunur (Compose .env'yi bu dosyadaki ${...} için de okuyor);
+      #yalnızca göreli yollar desteklenir (proje köküne göre, uygulamadaki gibi)
+      #Bu klasörlere uygulama (appuser, uid 1000) yazabilmeli: Windows'ta Docker Desktop izin veriyor; Linux sunucuda
+      #klasörlerin sahibi 1000 yapılmalı (notes2.md Faz B2)
+      - ./${CHROMA_DIR:-chroma_db_normalization}:/app/${CHROMA_DIR:-chroma_db_normalization}
       - ./uploaded_pdfs:/app/uploaded_pdfs
-      #HuggingFace model önbelleği (e5 + reranker, ~1.6 GB): ilk açılışta bir kez iner, konteyner yeniden oluşturulsa da kalır
-      #Silmek için: docker volume ls ile adını bulup docker volume rm
-      - hf_cache:/models
+      #Token sayacı (usage.db) klasörüyle bağlanıyor: SQLite yazarken dosyanın yanına geçici dosya oluşturuyor; uygulama
+      #root olmadığı için yazılabilir bir klasör gerekiyor. Container içinde yol sabit (aşağıda USAGE_DB_PATH)
+      - ./data:/app/data
+      #HuggingFace model önbelleği (e5 + reranker, ~1.6 GB). Production'da SALT OKUNUR (:ro): uygulama modelleri yalnızca
+      #okuyor; bir açık olsa bile modeller değiştirilemez. Model indirmek (ilk kurulum, model değişikliği) geliştirme
+      #modunda yapılır (override yazılabilir bağlıyor). Silmek için: docker volume ls ile adını bulup docker volume rm
+      - hf_cache:/models:ro
 
-    #Proje klasöründeki .env dosyasını container içine yükler
+    #Kapatırken (stop/down) Docker'ın uygulamayı bekleyeceği süre; dolunca zorla öldürür (varsayılan 10 sn)
+    #Uvicorn'un kendi süresi (Dockerfile: 110 sn) bundan kısa; süren soru ve PDF yüklemeleri bitebilsin
+    #İş yoksa uygulama 1-2 sn'de kapanır; bekleme yalnızca süren bir iş varsa olur
+    stop_grace_period: 120s
+
+    #Proje klasöründeki .env dosyasını container içine yükler (imaja girmez)
     env_file:
       - .env
 
@@ -30,18 +47,20 @@ services:
       #Torch (embedding + reranker) iş parçacığı sayısı aşağıdaki cpus sınırıyla aynı olmalı; tanımlı değilse torch
       #fiziksel çekirdek sayısı kadar (bu makinede 4) iş parçacığı açar ve 2 çekirdeklik kotada birbirini bekler
       - OMP_NUM_THREADS=2
+      #Production: satır başına bir JSON nesnesi (log toplayan araçlar için); .env'deki değerin önüne geçer
+      #Geliştirmede override dosyası text yapıyor
+      - LOG_FORMAT=json
+      #Container içinde token sayacı her zaman bağlanan data/ klasöründe (.env'deki değerin önüne geçer)
+      - USAGE_DB_PATH=data/usage.db
 
-    #Gemini API bağlantı sorunlarını ve retrying hatalarını çözen DNS ayarı
-    dns:
-      - 8.8.8.8
-      - 8.8.4.4
-    
-    # Bilgisayarının kilitlenmesini engelleyen 3 GB RAM ve işlemci sınırı:
+    # Bilgisayarının kilitlenmesini engelleyen RAM ve işlemci sınırı:
     deploy:
       resources:
         limits:
           cpus: '2.0'       # İşlemcinin (Ryzen) en fazla 2 çekirdeğini kullanabilir
-          memory: 3000M     # RAM kullanımı 3000 MB'ı (3 GB) kesinlikle geçemez
+          #Ölçülen en yüksek kullanım 1.88 GB (soru + 34 sayfalık PDF yükleme, 2026-11-14); ~600 MB pay
+          #Docker'ın WSL belleğinden (3 GB, .wslconfig) küçük olmalı, yoksa sınır işe yaramaz
+          memory: 2500M
 
 #Docker'ın yönettiği kalıcı alan (proje klasöründe görünmez)
 volumes:
