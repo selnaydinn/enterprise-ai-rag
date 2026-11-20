@@ -46,7 +46,31 @@ Ayrıntılar (dosyalar, riskler, ek RAM) "Yol haritası" tablosunda; gerekçeler
 - ✅  `LLM_MODE=fake`: Gemini yerine gecikmeli sahte cevap, isteğe bağlı sahte hata
 - ✅  Sahte modda token'lar gerçek kullanım sınırını tüketmesin
 - ✅  Sahte mod açıkken açılışta WARNING; varsayılan her zaman `gemini`
-- ❌ Yük testi scripti (golden + negatif set soruları, ayarlanabilir eşzamanlılık)
+- ✅ Yük testi scripti (`scripts/load_test.py`): kapalı döngü (`--concurrency N` = aynı anda N kişi, saniyede N istek değil), golden + negatif sorular oranında ve her koşuda aynı (`--limit`), yalnızca `/health/ready` `llm_mode: fake` derse çalışır, sonuçlar `scripts/stress-results/` (gitignore'da)
+  - İlk deneme (2026-11-20, production Docker, 2 çekirdek, 20 soru, hata yok):
+
+    | Kişi | Toplam süre | Saniyede istek | Soru süresi p50 / p95 |
+    |---|---|---|---|
+    | 1 | 144.5 sn | 0.138 | 7.3 / 9.9 sn |
+    | 2 | 100.2 sn | 0.200 | 10.8 / 13.1 sn |
+
+  - Yorum: 2 kişide toplam süre kısaldı ama her soru uzadı. Sahte LLM'in 3 sn beklemesi CPU kullanmıyor; bir soru beklerken diğeri reranker çalıştırıyor. Saf CPU işi olan `no_result` sorular 4.3–4.9 → 6.7–7.0 sn: iki reranker iki çekirdeği paylaşıyor (`OMP_NUM_THREADS=2`, tek reranker zaten iki çekirdeği kullanıyor). CPU tavanı ≈ 1 / 4.3 sn ≈ saniyede 0.23 istek; 2 kişide neredeyse doldu. Beklenti: 4–8 kişide saniyedeki istek ~0.2'de sabit, bekleme kişi sayısıyla büyür (4 kişi ~20 sn, 8 kişi ~40 sn)
+  - Değerlendirme: tek / birkaç kullanıcı için kabul edilebilir; donanım eksikliği değil. Darboğaz reranker'ın CPU süresi ve bilerek konan `cpus: 2`. Önce ucuz yollar (OMP ayarı, Faz R reranker hızı), sonra donanım (hedef sunucu 4 vCPU)
+  - Notlar: ilk soru soğuk başlangıç (q01 20.9 sn); negatif n29 ve n50 reranker barajını geçti ve sahte LLM cevap verdi (gerçek Gemini büyük ihtimalle `BILGI_YOK` derdi, sahte modun sınırı)
+- ✅ Tam koşu (2026-11-20, 135 soru × 4 düzey, 540 isteğin hepsi 200, en yüksek RAM 1.92 GB / 2.5 GB sınır; `scripts/stress-results/load-20261120-220350.json`):
+
+    | Kişi | Toplam süre | Saniyede istek | Soru süresi p50 / p95 |
+    |---|---|---|---|
+    | 1 | 765 sn | 0.176 | 6.6 / 7.6 sn |
+    | 2 | 616 sn | 0.219 (en yüksek) | 9.6 / 13.3 sn |
+    | 4 | 994 sn | 0.136 | 30.7 / 40.7 sn |
+    | 8 | 922 sn | 0.146 | 58.3 / 69.4 sn |
+
+  - Bulgu: beklentinin aksine 4 kişide kapasite sabit kalmadı, ~%40 düştü (1 kişiden bile düşük). Barajda elenen ve yalnızca arama yapan sorular bile yavaşladı (1 sn altı: 1–2 kişide 11 soru, 4 kişide 1, 8 kişide 0)
+  - Sebep (muhtemel): iş parçacığı fazlalığı. Her istek torch'a 2 iş parçacığı açtırıyor (`OMP_NUM_THREADS=2`); 4 kişide 8, 8 kişide 16 iş parçacığı 2 çekirdekte yarışıyor, CPU'nun bir kısmı geçişlere gidiyor
+  - Sonuç: 1–2 kullanıcı için sorun yok; 4+ eşzamanlı kullanıcıda yarım dakika–1 dakika bekleme. Daha çok çekirdek tavanı yükseltir ama çöküşü çözmez; asıl sorun eşzamanlı CPU işinin sınırsız olması. RAM sorun değil
+- ❌ `OMP_NUM_THREADS=1` ile aynı test (`--concurrency 1 2 4`, tüm sorular, ~40 dk; kod değişikliği yok, compose ayarı); Faz 2'deki `cpus` / `OMP_NUM_THREADS` maddesine veri
+- ❌ Denemeye göre: arama + reranker adımına eşzamanlılık sınırı (semaphore, ör. aynı anda en fazla 2; sahte LLM / Gemini beklemesi dışında). Beklenti: kapasite 4–8 kişide de ~0.22'de kalır, bekleme doğrusal büyür
 
 **Faz 3: Sentry backend (§6)**
 - ❌ Sentry kurulumu ve hassas veri temizleyici (scrubber)

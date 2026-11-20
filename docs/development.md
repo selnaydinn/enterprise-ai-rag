@@ -26,6 +26,8 @@ The Docker image uses Python 3.13 like the local venv and CI.
 | Ingestion | `services/ingestion.py` | PDF → chunks (`split_pages`, `prepare_chunks`) → ChromaDB (`process_pdf`), document deletion |
 | Database build | `scripts/build_db.py` | Builds a new database from the PDFs; see [configuration.md](configuration.md#building-a-database) |
 | Query | `services/query.py` | Retrieval, threshold, reranking (`rerank_chunks`, shared `rerank_scores` with eval), prompt, real token counting (`usage_metadata`), startup warm-up (`warm_up`), per-question timing log (`Süreler: ...`) |
+| Fake LLM | `services/fake_llm.py` | Gemini replacement for load tests (`LLM_MODE=fake`); see [configuration.md](configuration.md#fake-llm-mode) |
+| Load test | `scripts/load_test.py` | See [Load test](#load-test) |
 | Token limit | `services/usage.py` | Global token counter stored in SQLite |
 | Frontend | `rag-frontend/` | `app/page.tsx` (login gate), `components/Workspace.tsx` (the app), `components/LoginForm.tsx`, `services/api.ts` (all requests, `credentials: "include"`, `401` → login screen), `types/` |
 | Evaluation | `eval/` | See [`eval/README.md`](../eval/README.md) |
@@ -60,6 +62,33 @@ npm run lint                           # ESLint
   `Depends(require_auth)` fails the tests.
 - **PDF-based tests** read the real `uploaded_pdfs/meb_yonetmelik.pdf` and are skipped when it is missing (e.g. in CI).
 - **Frontend:** there are no unit tests yet; the frontend is checked with TypeScript and ESLint.
+
+## Load test
+
+`scripts/load_test.py` sends the golden (80) and negative (55) questions to the running app with several simultaneous
+users and summarizes latency and status codes. It only runs in fake LLM mode ([configuration.md](configuration.md#fake-llm-mode)):
+if `GET /health/ready` does not report `"llm_mode": "fake"`, it stops, so the Gemini quota is never used.
+
+```bash
+# .env: LLM_MODE=fake, then start the production setup (no --reload)
+docker compose -f docker-compose.yml up -d --build
+
+python scripts/load_test.py --concurrency 1 2 --limit 20                 # first try, ~5 min
+python scripts/load_test.py --concurrency 1 2 4 8                        # full run, ~1 hour
+python scripts/load_test.py --pause 120 --limit 5                        # effect of idle time
+```
+
+- **Closed loop:** `--concurrency N` means N users at the same time; each sends a question, waits for the answer, then
+  sends the next. Several values run one after another with the same questions.
+- **Questions:** `--limit` picks golden and negative questions in proportion (20 → 12 + 8), always the same ones, so
+  runs can be compared. Use all questions for the real measurement; with 8 users use at least ~50.
+- **Login:** the password is read from `APP_PASSWORD` in `.env`. The script tries once and stops on failure (5 wrong
+  attempts lock the login for 15 minutes).
+- **Output:** per level, HTTP codes, answer types (`success` / `no_result`), p50 / p95 / max latency (separately for
+  answers, no-result and errors) and requests per second. The summary and every request are also written to
+  `scripts/stress-results/load-<date>-<time>.json` (git-ignored); `--out` chooses another path.
+- Each request has `X-Request-ID: load-<time>-c<N>-<n>`, so its `Süreler:` log line can be found. Watch memory in a
+  second terminal with `docker stats meb_rag_backend`. For fake errors set `FAKE_LLM_ERROR_RATE` in `.env` and restart.
 
 ## CI
 
