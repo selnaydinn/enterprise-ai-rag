@@ -154,7 +154,7 @@ def has_any_chunk():
 #Soru-parça çiftlerinin cross-encoder skorları; eval/evaluate_evidence.py de aynı fonksiyonu kullanıyor
 #'query:' ön eki e5'e özgü; reranker'a soru ön eksiz veriliyor
 def rerank_scores(reranker, user_query, texts):
-    return [float(s) for s in reranker.predict([(user_query, t) for t in texts])]
+    return [float(s) for s in reranker.predict([(user_query, t) for t in texts], show_progress_bar=False)]
 
 #Barajı geçen parçaları cross-encoder ile yeniden sıralayıp ilk retrieval_k parçayı döner; kapalıysa e5 sırası kalır
 #En iyi reranker skoru rerank_score_threshold'un altındaysa soru dokümanlarda cevaplanamıyor sayılır ve boş liste döner

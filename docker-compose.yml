@@ -44,9 +44,11 @@ services:
       #Açılışta HuggingFace'e sürüm kontrolü isteği atılmaz; modeller yalnızca volume'dan okunur (internetsiz de açılır)
       #Volume boşken (ilk kurulum, volume silindiğinde, model değiştiğinde) modeller inemez: geçici olarak 0 yapın, bir kez açın, sonra geri 1
       - HF_HUB_OFFLINE=1
-      #Torch (embedding + reranker) iş parçacığı sayısı aşağıdaki cpus sınırıyla aynı olmalı; tanımlı değilse torch
-      #fiziksel çekirdek sayısı kadar (bu makinede 4) iş parçacığı açar ve 2 çekirdeklik kotada birbirini bekler
-      - OMP_NUM_THREADS=2
+      #Torch (embedding + reranker) istek başına iş parçacığı sayısı; tanımlı değilse torch fiziksel çekirdek sayısı
+      #kadar (bu makinede 4) açar. 1: her istek bir çekirdek kullanır, eşzamanlı istekler çekirdekleri paylaşır.
+      #Yük testinde 2 ile 4 kişide kapasite çöktü, 1 ile 2 katına çıktı (notes2.md Faz L); .env'deki OMP_NUM_THREADS
+      #ile değiştirilir (varsayılan 1)
+      - OMP_NUM_THREADS=${OMP_NUM_THREADS:-1}
       #Production: satır başına bir JSON nesnesi (log toplayan araçlar için); .env'deki değerin önüne geçer
       #Geliştirmede override dosyası text yapıyor
       - LOG_FORMAT=json

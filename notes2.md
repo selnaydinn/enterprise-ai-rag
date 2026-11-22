@@ -33,7 +33,7 @@ Ayrıntılar (dosyalar, riskler, ek RAM) "Yol haritası" tablosunda; gerekçeler
 - ✅ `.dockerignore`: `tests/`, `docs/`, `.github/`, notlar, `requirements-dev.txt`, `ruff.toml` imaja girmiyor; `eval/`'den yalnızca `golden_set.jsonl` (time_retrieval production container'ında soruları oradan okuyor). Eski `usage.db` satırı silindi (`.gitignore`'dan da)
 - ✅ Compose bellek sınırı 2500M: ölçülen en yüksek 1.88 GB (soru + 34 sayfalık PDF yükleme), boşta 1.22 GB. Eski 3000M, 2.84 GB'lık VM'den büyük olduğu için işe yaramıyordu
 - ✅ Saat dilimi (TZ) eklenmedi, gerek yok: token sayacı Türkiye saatini kendi hesaplıyor (`services/usage.py`), production JSON logları bilerek UTC. Yalnızca geliştirmedeki düz metin logların saati UTC görünüyor
-- ❌ Sonra tekrar ölçüm (`--reload` kalkınca reranker); CPU sınırı (`cpus: 3` + `OMP_NUM_THREADS=3`) bu ölçüme göre. DB'yi volume'a taşımaya gerek yok (§17). 4e testinde (production, 2026-11-14) görülen iki yavaşlık da burada incelenecek:
+- ❌ Sonra tekrar ölçüm (`--reload` kalkınca reranker); CPU: `OMP_NUM_THREADS=1` (Faz L yük testi); `cpus` sunucunun çekirdek sayısına göre, OMP artık cpus'a bağlı değil. DB'yi volume'a taşımaya gerek yok (§17). 4e testinde (production, 2026-11-14) görülen iki yavaşlık da burada incelenecek:
   - Arama 4.7–6.1 sn (3 GB'a geçince dev modda 0.4–0.6 sn ölçülmüştü; swap yalnızca 60 MB, sebep bellek gibi görünmüyor)
   
   - 34 sayfa / 159 parçalık PDF yüklemesi 302 sn. Kapatma bekleme süresi (120 sn) bu hızda büyük PDF'lere yetmiyor: yükleme sırasında kapatılırsa geri alma çalışmaz, sahipsiz parçalar kalabilir. Süre kararı ölçümden sonra tekrar ele alınacak.
@@ -46,7 +46,47 @@ Ayrıntılar (dosyalar, riskler, ek RAM) "Yol haritası" tablosunda; gerekçeler
 - ✅  `LLM_MODE=fake`: Gemini yerine gecikmeli sahte cevap, isteğe bağlı sahte hata
 - ✅  Sahte modda token'lar gerçek kullanım sınırını tüketmesin
 - ✅  Sahte mod açıkken açılışta WARNING; varsayılan her zaman `gemini`
-- ❌ Yük testi scripti (golden + negatif set soruları, ayarlanabilir eşzamanlılık)
+- ✅ Yük testi scripti (`scripts/load_test.py`): kapalı döngü (`--concurrency N` = aynı anda N kişi, saniyede N istek değil), golden + negatif sorular oranında ve her koşuda aynı (`--limit`), yalnızca `/health/ready` `llm_mode: fake` derse çalışır, sonuçlar `scripts/stress-results/` (gitignore'da)
+  - İlk deneme (2026-11-20, production Docker, 2 çekirdek, 20 soru, hata yok):
+
+    | Kişi | Toplam süre | Saniyede istek | Soru süresi p50 / p95 |
+    |------|-------------|----------------|-----------------------|
+    | 1    | 144.5 sn    | 0.138          | 7.3 / 9.9 sn          |
+    | 2    | 100.2 sn    | 0.200          | 10.8 / 13.1 sn        |
+
+  - Yorum: 2 kişide toplam süre kısaldı ama her soru uzadı. Sahte LLM'in 3 sn beklemesi CPU kullanmıyor; bir soru beklerken diğeri reranker çalıştırıyor. Saf CPU işi olan `no_result` sorular 4.3–4.9 → 6.7–7.0 sn: iki reranker iki çekirdeği paylaşıyor (`OMP_NUM_THREADS=2`, tek reranker zaten iki çekirdeği kullanıyor). CPU tavanı ≈ 1 / 4.3 sn ≈ saniyede 0.23 istek; 2 kişide neredeyse doldu. Beklenti: 4–8 kişide saniyedeki istek ~0.2'de sabit, bekleme kişi sayısıyla büyür (4 kişi ~20 sn, 8 kişi ~40 sn)
+  - Değerlendirme: tek / birkaç kullanıcı için kabul edilebilir; donanım eksikliği değil. Darboğaz reranker'ın CPU süresi ve bilerek konan `cpus: 2`. Önce ucuz yollar (OMP ayarı, Faz R reranker hızı), sonra donanım (hedef sunucu 4 vCPU)
+  - Notlar: ilk soru soğuk başlangıç (q01 20.9 sn); negatif n29 ve n50 reranker barajını geçti ve sahte LLM cevap verdi (gerçek Gemini büyük ihtimalle `BILGI_YOK` derdi, sahte modun sınırı)
+- ✅ Tam koşu (2026-11-20, 135 soru × 4 düzey, 540 isteğin hepsi 200, en yüksek RAM 1.92 GB / 2.5 GB sınır; `scripts/stress-results/load-20261120-220350.json`):
+
+    | Kişi | Toplam süre | Saniyede istek | Soru süresi p50 / p95 |
+    |-------|------------|----------------|-----------------------|
+    | 1     | 765 sn     | 0.176          |    6.6 / 7.6 sn       |
+    | 2     | 616 sn     | 0.219          |    9.6 / 13.3 sn      |
+    | 4     | 994 sn     | 0.136          |   30.7 / 40.7 sn      |
+    | 8     | 922 sn     | 0.146          |   58.3 / 69.4 sn      |
+
+  - Bulgu: beklentinin aksine 4 kişide kapasite sabit kalmadı, ~%40 düştü (1 kişiden bile düşük). Barajda elenen ve yalnızca arama yapan sorular bile yavaşladı (1 sn altı: 1–2 kişide 11 soru, 4 kişide 1, 8 kişide 0)
+  - Sebep (muhtemel): iş parçacığı fazlalığı. Her istek torch'a 2 iş parçacığı açtırıyor (`OMP_NUM_THREADS=2`); 4 kişide 8, 8 kişide 16 iş parçacığı 2 çekirdekte yarışıyor, CPU'nun bir kısmı geçişlere gidiyor
+  - Sonuç: 1–2 kullanıcı için sorun yok; 4+ eşzamanlı kullanıcıda yarım dakika–1 dakika bekleme. Daha çok çekirdek tavanı yükseltir ama çöküşü çözmez; asıl sorun eşzamanlı CPU işinin sınırsız olması. RAM sorun değil
+- ✅ `OMP_NUM_THREADS=1` ile aynı test (2026-11-22, `--concurrency 1 2 4 --container meb_rag_backend`, 135 soru × 3 düzey, 405 isteğin hepsi 200; `scripts/stress-results/load-20261122-185931.json`). Karşılaştırma OMP=2 tam koşusuyla (CPU sayaçları OMP=2'de yalnızca 4 kişi / 40 soruluk kısa koşuda var: `load-20261122-181744.json`):
+
+    | Kişi | Saniyede istek OMP=2 → **OMP=1** | Soru süresi p50/p95 OMP=2 → **OMP=1** | Ort. çekirdek (OMP=1) | Frenlenen dönem(OMP=1) | 
+    |------|----------------------------------|---------------------------------------|-----------------------|------------------------|
+    | 1    |       0.176 → **0.136**          |   6.6 / 7.6 → **8.3 / 9.7 sn**        |      0.73             |       %0.2             |
+    | 2    |       0.219 → **0.253**          |   9.6 / 13.3 → **9.0 / 10.1 sn**      |      1.47             |        %15             |
+    | 4    |       0.136 → **0.274**          |   30.7 / 40.7 → **15.6 / 19.7 sn**    |      1.97             |        %93             |
+
+    |Soru başına CPU-sn OMP=2 → **OMP=1** |  
+    |-------------------------------------|
+    |            – → **5.4**              |
+    |            – → **5.8**              | 
+    |            14.5 → **7.2**           |
+
+  - Bulgu: 4 kişide çöküş gitti; kapasite 2 katına çıktı, bekleme yarıya indi ve kişi arttıkça kapasite artmaya devam ediyor. Tek kişide ~2 sn yavaş (tek istek artık 1 çekirdek kullanıyor)
+  - Sebep doğrulandı: OMP=2'de soru başına CPU maliyeti 2 katıydı (14.5 → 7.2 CPU-sn); fark iş parçacıklarının birbirini beklerken boşa dönmesi ve geçişler. 4 kişide frenleme hâlâ %93: talep 2 çekirdeği aşınca normal, CPU artık boşa gitmiyor
+  - Sonuç: `OMP_NUM_THREADS=1` kalmalı (compose / `.env.example` varsayılanı 2 → 1 yapıldı). Süreler sahte LLM'in 3 sn beklemesini içeriyor
+
 
 **Faz 3: Sentry backend (§6)**
 - ❌ Sentry kurulumu ve hassas veri temizleyici (scrubber)
@@ -314,7 +354,7 @@ Testler `unittest` ile yazılıyor (`python -m unittest discover tests`; README'
 **Bulutun önceki kararlara etkisi**
 - Mikroservis: değişmiyor. RAM gevşiyor ama ikinci model kopyası (+1.5 GB) hâlâ bir kazanç sağlamıyor.
 - Monitoring: 8 GB'lık makinede Prometheus ve Grafana sürekli açık tutulabilir (profil yerine varsayılan servis). Jaeger yine opsiyonel kalır.
-- Docker'daki `cpus: 2` / `memory: 3000M` sınırları makine boyutuna göre yeniden ayarlanır (`OMP_NUM_THREADS` ile birlikte). Yerelde Docker'da yaşanan yavaşlığın (notes.md GUNCEL 9) kaynağı §17'de ölçülecek; Windows'a özgü kısmı (dosya köprüsü, WSL2) Linux sunucuda yaşanmaz.
+- Docker'daki `cpus: 2` / `memory: 3000M` sınırları makine boyutuna göre yeniden ayarlanır. Yerelde Docker'da yaşanan yavaşlığın (notes.md GUNCEL 9) kaynağı §17'de ölçülecek; Windows'a özgü kısmı (dosya köprüsü, WSL2) Linux sunucuda yaşanmaz.
 - Sentry SaaS ve Grafana zaten buluttan erişilebilir; self-hosted Sentry için yine 4 GB+ RAM gerektiğinden önerilmiyor.
 
 **İnternete açılınca zorunlu hale gelenler (Faz B)**
@@ -394,7 +434,7 @@ Testler `unittest` ile yazılıyor (`python -m unittest discover tests`; README'
 |---|---|---|
 | WSL2 belleği 2 GB (`%USERPROFILE%\.wslconfig`); uygulama ~2 GB istiyor, ~480 MB swap'a gidiyordu. Compose'daki 3000M sınırı VM'den büyük olduğu için etkisizdi | Arama ~13 kat | ✅ `memory=3GB` (Docker 2.84 GB görüyor; swap ~480 MB → ~145 MB) |
 | `--reload` dosya izleyicisi: `.:/app` tüm klasörü izliyor, frontend dev (`rag-frontend/.next`) sürekli dosya yazıyor; boşta ~%10 CPU | Reranker ~1.5 kat | Faz 2: prod hâlinde `--reload` yok |
-| CPU sınırı: Docker 2 çekirdek, native torch 4 iş parçacığı | Reranker ~2 kat | Faz 2 sonrası ölçüme göre `cpus: 3` |
+| CPU sınırı: Docker 2 çekirdek, native torch 4 iş parçacığı | Reranker ~2 kat | OMP=1 (Faz L); `cpus` sunucuya göre |
 | Windows klasör köprüsü | Arama 0.13 → 0.31 sn (küçük) | Değişiklik gerekmiyor; DB yerinde kalır |
 
 **Notlar:** Açılıştan sonraki ilk soru yavaş (soğuk disk önbelleği; ısınma bunu tamamen gidermiyor). Native'de bile sürenin çoğu reranker'da (2.27 / 2.41 sn) → Faz R "reranker hızı". Linux sunucuda klasör köprüsü ve WSL2 yok.

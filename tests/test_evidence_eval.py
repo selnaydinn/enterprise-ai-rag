@@ -158,7 +158,7 @@ class RerankedEvaluateTests(EvaluateTests):
                   "uzak metin": 0.5, "en uzak metin": 0.2}
         self.predict_calls = []
 
-        def predict(pairs):
+        def predict(pairs, **_):
             self.predict_calls.append([text for _, text in pairs])
             return [scores[text] for _, text in pairs]
 

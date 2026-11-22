@@ -19,7 +19,7 @@ class FakeLlmQueryTests(unittest.TestCase):
     def setUp(self):
         self.query = importlib.import_module("services.query")
         reranker = mock.Mock()
-        reranker.predict.side_effect = lambda pairs: [-i for i in range(len(pairs))]
+        reranker.predict.side_effect = lambda pairs, **_: [-i for i in range(len(pairs))]
         self.sleep = mock.patch.object(fake_llm, "sleep").start()
         mock.patch.object(self.query, "get_reranker", return_value=reranker).start()
         mock.patch.object(self.query, "search_in_db", return_value=[chunk(0.80, TEXT)]).start()

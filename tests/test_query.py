@@ -45,7 +45,7 @@ class PrepareChunksTests(unittest.TestCase):
         self.query = import_query()
         #Reranker sahte; varsayılan olarak azalan skor verip e5 sırasını korur
         self.reranker = mock.Mock()
-        self.reranker.predict.side_effect = lambda pairs: [-i for i in range(len(pairs))]
+        self.reranker.predict.side_effect = lambda pairs, **_: [-i for i in range(len(pairs))]
         patch = mock.patch.object(self.query, "get_reranker", return_value=self.reranker)
         patch.start()
         self.addCleanup(patch.stop)
@@ -100,31 +100,31 @@ class PrepareChunksTests(unittest.TestCase):
 
     def test_reranker_reorders_and_keeps_retrieval_k(self):
         chunks = [chunk(0.80, "A"), chunk(0.79, "B"), chunk(0.78, "C"), chunk(0.77, "D")]
-        self.reranker.predict.side_effect = lambda pairs: [0.1, 5.0, -1.0, 3.0]
+        self.reranker.predict.side_effect = lambda pairs, **_: [0.1, 5.0, -1.0, 3.0]
         with mock.patch.object(self.query, "get_settings", return_value=self.settings_with(retrieval_k=3)):
             result = self.ask(AIMessage(content="Cevap", usage_metadata=USAGE), chunks)
         self.assertEqual(self.texts(result), ["B", "D", "A"])
         #Soru reranker'a e5'in "query:" ön eki olmadan gider
-        self.reranker.predict.assert_called_once_with([(QUESTION, t) for t in "ABCD"])
+        self.reranker.predict.assert_called_once_with([(QUESTION, t) for t in "ABCD"], show_progress_bar=False)
 
     def test_threshold_is_applied_before_reranker(self):
         #Barajın altındaki parça reranker skoru ne olursa olsun Gemini'ye gitmemeli
         chunks = [chunk(0.80, "A"), chunk(0.50, "B"), chunk(0.75, "C")]
-        self.reranker.predict.side_effect = lambda pairs: [1.0, 2.0]
+        self.reranker.predict.side_effect = lambda pairs, **_: [1.0, 2.0]
         result = self.ask(AIMessage(content="Cevap", usage_metadata=USAGE), chunks)
-        self.reranker.predict.assert_called_once_with([(QUESTION, "A"), (QUESTION, "C")])
+        self.reranker.predict.assert_called_once_with([(QUESTION, "A"), (QUESTION, "C")], show_progress_bar=False)
         self.assertEqual(self.texts(result), ["C", "A"])
 
     def test_equal_reranker_scores_keep_vector_order(self):
         chunks = [chunk(0.80, "A"), chunk(0.79, "B"), chunk(0.78, "C")]
-        self.reranker.predict.side_effect = lambda pairs: [1.0, 1.0, 1.0]
+        self.reranker.predict.side_effect = lambda pairs, **_: [1.0, 1.0, 1.0]
         result = self.ask(AIMessage(content="Cevap", usage_metadata=USAGE), chunks)
         self.assertEqual(self.texts(result), ["A", "B", "C"])
 
     def test_llm_is_not_called_when_best_rerank_score_is_below_threshold(self):
         #Parçalar e5 barajını geçse de en alakalısı reranker barajının altındaysa soru cevaplanamıyor sayılır
         chunks = [chunk(0.80, "A"), chunk(0.79, "B")]
-        self.reranker.predict.side_effect = lambda pairs: [-3.0, -2.5]
+        self.reranker.predict.side_effect = lambda pairs, **_: [-3.0, -2.5]
         get_qa_chain = mock.Mock()
         with mock.patch.object(self.query, "get_settings", return_value=self.settings_with(rerank_score_threshold=-2.0)), \
              mock.patch.object(self.query, "search_in_db", return_value=chunks), \
@@ -137,7 +137,7 @@ class PrepareChunksTests(unittest.TestCase):
     def test_rerank_threshold_is_inclusive_and_checks_the_best_score(self):
         #Tek bir parçanın barajı geçmesi yeterli; en iyi skor tam baraj değerindeyse soru geçer
         chunks = [chunk(0.80, "A"), chunk(0.79, "B")]
-        self.reranker.predict.side_effect = lambda pairs: [-5.0, -2.0]
+        self.reranker.predict.side_effect = lambda pairs, **_: [-5.0, -2.0]
         with mock.patch.object(self.query, "get_settings", return_value=self.settings_with(rerank_score_threshold=-2.0)):
             result = self.ask(AIMessage(content="Cevap", usage_metadata=USAGE), chunks)
         self.assertEqual(result["status"], "success")
@@ -145,7 +145,7 @@ class PrepareChunksTests(unittest.TestCase):
 
     def test_single_chunk_is_also_checked_by_reranker(self):
         #Barajı geçen tek parça da reranker'dan geçer; sıralama gerekmese de baraj uygulanmalı
-        self.reranker.predict.side_effect = lambda pairs: [-5.0]
+        self.reranker.predict.side_effect = lambda pairs, **_: [-5.0]
         with mock.patch.object(self.query, "get_settings", return_value=self.settings_with(rerank_score_threshold=-2.0)), \
              mock.patch.object(self.query, "get_qa_chain") as get_qa_chain:
             with mock.patch.object(self.query, "search_in_db", return_value=[chunk(0.80)]):
@@ -253,7 +253,7 @@ class PrepareChunksTests(unittest.TestCase):
             self.query.warm_up()
         search.assert_called_once_with(self.query.WARM_UP_QUESTION)
         #Reranker baraj uygulanmadan, aramanın döndürdüğü gerçek parçalarla çalışır
-        self.reranker.predict.assert_called_once_with([(self.query.WARM_UP_QUESTION, "A"), (self.query.WARM_UP_QUESTION, "B")])
+        self.reranker.predict.assert_called_once_with([(self.query.WARM_UP_QUESTION, "A"), (self.query.WARM_UP_QUESTION, "B")], show_progress_bar=False)
         get_qa_chain.assert_not_called()
         self.assertTrue(any("Isınma tamamlandı" in line for line in logs.output))
 
@@ -383,7 +383,7 @@ class PrepareChunksTests(unittest.TestCase):
             self.query.prepare_chunks_with_metadata(QUESTION)
         self.assertTrue(any("hiçbir parça benzerlik barajını geçmedi" in line for line in logs.output))
 
-        self.reranker.predict.side_effect = lambda pairs: [-3.0]
+        self.reranker.predict.side_effect = lambda pairs, **_: [-3.0]
         with self.assertLogs("EnterpriseAI", level="INFO") as logs, \
              mock.patch.object(self.query, "get_settings", return_value=self.settings_with(rerank_score_threshold=-2.0)), \
              mock.patch.object(self.query, "search_in_db", return_value=[chunk(0.80)]):
