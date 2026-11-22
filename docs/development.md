@@ -89,6 +89,10 @@ python scripts/load_test.py --pause 120 --limit 5                        # effec
   `scripts/stress-results/load-<date>-<time>.json` (git-ignored); `--out` chooses another path.
 - Each request has `X-Request-ID: load-<time>-c<N>-<n>`, so its `Süreler:` log line can be found. Watch memory in a
   second terminal with `docker stats meb_rag_backend`. For fake errors set `FAKE_LLM_ERROR_RATE` in `.env` and restart.
+- **CPU and throttling:** with `--container meb_rag_backend` the script reads the container's CPU counters
+  (`/sys/fs/cgroup/cpu.stat`, via `docker exec`) before and after each level and reports the average cores used and
+  how often Docker paused the container because the `cpus` quota ran out (throttling). The container's
+  `OMP_NUM_THREADS` is written to the result file too. If the counters cannot be read, the test continues without them.
 
 ## CI
 

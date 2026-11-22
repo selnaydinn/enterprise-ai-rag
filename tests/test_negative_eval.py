@@ -133,7 +133,7 @@ class MeasureTests(unittest.TestCase):
         self.exact = {r["id"]: r for r in self.common.exact_ranking(self.collection, unit(0))}
         self.predict_calls = []
 
-        def predict(pairs):
+        def predict(pairs, **_):
             self.predict_calls.append([text for _, text in pairs])
             return [RERANK[text] for _, text in pairs]
 

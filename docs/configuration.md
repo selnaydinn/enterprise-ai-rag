@@ -180,6 +180,12 @@ The database mount uses `CHROMA_DIR` from `.env` (Compose reads `.env` for `${..
 changing `CHROMA_DIR` also changes the mount. Only relative paths are supported there. The token counter is mounted as
 the `data/` folder, not as a single file, because SQLite writes a temporary file next to it.
 
+**CPU threads.** The container is limited to `cpus: 2`. `OMP_NUM_THREADS` (default `1`, set it in `.env`) is the
+number of threads torch uses for one request's embedding and reranking. It applies per request, so simultaneous
+requests use users × `OMP_NUM_THREADS` threads. In the load test ([development.md](development.md#load-test)), `2`
+halved throughput at 4 users; `1` doubled it and a question used half the CPU time, while a single user is ~2 s
+slower. It has no effect when running without Docker.
+
 **Non-root user.** The app runs as `appuser` (uid 1000). It can read the code but not change it, and writes only to
 the mounted data folders (and to the model cache in the development setup). On Windows, Docker Desktop lets it write to
 the mounted project folders. On a Linux server the data folders must be owned by uid 1000. The model volume created

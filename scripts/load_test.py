@@ -9,8 +9,11 @@
 #
 #  python scripts/load_test.py --concurrency 1 2 --limit 20                 (ilk deneme, ~5 dk)
 #  python scripts/load_test.py --concurrency 1 2 4 8                        (tam koşu, ~1 saat)
+#  python scripts/load_test.py --concurrency 4 --limit 40 --container meb_rag_backend   (CPU ve throttling ile)
 #  python scripts/load_test.py --pause 120 --limit 5                        (boşta bekleme etkisi, ~10 dk)
 #
+#--container meb_rag_backend: her düzeyde container'ın CPU kullanımı ve throttling'i (Docker kotası dolunca durdurulma)
+#ölçülür; container'daki OMP_NUM_THREADS de sonuca yazılır
 #Sonuçlar (özet + istek bazında) scripts/stress-results/ altına JSON olarak yazılır (.gitignore'da); --out ile başka yol
 #Parola .env'deki APP_PASSWORD'dan okunur. RAM'i ayrı bir terminalde izleyin: docker stats meb_rag_backend
 #Her isteğin X-Request-ID'si "load-<saat>-c<N>-<sıra>": logdaki "Süreler:" satırı bu ID ile bulunur
@@ -18,6 +21,7 @@
 import argparse
 import json
 import math
+import subprocess
 import sys
 import threading
 import time
@@ -36,6 +40,10 @@ NEGATIVE_PATH = PROJECT_ROOT / "eval" / "negative_set.jsonl"
 REQUEST_ID_HEADER = "X-Request-ID"
 #Sonuçlar varsayılan olarak buraya yazılır (.gitignore'da; ölçümler yerel kalır)
 RESULTS_DIR = PROJECT_ROOT / "scripts" / "stress-results"
+#Container'ın CPU sayaçları (cgroup v2): kullanılan CPU süresi ve kota dolunca durdurulma (throttling)
+#nr_periods: geçen 100 ms'lik dönem · nr_throttled: kotanın bitip container'ın durdurulduğu dönem · throttled_usec: durdurulmuş süre
+CPU_STAT_PATH = "/sys/fs/cgroup/cpu.stat"
+CPU_STAT_KEYS = ("usage_usec", "nr_periods", "nr_throttled", "throttled_usec")
 
 
 def read_jsonl(path):
@@ -88,6 +96,49 @@ def latency(values):
     if not values:
         return None
     return {"n": len(values), "p50": percentile(values, 50), "p95": percentile(values, 95), "max": max(values)}
+
+
+#Container içinde komut çalıştırır; Docker yoksa, container bulunamazsa veya komut başarısızsa None
+def docker_exec(container, *command):
+    try:
+        done = subprocess.run(["docker", "exec", container, *command], capture_output=True, text=True, timeout=15)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    return done.stdout if done.returncode == 0 else None
+
+
+#"anahtar değer" satırları → sözlük (sayı olmayan satırlar atlanır)
+def parse_cpu_stat(text):
+    values = {}
+    for line in text.splitlines():
+        parts = line.split()
+        if len(parts) == 2 and parts[1].isdigit():
+            values[parts[0]] = int(parts[1])
+    return values
+
+
+#Okunamazsa None: CPU bilgisi olmadan devam edilir, yük testi durmaz
+def read_cpu_stat(container):
+    if not container:
+        return None
+    text = docker_exec(container, "cat", CPU_STAT_PATH)
+    values = parse_cpu_stat(text) if text else {}
+    return values if "usage_usec" in values else None
+
+
+#Bir düzeyin başı ve sonu arasındaki fark. avg_cores ~2 ise kota (cpus: 2) dolu kullanılmış
+#Kota tanımlı değilse nr_periods artmaz; oran None
+def cpu_delta(before, after, wall_seconds):
+    if not before or not after:
+        return None
+    diff = {key: after.get(key, 0) - before.get(key, 0) for key in CPU_STAT_KEYS}
+    return {
+        "avg_cores": round(diff["usage_usec"] / 1e6 / wall_seconds, 2) if wall_seconds > 0 else None,
+        "periods": diff["nr_periods"],
+        "throttled_periods": diff["nr_throttled"],
+        "throttled_ratio": round(diff["nr_throttled"] / diff["nr_periods"], 3) if diff["nr_periods"] else None,
+        "throttled_seconds": round(diff["throttled_usec"] / 1e6, 1),
+    }
 
 
 #Uygulama hazır mı ve sahte modda mı; değilse çıkar (gerçek Gemini'ye yük gitmesin)
@@ -159,10 +210,12 @@ def run_level(client, questions, concurrency, run_id, pause=0, progress=print):
 
 
 #pause verildiyse bekleme süresi duvar saatinden düşülür; saniyedeki istek gerçek işlem süresine göre
-def summarize(results, wall_seconds, pause=0):
+#cpu: cpu_delta sonucu (--container verilmediyse veya okunamadıysa None)
+def summarize(results, wall_seconds, pause=0, cpu=None):
     ok = [r for r in results if r["http"] == 200]
     busy_seconds = wall_seconds - pause * len(results)
     return {
+        "cpu": cpu,
         "requests": len(results),
         "wall_seconds": round(wall_seconds, 2),
         "requests_per_second": round(len(results) / busy_seconds, 3) if busy_seconds > 0 else None,
@@ -185,6 +238,11 @@ def format_summary(concurrency, summary):
         if values:
             lines.append(f"  {name:<9} n={values['n']:<4} p50 {values['p50']:.2f} sn · p95 {values['p95']:.2f} sn · "
                          f"en uzun {values['max']:.2f} sn")
+    cpu = summary.get("cpu")
+    if cpu:
+        ratio = "yok (kota tanımsız)" if cpu["throttled_ratio"] is None else f"%{cpu['throttled_ratio'] * 100:.0f}"
+        lines.append(f"  CPU: ort. {cpu['avg_cores']} çekirdek · frenlenen dönem {ratio} "
+                     f"({cpu['throttled_periods']}/{cpu['periods']}) · durdurulmuş {cpu['throttled_seconds']} sn")
     return "\n".join(lines)
 
 
@@ -196,6 +254,7 @@ def main():
     parser.add_argument("--limit", type=int, help="Her düzeyde kaç soru (varsayılan hepsi); golden ve negatif oranında karışık seçilir")
     parser.add_argument("--pause", type=float, default=0, help="Her sorudan önce kaç sn beklensin (boşta bekleme etkisi; yalnızca --concurrency 1)")
     parser.add_argument("--timeout", type=float, default=180, help="İstek başına zaman aşımı, sn (varsayılan 180)")
+    parser.add_argument("--container", help="Docker container adı (ör. meb_rag_backend); verilirse her düzeyde CPU kullanımı ve throttling ölçülür")
     parser.add_argument("--out", type=Path, help="Sonuç dosyası (özet + istek bazında JSON); varsayılan scripts/stress-results/load-<tarih>-<saat>.json")
     args = parser.parse_args()
 
@@ -214,15 +273,29 @@ def main():
     run_id = "load-" + time.strftime("%H%M%S")
     started = datetime.now(timezone.utc).isoformat(timespec="seconds")
     levels = []
+
+    #CPU sayaçları okunamazsa uyarı verilir, test CPU bilgisi olmadan sürer
+    container = args.container
+    omp_threads = None
+    if container:
+        if read_cpu_stat(container) is None:
+            print(f"UYARI: {container} container'ının CPU sayaçları okunamadı (docker exec); CPU bilgisi olmadan devam ediliyor.")
+            container = None
+        else:
+            omp_threads = (docker_exec(container, "printenv", "OMP_NUM_THREADS") or "").strip() or "tanımsız"
+
     with httpx.Client(base_url=args.base_url, timeout=httpx.Timeout(args.timeout, connect=10)) as client:
         check_ready(client)
         login(client, None if settings.app_password is None else settings.app_password.get_secret_value(), settings.auth_enabled)
         kinds = Counter(q["kind"] for q in questions)
-        print(f"{len(questions)} soru ({dict(kinds)}), eşzamanlılık {args.concurrency}, koşu {run_id}")
+        print(f"{len(questions)} soru ({dict(kinds)}), eşzamanlılık {args.concurrency}, koşu {run_id}"
+              + (f", OMP_NUM_THREADS={omp_threads}" if omp_threads else ""))
         for concurrency in args.concurrency:
             print(f"\nEşzamanlılık {concurrency} başlıyor...")
+            before = read_cpu_stat(container)
             results, wall = run_level(client, questions, concurrency, run_id, args.pause)
-            summary = summarize(results, wall, args.pause)
+            cpu = cpu_delta(before, read_cpu_stat(container), wall)
+            summary = summarize(results, wall, args.pause, cpu)
             print(format_summary(concurrency, summary))
             levels.append({"concurrency": concurrency, "summary": summary, "results": results})
 
@@ -234,7 +307,8 @@ def main():
     out.parent.mkdir(parents=True, exist_ok=True)
     report = {"run_id": run_id, "started_utc": started,
               "base_url": args.base_url, "set": args.question_set, "limit": args.limit, "pause": args.pause,
-              "concurrency": args.concurrency, "timeout": args.timeout, "levels": levels}
+              "concurrency": args.concurrency, "timeout": args.timeout,
+              "container": container, "omp_num_threads": omp_threads, "levels": levels}
     out.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"\nSonuçlar yazıldı: {out}")
 

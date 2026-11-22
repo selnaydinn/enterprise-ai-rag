@@ -2,6 +2,7 @@ import importlib.util
 import json
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import httpx
 
@@ -78,6 +79,65 @@ class SummaryTests(unittest.TestCase):
         results = [{"http": 200, "status": "success", "seconds": 5.0}] * 2
         summary = self.lt.summarize(results, wall_seconds=250.0, pause=120)
         self.assertEqual(summary["requests_per_second"], 0.2)
+
+
+#Container'ın CPU sayaçları (docker exec ... cat /sys/fs/cgroup/cpu.stat); subprocess sahte, Docker gerekmez
+CPU_STAT = """usage_usec 5000000
+user_usec 4000000
+system_usec 1000000
+nr_periods 100
+nr_throttled 20
+throttled_usec 1500000
+"""
+
+
+class CpuStatTests(unittest.TestCase):
+
+    def setUp(self):
+        self.lt = load_script()
+
+    def test_parse_keeps_numeric_lines(self):
+        values = self.lt.parse_cpu_stat(CPU_STAT + "bozuk satır burada\n")
+        self.assertEqual(values["usage_usec"], 5000000)
+        self.assertEqual(values["nr_throttled"], 20)
+        self.assertNotIn("bozuk", values)
+
+    def test_delta_between_two_readings(self):
+        before = self.lt.parse_cpu_stat(CPU_STAT)
+        after = {"usage_usec": 25000000, "nr_periods": 200, "nr_throttled": 70, "throttled_usec": 4000000}
+        cpu = self.lt.cpu_delta(before, after, wall_seconds=10.0)
+        #20 sn CPU / 10 sn = ortalama 2 çekirdek; 100 dönemin 50'sinde frenlenmiş
+        self.assertEqual(cpu, {"avg_cores": 2.0, "periods": 100, "throttled_periods": 50,
+                               "throttled_ratio": 0.5, "throttled_seconds": 2.5})
+        self.assertIn("frenlenen dönem %50", self.lt.format_summary(4, self.lt.summarize([], 10.0, cpu=cpu)))
+
+    def test_no_quota_means_no_ratio(self):
+        cpu = self.lt.cpu_delta({"usage_usec": 0}, {"usage_usec": 1000000}, wall_seconds=1.0)
+        self.assertIsNone(cpu["throttled_ratio"])
+        self.assertIsNone(self.lt.cpu_delta(None, {"usage_usec": 1}, 1.0))
+
+    def test_read_cpu_stat(self):
+        ok = mock.Mock(returncode=0, stdout=CPU_STAT)
+        with mock.patch.object(self.lt.subprocess, "run", return_value=ok) as run:
+            self.assertEqual(self.lt.read_cpu_stat("meb_rag_backend")["nr_periods"], 100)
+        run.assert_called_once()
+        self.assertEqual(run.call_args.args[0], ["docker", "exec", "meb_rag_backend", "cat", "/sys/fs/cgroup/cpu.stat"])
+        self.assertIsNone(self.lt.read_cpu_stat(None))
+
+    #Container yok, Docker kurulu değil veya komut takıldı: hata değil None (yük testi durmaz)
+    def test_read_cpu_stat_failures_return_none(self):
+        cases = [mock.Mock(return_value=mock.Mock(returncode=1, stdout="")),
+                 mock.Mock(side_effect=FileNotFoundError("docker")),
+                 mock.Mock(side_effect=self.lt.subprocess.TimeoutExpired("docker", 15)),
+                 mock.Mock(return_value=mock.Mock(returncode=0, stdout="dosya bambaşka\n"))]
+        for run in cases:
+            with self.subTest(run=run), mock.patch.object(self.lt.subprocess, "run", run):
+                self.assertIsNone(self.lt.read_cpu_stat("meb_rag_backend"))
+
+    def test_summary_without_cpu_has_no_cpu_line(self):
+        summary = self.lt.summarize([{"http": 200, "status": "success", "seconds": 1.0}], 1.0)
+        self.assertIsNone(summary["cpu"])
+        self.assertNotIn("CPU:", self.lt.format_summary(1, summary))
 
 
 #Emniyet: sahte mod açık değilse test başlamaz
