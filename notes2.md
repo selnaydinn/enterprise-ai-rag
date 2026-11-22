@@ -50,9 +50,9 @@ Ayrıntılar (dosyalar, riskler, ek RAM) "Yol haritası" tablosunda; gerekçeler
   - İlk deneme (2026-11-20, production Docker, 2 çekirdek, 20 soru, hata yok):
 
     | Kişi | Toplam süre | Saniyede istek | Soru süresi p50 / p95 |
-    |---|---|---|---|
-    | 1 | 144.5 sn | 0.138 | 7.3 / 9.9 sn |
-    | 2 | 100.2 sn | 0.200 | 10.8 / 13.1 sn |
+    |------|-------------|----------------|-----------------------|
+    | 1    | 144.5 sn    | 0.138          | 7.3 / 9.9 sn          |
+    | 2    | 100.2 sn    | 0.200          | 10.8 / 13.1 sn        |
 
   - Yorum: 2 kişide toplam süre kısaldı ama her soru uzadı. Sahte LLM'in 3 sn beklemesi CPU kullanmıyor; bir soru beklerken diğeri reranker çalıştırıyor. Saf CPU işi olan `no_result` sorular 4.3–4.9 → 6.7–7.0 sn: iki reranker iki çekirdeği paylaşıyor (`OMP_NUM_THREADS=2`, tek reranker zaten iki çekirdeği kullanıyor). CPU tavanı ≈ 1 / 4.3 sn ≈ saniyede 0.23 istek; 2 kişide neredeyse doldu. Beklenti: 4–8 kişide saniyedeki istek ~0.2'de sabit, bekleme kişi sayısıyla büyür (4 kişi ~20 sn, 8 kişi ~40 sn)
   - Değerlendirme: tek / birkaç kullanıcı için kabul edilebilir; donanım eksikliği değil. Darboğaz reranker'ın CPU süresi ve bilerek konan `cpus: 2`. Önce ucuz yollar (OMP ayarı, Faz R reranker hızı), sonra donanım (hedef sunucu 4 vCPU)
