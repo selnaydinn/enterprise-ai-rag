@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import LoginForm from "@/components/LoginForm";
 import Workspace from "@/components/Workspace";
-import { apiService, setUnauthorizedHandler } from "@/services/api";
+import { apiService, logError, setUnauthorizedHandler } from "@/services/api";
 
 //GİRİŞ KAPISI
 //Oturum açık değilse uygulama (Workspace) hiç ekrana gelmez, dolayısıyla backend'e hiçbir veri isteği gitmez
@@ -21,7 +21,7 @@ export default function Home() {
     apiService.me()
       .then((authenticated) => setAuthState(authenticated ? "authenticated" : "anonymous"))
       .catch((error) => {
-        console.error("Oturum kontrol edilirken bir hata oluştu:", error);
+        logError("Oturum kontrol edilirken bir hata oluştu", error);
         setAuthState("unreachable");
       });
   }, [checkCount]);
@@ -52,7 +52,7 @@ export default function Home() {
       ) : (
         <div className="flex flex-col items-center gap-3 text-center">
           <p role="alert" className="text-sm font-medium">
-            Sunucuya ulaşılamadı. Backend&apos;in çalıştığından emin olun.
+            Sunucuya ulaşılamadı, lütfen tekrar deneyin.
           </p>
           <button
             onClick={retry}

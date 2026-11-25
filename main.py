@@ -263,7 +263,11 @@ def read_pdf(name: str):
     if not os.path.isfile(target_file_path):
         raise HTTPException(status_code=404, detail=f"{filename} bulunamadı.")
     #inline: tarayıcı indirmek yerine iframe içinde gösterir
-    return FileResponse(target_file_path, media_type="application/pdf", filename=filename, content_disposition_type="inline")
+    #no-store: tarayıcı PDF'i önbelleğine (diske) hiç yazmaz; her açılış backend'e gelir ve oturum kontrol edilir
+    #(eskiden önbellekten açılıyordu, çıkıştan sonra da görülebiliyordu; notes2.md Faz 8). private: araya giren
+    #proxy (ileride Caddy) saklamaz. Bedeli: her açılışta PDF baştan indirilir
+    return FileResponse(target_file_path, media_type="application/pdf", filename=filename, content_disposition_type="inline",
+                        headers={"Cache-Control": "private, no-store"})
 
 @app.post("/upload-pdf/", response_model=UploadResponse, dependencies=[Depends(require_auth)])
 async def upload_pdf(file: UploadFile = File(...)):

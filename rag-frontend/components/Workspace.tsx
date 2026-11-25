@@ -5,7 +5,7 @@ import PdfViewer from "@/components/PdfViewer";
 import LeftPanel from "@/components/LeftPanel";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import ToastList, { type ToastItem } from "@/components/Toast";
-import { apiService, BACKEND_URL, TokenLimitError } from "@/services/api";
+import { apiService, AuthError, BACKEND_URL, logError, TokenLimitError } from "@/services/api";
 import type { DocumentItem, UsageStatus } from "@/types/api";
 import type { Message } from "@/types/chat";
 
@@ -81,20 +81,23 @@ export default function Workspace({ onSignedOut }: WorkspaceProps) {
       try {
         const data = await apiService.getExistingDocuments();
         setDocuments(data);
-        console.log("Mevcut dökümanlar apiService ile başarıyla yüklendi:", data);
       } catch (error) {
-        console.error("Mevcut dökümanlar çekilirken bir hata oluştu:", error);
+        logError("Mevcut dökümanlar çekilirken bir hata oluştu", error);
+        //Yoksa kullanıcı boş listeyi görüp "hiç doküman yok" sanır. 401'de giriş ekranına dönülüyor, toast gereksiz
+        if (!(error instanceof AuthError)) {
+          showToast("Doküman listesi alınamadı. Lütfen sayfayı yenileyin.");
+        }
       }
     };
 
     fetchExistingDocuments();
-  }, []);
+  }, [showToast]);
 
   //Silme özelliği açık mı; hata olursa buton gizli kalır
   useEffect(() => {
     apiService.getFeatures()
       .then((features) => setAllowDelete(features.allow_delete))
-      .catch((error) => console.error("Özellik bilgisi çekilirken bir hata oluştu:", error));
+      .catch((error) => logError("Özellik bilgisi çekilirken bir hata oluştu", error));
   }, []);
 
   //Çöp kutusuna tıklanınca onay penceresi açılıyor; silme "Sil"e basılınca yapılıyor
@@ -120,7 +123,7 @@ export default function Workspace({ onSignedOut }: WorkspaceProps) {
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "";
       setDeleteError(message || "Doküman silinirken bir hata oluştu.");
-      console.error(error);
+      logError("Doküman silinemedi", error);
       setIsDeleting(false);
       return;
     }
@@ -136,7 +139,7 @@ export default function Workspace({ onSignedOut }: WorkspaceProps) {
     try {
       setDocuments(await apiService.getExistingDocuments());
     } catch (error) {
-      console.error("Silme sonrası döküman listesi yenilenemedi:", error);
+      logError("Silme sonrası döküman listesi yenilenemedi", error);
     }
   };
 
@@ -145,7 +148,7 @@ export default function Workspace({ onSignedOut }: WorkspaceProps) {
     try {
       setUsage(await apiService.getUsage());
     } catch (error) {
-      console.error("Token kullanım bilgisi çekilirken bir hata oluştu:", error);
+      logError("Token kullanım bilgisi çekilirken bir hata oluştu", error);
     }
   }, []);
 
@@ -154,7 +157,7 @@ export default function Workspace({ onSignedOut }: WorkspaceProps) {
   useEffect(() => {
     apiService.getUsage()
       .then(setUsage)
-      .catch((error) => console.error("Token kullanım bilgisi çekilirken bir hata oluştu:", error));
+      .catch((error) => logError("Token kullanım bilgisi çekilirken bir hata oluştu", error));
   }, []);
 
   //Sınır doluyken sıfırlanma anına kadar bekleyip kullanımı yeniden çekiyoruz, kilit böyle açılıyor
@@ -172,8 +175,6 @@ export default function Workspace({ onSignedOut }: WorkspaceProps) {
     const fileInput = e.target;
     const file = fileInput.files?.[0];
     if (!file) return;
-    console.log("PDF yükleme işlemi başladı...");
-    console.log("Seçilen Dosya:", file);
 
     //Seçicinin değerini sıfırlıyoruz; yoksa aynı dosya tekrar seçildiğinde onChange tetiklenmez
     //(file değişkeni dosyayı zaten tuttuğu için yükleme etkilenmez)
@@ -195,7 +196,6 @@ export default function Workspace({ onSignedOut }: WorkspaceProps) {
 
     try {
       const result = await apiService.uploadPdf(file);
-      console.log("PDF yüklendi ve frontende yanıtını döndü.");
 
       //Hatalar artık HTTP koduyla geliyor (uploadPdf fırlatıyor); buraya yalnızca başarılı yükleme ulaşır
       //Listeye kendimiz eklemek yerine backendten çekiyoruz; kaydedilen ad backendten (".PDF" -> ".pdf" olabilir)
@@ -208,13 +208,13 @@ export default function Workspace({ onSignedOut }: WorkspaceProps) {
           openDocument(savedName);
         }
       } catch (error) {
-        console.error("Yükleme sonrası döküman listesi yenilenemedi:", error);
+        logError("Yükleme sonrası döküman listesi yenilenemedi", error);
       }
 
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "";
       showToast(message || "Dosya yüklenirken bir hata oluştu.");
-      console.error(error);
+      logError("PDF yüklenemedi", error);
     } finally {
       //Başarılı da olsa hatalı da olsa gösterge kapanır
       setIsUploading(false);
@@ -237,7 +237,6 @@ export default function Workspace({ onSignedOut }: WorkspaceProps) {
 
     try {
       const result = await apiService.askQuestion(userQuery);
-      console.log("LLM frontende yanıtını döndü.", result);
 
       //Son istek sınırı aşarsa usage.limited true gelir ve input hemen kilitlenir
       setUsage(result.usage);
@@ -250,7 +249,7 @@ export default function Workspace({ onSignedOut }: WorkspaceProps) {
       setMessages((prev) => [...prev, botMessage]);
 
     } catch (error: unknown) {
-      console.error("Query Error:", error);
+      logError("Soru yanıtlanamadı", error);
       //Sınır başka bir sekmeden dolmuş olabilir; kilidi göstermek için kullanımı yeniden çekiyoruz
       if (error instanceof TokenLimitError) {
         refreshUsage();
@@ -273,7 +272,7 @@ export default function Workspace({ onSignedOut }: WorkspaceProps) {
       await apiService.logout();
       onSignedOut();
     } catch (error) {
-      console.error("Çıkış yapılırken bir hata oluştu:", error);
+      logError("Çıkış yapılırken bir hata oluştu", error);
       showToast("Çıkış yapılamadı. Lütfen tekrar deneyin.");
     }
   };

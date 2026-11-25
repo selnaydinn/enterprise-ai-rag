@@ -270,6 +270,15 @@ class StaticPdfTests(AuthSettingsMixin, unittest.TestCase):
         self.assertEqual(response.content, PDF)
         self.assertEqual(response.headers["content-type"], "application/pdf")
         self.assertTrue(response.headers["content-disposition"].startswith("inline"))
+        #Tarayıcı PDF'i önbelleğe yazmasın; yoksa sonraki açılış backend'e gelmez ve oturum kontrol edilmez
+        self.assertEqual(response.headers["cache-control"], "private, no-store")
+
+    #Çıkıştan sonra aynı PDF açılamamalı (önbellek açığının test karşılığı)
+    def test_pdf_not_served_after_logout(self):
+        self.client.post("/auth/login", json={"password": PASSWORD})
+        self.assertEqual(self.client.get("/static-pdfs/rapor.pdf").status_code, 200)
+        self.client.post("/auth/logout")
+        self.assertEqual(self.client.get("/static-pdfs/rapor.pdf").status_code, 401)
 
     def test_bad_names_and_missing_files(self):
         self.client.post("/auth/login", json={"password": PASSWORD})
