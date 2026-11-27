@@ -33,8 +33,9 @@ Ayrıntılar (dosyalar, riskler, ek RAM) "Yol haritası" tablosunda; gerekçeler
 - ✅ `.dockerignore`: `tests/`, `docs/`, `.github/`, notlar, `requirements-dev.txt`, `ruff.toml` imaja girmiyor; `eval/`'den yalnızca `golden_set.jsonl` (time_retrieval production container'ında soruları oradan okuyor). Eski `usage.db` satırı silindi (`.gitignore`'dan da)
 - ✅ Compose bellek sınırı 2500M: ölçülen en yüksek 1.88 GB (soru + 34 sayfalık PDF yükleme), boşta 1.22 GB. Eski 3000M, 2.84 GB'lık VM'den büyük olduğu için işe yaramıyordu
 - ✅ Saat dilimi (TZ) eklenmedi, gerek yok: token sayacı Türkiye saatini kendi hesaplıyor (`services/usage.py`), production JSON logları bilerek UTC. Yalnızca geliştirmedeki düz metin logların saati UTC görünüyor
-- ❌ Sonra tekrar ölçüm (`--reload` kalkınca reranker); CPU: `OMP_NUM_THREADS=1` (Faz L yük testi); `cpus` sunucunun çekirdek sayısına göre, OMP artık cpus'a bağlı değil. DB'yi volume'a taşımaya gerek yok (§17). 4e testinde (production, 2026-11-14) görülen iki yavaşlık da burada incelenecek:
-  - Arama 4.7–6.1 sn (3 GB'a geçince dev modda 0.4–0.6 sn ölçülmüştü; swap yalnızca 60 MB, sebep bellek gibi görünmüyor)
+- ✅ Sonra tekrar ölçüm (`--reload` kalkınca reranker); CPU: `OMP_NUM_THREADS=1` (Faz L yük testi); `cpus` sunucunun çekirdek sayısına göre, OMP artık cpus'a bağlı değil. DB'yi volume'a taşımaya gerek yok (§17). 
+  ❌ 4e testinde (production, 2026-11-14) görülen iki yavaşlık da burada incelenecek:
+  -Arama 4.7–6.1 sn (3 GB'a geçince dev modda 0.4–0.6 sn ölçülmüştü; swap yalnızca 60 MB, sebep bellek gibi görünmüyor)
   
   - 34 sayfa / 159 parçalık PDF yüklemesi 302 sn. Kapatma bekleme süresi (120 sn) bu hızda büyük PDF'lere yetmiyor: yükleme sırasında kapatılırsa geri alma çalışmaz, sahipsiz parçalar kalabilir. Süre kararı ölçümden sonra tekrar ele alınacak.
 
@@ -105,15 +106,15 @@ Ayrıntılar (dosyalar, riskler, ek RAM) "Yol haritası" tablosunda; gerekçeler
 - ❌ OpenTelemetry + Jaeger
 
 **Faz 8: Frontend dayanıklılığı**
-- ❌ `X-Request-ID` gönderme ve hata mesajında gösterme
-- ❌ Fetch timeout (AbortController)
-- ❌ `error.tsx` hata sayfası
-- ❌ Beklenen hatalar (503, 504, 429) `console.error` yerine `console.warn` veya hiç; yalnızca beklenmeyenler `console.error` (dev modda Next.js hata rozeti/penceresi gürültüsü, `Workspace.tsx:253`)
-- ❌ Yüklemede de aynı ayrım (`Workspace.tsx:217`): beklenen hatalar (400 geçersiz ad/içerik, 409 zaten var, 413 boyut, 422 okunamayan PDF) bugün düz `Error` olarak fırlatılıyor (`services/api.ts:133`), gerçek hatalarla aynı yoldan `console.error`'a düşüp dev modda kırmızı hata penceresini açıyor (2026-11-16, 409 ile görüldü). Toast'taki Türkçe mesaj doğru; yalnızca konsol seviyesi değişmeli (ör. HTTP koduyla ayrı bir hata sınıfı)
-- ❌ Ağ hatası mesajı: backend'e hiç ulaşılamazsa (çökme, kapalı, bağlantı koptu) `fetch` `TypeError: Failed to fetch` fırlatıyor ve bu İngilizce mesaj olduğu gibi toast'a basılıyor (`Workspace.tsx:216`; 2026-11-16, yükleme sırasında `docker kill` ile görüldü). Türkçe mesaj: "Sunucuya ulaşılamadı, lütfen tekrar deneyin." Bütün istekler için `services/api.ts` `request` içinde tek yerde
-- ❌ Her cevabı konsola yazan `console.log("LLM frontende yanıtını döndü.", result)` satırını kaldırma (`Workspace.tsx:240`)
-- ❌ Yükleme sonrası `console.log("PDF yüklendi ve frontende yanıtını döndü.")` satırı da kaldırılabilir (`Workspace.tsx:198`)
-- ❌ PDF önbelleği: `/static-pdfs/{name}` cevabına `Cache-Control: private, no-cache` (`main.py` `read_pdf`) + test. Bugün tarayıcı PDF'i önbellekten açıyor, istek backend'e gitmiyor ve oturum kontrol edilmiyor (çıkıştan sonra da açılabilir). Sonrasında her açılışta istek gider, değişmemişse `304` döner. Faz B'den (internete açılmadan) önce yapılmalı
+- ✅ `X-Request-ID` gönderme ve hata mesajında gösterme konsolda
+- ✅ Fetch timeout (AbortController)-- yüklemede yok
+- ✅ `error.tsx` hata sayfası
+- ✅ Beklenen hatalar (503, 504, 429) `console.error` yerine `console.warn` veya hiç; yalnızca beklenmeyenler `console.error` (dev modda Next.js hata rozeti/penceresi gürültüsü, `Workspace.tsx:253`)
+- ✅ Yüklemede de aynı ayrım (`Workspace.tsx:217`): beklenen hatalar (400 geçersiz ad/içerik, 409 zaten var, 413 boyut, 422 okunamayan PDF) bugün düz `Error` olarak fırlatılıyor (`services/api.ts:133`), gerçek hatalarla aynı yoldan `console.error`'a düşüp dev modda kırmızı hata penceresini açıyor (2026-11-16, 409 ile görüldü). Toast'taki Türkçe mesaj doğru; yalnızca konsol seviyesi değişmeli (ör. HTTP koduyla ayrı bir hata sınıfı)
+- ✅ Ağ hatası mesajı: backend'e hiç ulaşılamazsa (çökme, kapalı, bağlantı koptu) `fetch` `TypeError: Failed to fetch` fırlatıyor ve bu İngilizce mesaj olduğu gibi toast'a basılıyor (`Workspace.tsx:216`; 2026-11-16, yükleme sırasında `docker kill` ile görüldü). Türkçe mesaj: "Sunucuya ulaşılamadı, lütfen tekrar deneyin." Bütün istekler için `services/api.ts` `request` içinde tek yerde
+- ✅ Her cevabı konsola yazan `console.log("LLM frontende yanıtını döndü.", result)` satırını kaldırma (`Workspace.tsx:240`)
+- ✅ Yükleme sonrası `console.log("PDF yüklendi ve frontende yanıtını döndü.")` satırı da kaldırılabilir (`Workspace.tsx:198`)
+- ✅ PDF önbelleği: `/static-pdfs/{name}` cevabına `Cache-Control: private, no-cache` (`main.py` `read_pdf`) + test.
 
 **Faz 9: Sentry frontend**
 - ❌ `@sentry/nextjs` (opsiyonel)
@@ -159,21 +160,6 @@ Ayrıntılar (dosyalar, riskler, ek RAM) "Yol haritası" tablosunda; gerekçeler
 - ❌ Domain (Caddy ile HTTPS için gerekli)
 
 
-GUNCEL 1: Loglara request ID verildi
-          Loglar json moduna çevrilebiliyor artık.(bağlanacak uygulamalar için)
-
-## Yapılanlar
-
-| Tarih | İş |
-|---|---|
-| 2026-11-11 | Mikroservise bölmeme kararı (modüler monolit); tek kullanıcılı giriş (notes.md #4) ve auth'lu `/static-pdfs/{name}` endpoint'i; upload rollback (Faz 0a, notes.md #45); boş DB mesajı (#44); frontend UX (#30–#37, #32 markdown); Next.js 16.4.6 güvenlik güncellemesi. Soru metni bilerek INFO logda kalıyor (kullanıcı kararı); Sentry'ye gidip gitmeyeceği Faz 3'te ayrıca karar |
-| 2026-11-12 | Negatif set testi yalnızca eval PDF'lerine bakıyor; Dependabot (`.github/dependabot.yml`, torch hariç); pip-audit (`requirements-dev.txt`, `docs/development.md`); pypdf 6.14.0 → 6.21.4 (38 DoS açığı; çıkarılan metin 797 chunk'ta aynı, 13'ünde yalnız boşluk farkı); Docker portu yalnızca localhost'a (`127.0.0.1:8000:8000`); `notes.md` kapatıldı |
-| 2026-11-12 | Faz 0b (upload logunda yalnızca dosya adı); Faz 1: `core/log_setup.py` (text/JSON biçim, request ID, istek sonu özet satırı, uvicorn logları aynı biçimde), `LOG_FORMAT`, CORS `expose_headers`, 500'de `X-Request-ID`; `tests/test_log_setup.py` |
-
-
-Kalan pip-audit bulguları bilerek açık: chromadb (yalnızca sunucu modu, biz gömülü kullanıyoruz), torch (`torch.jit.script`, kullanılmıyor), setuptools (yalnızca paket kurulumu/derleme sırasında).
-
----
 
 ## Özet (TL;DR)
 

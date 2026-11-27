@@ -2,7 +2,7 @@
 import { useState } from "react";
 import Image from 'next/image';
 import { LogIn } from "lucide-react";
-import { AuthError, apiService } from "@/services/api";
+import { AuthError, apiService, NetworkError } from "@/services/api";
 
 interface LoginFormProps {
   //Parola doğrulanıp cookie kurulunca page.tsx uygulamayı gösterir
@@ -32,9 +32,9 @@ export default function LoginForm({ onLoggedIn }: LoginFormProps) {
         //Yanlış parola: alan temizlenir, yeniden yazılabilir
         setPassword('');
         setError(err.message);
-      } else if (err instanceof TypeError) {
-        //fetch ağ hatasında TypeError fırlatır (backend kapalı, adres yanlış)
-        setError("Sunucuya ulaşılamadı. Backend'in çalıştığından emin olun.");
+      } else if (err instanceof NetworkError) {
+        //Backend kapalı veya adres yanlış; Türkçe mesaj services/api.ts'te
+        setError(err.message);
       } else {
         //429 (çok fazla deneme) dahil; backend mesajı kalan süreyi içeriyor
         setError((err instanceof Error && err.message) || "Giriş yapılamadı. Lütfen tekrar deneyin.");
