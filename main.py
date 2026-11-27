@@ -15,6 +15,7 @@ from services.ingestion import PdfUnreadableError, process_pdf, hash_bytes, hash
 from core.auth import check_auth_config, check_password, clear_session_cookie, login_guard, require_auth, set_session_cookie
 from core.config import get_db, get_llm, get_reranker
 from core.log_setup import REQUEST_ID_HEADER, RequestIdMiddleware, get_request_id, setup_logging
+from core.metrics import set_llm_mode, start_metrics_server, stop_metrics_server
 from core.settings import get_settings
 from schemas import DeleteResponse, DocumentItem, FeaturesResponse, QueryResponse, UploadResponse, UsageStatus
 from services.query import LLMUnavailableError, prepare_chunks_with_metadata, warm_up
@@ -48,7 +49,18 @@ async def lifespan(app):
         check_documents(str(settings.upload_dir))
     except Exception:
         logger.warning("Doküman kontrolü yapılamadı; uygulama yine de açılıyor.", exc_info=True)
-    yield
+    #Prometheus metrikleri (core/metrics.py): METRICS_PORT boşsa sunucu açılmaz, sayaçlar yine bellekte tutulur
+    #Modeller yüklendikten sonra açılıyor; port doluysa uygulama başlamaz (sessizce metriksiz çalışmasın)
+    set_llm_mode(settings.llm_mode)
+    metrics_server = None
+    if settings.metrics_port:
+        metrics_server = start_metrics_server(settings.metrics_port)
+        logger.info(f"Metrikler {settings.metrics_port} portunda (/metrics).")
+    try:
+        yield
+    finally:
+        if metrics_server:
+            stop_metrics_server(*metrics_server)
 
 
 app = FastAPI(title="Enterprise AI RAG", lifespan=lifespan)

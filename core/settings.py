@@ -33,6 +33,9 @@ class Settings(BaseSettings):
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
     #text: okunaklı satırlar (yerel kullanım); json: satır başına bir JSON nesnesi (log toplayan araçlar için, core/log_setup.py)
     log_format: Literal["text", "json"] = "text"
+    #Prometheus metrikleri (notes2.md Faz 4, core/metrics.py): doluysa bu portta /metrics açılır, boşsa metrik sunucusu açılmaz
+    #Uygulama portundan (8000) ayrı: Docker'da dışarıya yayınlanmaz, yalnızca aynı ağdaki Prometheus okur; giriş istemez
+    metrics_port: int | None = None
     #Kimlik doğrulama yokken herkes silebileceği için varsayılan kapalı; açmak bilinçli bir karar olmalı
     allow_delete: bool = False
 
@@ -174,6 +177,13 @@ class Settings(BaseSettings):
     def fake_error_rate_is_ratio(cls, value):
         if not 0 <= value <= 1:
             raise ValueError("FAKE_LLM_ERROR_RATE 0 ile 1 arasında olmalı (ör. 0.1 = isteklerin %10'u).")
+        return value
+
+    @field_validator("metrics_port")
+    @classmethod
+    def metrics_port_in_range(cls, value):
+        if value is not None and not 1 <= value <= 65535:
+            raise ValueError("METRICS_PORT 1 ile 65535 arasında olmalı (ör. 9100) veya boş bırakılmalı.")
         return value
 
     #"debug" da kabul edilir; listede olmayan bir seviye uygulamayı başlatmaz
