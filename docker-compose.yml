@@ -54,6 +54,10 @@ services:
       - LOG_FORMAT=json
       #Container içinde token sayacı her zaman bağlanan data/ klasöründe (.env'deki değerin önüne geçer)
       - USAGE_DB_PATH=data/usage.db
+      #Prometheus metrikleri (notes2.md Faz 4): /metrics bu portta, uygulama portundan (8000) ayrı
+      #ports'ta bilerek YOK: dışarıya yayınlanmaz, giriş istemediği için yalnızca aynı Docker ağındaki Prometheus
+      #(Faz 6) rag-backend:9100 adresinden okur. Geliştirmede override dosyası 127.0.0.1:9100'e açıyor
+      - METRICS_PORT=9100
 
     # Bilgisayarının kilitlenmesini engelleyen RAM ve işlemci sınırı:
     deploy:

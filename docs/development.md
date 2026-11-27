@@ -22,6 +22,7 @@ The Docker image uses Python 3.13 like the local venv and CI.
 | Authentication | `core/auth.py` | Password check, signed session token and cookie, `require_auth` dependency, login lockout (`LoginGuard`) |
 | Settings | `core/settings.py` | All settings in one `pydantic-settings` class |
 | Logging | `core/log_setup.py` | Text/JSON log format, request ID (`RequestIdMiddleware`, `X-Request-ID`), per-request summary line |
+| Metrics | `core/metrics.py` | Prometheus metric definitions and the `/metrics` server; see [Metrics](#metrics) |
 | Model / DB / LLM | `core/config.py` | Created lazily once (`get_embeddings`, `get_db`, `get_llm`, `get_reranker`), loaded at startup |
 | Ingestion | `services/ingestion.py` | PDF → chunks (`split_pages`, `prepare_chunks`) → ChromaDB (`process_pdf`), document deletion |
 | Database build | `scripts/build_db.py` | Builds a new database from the PDFs; see [configuration.md](configuration.md#building-a-database) |
@@ -145,3 +146,33 @@ access line; failed ones are.
 
 `LOG_FORMAT=json` writes one JSON object per line (`ts` in UTC, `level`, `logger`, `request_id`, `msg`, and `exc`
 with the traceback when there is an error), for tools such as Sentry or Loki. uvicorn's own logs use the same format.
+
+## Metrics
+
+The app exposes Prometheus metrics (`core/metrics.py`) on a separate port, `METRICS_PORT`. Logs describe single
+events; metrics are running totals that Prometheus reads (scrapes) at intervals and stores over time. The values live
+in the app's memory and start from zero when it restarts.
+
+- **Where:** in Docker `METRICS_PORT=9100`. In the development setup open `http://localhost:9100/metrics`; in
+  production the port is not published (see [configuration.md](configuration.md#docker)). Without `METRICS_PORT`
+  (local runs, tests) no server is started.
+- **One worker:** the server runs as a thread in the app process, so it only works with a single uvicorn worker (as
+  now). With several workers each would try to open the port; the library's multiprocess mode would be needed.
+
+| Metric | Type | Labels | |
+|---|---|---|---|
+| `http_requests_total` | counter | `method`, `route`, `status` | Requests. Successful health checks are not counted (failed ones are) |
+| `http_request_duration_seconds` | histogram | `method`, `route` | Request duration; buckets from 0.05 s to 900 s (uploads take minutes) |
+| `rag_stage_duration_seconds` | histogram | `stage` (`search`, `rerank`, `llm`) | Same numbers as the `Süreler:` log line; stages that did not run are not observed. `llm` is the fake LLM in fake mode |
+| `rag_no_result_total` | counter | `reason` | Unanswered questions: `e5_threshold`, `rerank_threshold`, `bilgi_yok` (Gemini found no answer), `empty_answer` (Gemini returned nothing), `empty_db`, `unexpected_empty` (search returned nothing although the database has chunks; a fault, worth an alert) |
+| `llm_errors_total` | counter | `kind` (`timeout`, `quota`, `server`, `connection`) | Failed LLM calls, also counted in fake mode |
+| `llm_tokens_total` | counter | `kind` (`input`, `thinking`, `output`) | Gemini tokens; not counted in fake mode (made-up numbers) or when Gemini sends no usage data |
+| `rag_llm_mode` | gauge | `mode` (`gemini`, `fake`) | `1` for the active mode; shows a server left in fake mode |
+| `process_*`, `python_*` | — | — | Memory, CPU, open files, GC; added by the library (`process_*` only on Linux, i.e. in Docker) |
+
+**Labels.** `route` is the route template (`/documents/{name}`), never the real path; requests that match no route
+(`404`, CORS preflight `OPTIONS`) are `unmatched`. Question text, file names, users, IPs and request IDs are never
+labels: they would leak data and create a new series for every value.
+
+Reading a histogram: `_bucket{le="0.5"} 5` means 5 requests took 0.5 s or less; `_sum / _count` is the average.
+Percentiles (p95), rates and alerts are PromQL queries in Prometheus (`notes2.md` Faz 6).

@@ -6,6 +6,7 @@ import httpx
 from google.genai import errors as genai_errors
 from langchain_core.prompts import ChatPromptTemplate
 from core.config import get_db, get_llm, get_reranker
+from core.metrics import record_llm_error, record_no_result, record_stage_timings, record_tokens
 from core.settings import get_settings
 from services.fake_llm import invoke_fake_llm
 
@@ -165,6 +166,7 @@ def rerank_chunks(user_query, chunks):
         if max(scores) < settings.rerank_score_threshold:
             logger.info(f"Sonuç yok: en iyi reranker skoru barajın altında "
                         f"({max(scores):.2f} < {settings.rerank_score_threshold}, Gemini çağrılmadı).")
+            record_no_result("rerank_threshold")
             return []
         #Eşit skorda e5 sırası korunur (sorted kararlı)
         chunks = [c for c, _ in sorted(zip(chunks, scores), key=lambda x: -x[1])]
@@ -228,6 +230,8 @@ def prepare_chunks_with_metadata(user_input):
         return answer_question(user_input, timings, tokens, llm_name)
     finally:
         log_timings(timings, time.perf_counter() - start, tokens, llm_name)
+        #Metrik aynı sayıları kullanır (core/metrics.py); çalışmayan aşama ölçülmez
+        record_stage_timings(timings)
 
 def answer_question(user_input, timings, tokens, llm_name="Gemini"):
     documents = []
@@ -246,8 +250,11 @@ def answer_question(user_input, timings, tokens, llm_name="Gemini"):
     if not matched_chunks:
         if not has_any_chunk():
             logger.info("Sonuç yok: veritabanında doküman yok (Gemini çağrılmadı).")
+            record_no_result("empty_db")
             return no_result_response(0, answer=EMPTY_DB_ANSWER, message="Veritabanında doküman yok.")
         logger.warning("Arama hiç aday döndürmedi ama veritabanında parça var (beklenmeyen durum, Gemini çağrılmadı).")
+        #Arıza işareti: 0'dan büyükse alarm kurulabilir (notes2.md Faz 6)
+        record_no_result("unexpected_empty")
         return no_result_response(0)
 
     passed_chunks = []
@@ -290,6 +297,7 @@ def answer_question(user_input, timings, tokens, llm_name="Gemini"):
     if not valid_chunks:
         if not passed_chunks:
             logger.info("Sonuç yok: hiçbir parça benzerlik barajını geçmedi (Gemini çağrılmadı).")
+            record_no_result("e5_threshold")
         return no_result_response(0)
 
     
@@ -313,10 +321,15 @@ def answer_question(user_input, timings, tokens, llm_name="Gemini"):
             raise
         #Ham hata metni loglanmıyor (Google mesajları kota ve model ayrıntısı içeriyor); tür ve sınıf yeterli
         logger.warning(f"{llm_name} çağrısı başarısız ({kind}, {type(exc).__name__}).")
+        record_llm_error(kind)
         raise LLMUnavailableError(kind) from exc
     finally:
         timings[llm_name] = time.perf_counter() - step
     tokens.update(gemini_token_breakdown(llm_message))
+    #Sahte LLM'in token sayıları uydurma; metrikte yalnızca Gemini'ninkiler sayılır
+    #usage_metadata gelmezse breakdown boş, metrik de artmaz (kota için count_tokens tahmin ediyor)
+    if get_settings().llm_mode == "gemini":
+        record_tokens(tokens)
 
     #.text, content liste halinde gelse de düz metni verir (StrOutputParser'ın yaptığı gibi)
     final_llm_response = llm_message.text.strip()
@@ -328,12 +341,14 @@ def answer_question(user_input, timings, tokens, llm_name="Gemini"):
     #(güvenlik ve alıntı filtreleri aynı soruda büyük ihtimalle tekrar eder)
     if not final_llm_response:
         logger.warning(f"Gemini boş cevap döndü (finish_reason: {finish_reason or 'yok'}, {token_usage} token harcandı).")
+        record_no_result("empty_answer")
         return no_result_response(token_usage, answer=EMPTY_ANSWER, message="Yanıt üretilemedi.")
 
     #Gemini cevap bulamadıysa kullanıcı baraj elemesiyle aynı yanıtı görür; harcanan token yine kotaya yazılır
     #Kaynaklar gösterilmez: model "cevap yok" dediği parçaları kaynak olarak sunmak yanıltıcı olur
     if is_no_answer(final_llm_response):
         logger.info(f"Sonuç yok: Gemini dokümanlarda cevap bulamadı ({NO_ANSWER_MARKER}, {token_usage} token harcandı).")
+        record_no_result("bilgi_yok")
         return no_result_response(token_usage)
 
     #Yarım cevap: metin var ama Gemini normal bitirmedi; cevap ve kaynaklar gösterilir, sonuna not eklenir

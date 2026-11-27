@@ -10,6 +10,8 @@ from datetime import datetime, timezone
 
 from starlette.datastructures import Headers, MutableHeaders
 
+from core.metrics import record_http_request
+
 REQUEST_ID_HEADER = "X-Request-ID"
 #Dışarıdan gelen ID yalnızca bu biçimdeyse kullanılır; satır sonu vb. ile loga sahte satır eklenemesin (log injection)
 VALID_REQUEST_ID = re.compile(r"[A-Za-z0-9-]{1,64}")
@@ -99,7 +101,7 @@ def setup_logging(level: str, fmt: str) -> None:
     access_logger.addFilter(QuietHealthCheckFilter())
 
 
-#Her isteğe bir ID verir, cevaba X-Request-ID başlığını ekler ve istek bitince tek satırlık özet loglar
+#Her isteğe bir ID verir, cevaba X-Request-ID başlığını ekler, istek bitince tek satırlık özet loglar ve HTTP metriklerini günceller
 #Saf ASGI middleware: isteği aynı task'te çalıştırır, böylece ID beklenmeyen hata yakalayıcısında da görünür
 #Beklenmeyen hatada cevap bu katmanın dışında (Starlette ServerErrorMiddleware) üretildiği için başlık oraya
 #main.py'deki unhandled_exception_handler'da elle ekleniyor
@@ -132,7 +134,10 @@ class RequestIdMiddleware:
         try:
             await self.app(scope, receive, send_with_request_id)
         finally:
+            #Başarılı sağlık kontrolleri ne loglanır ne metrikte sayılır (istek sayısını ve ortalama süreyi bozmasın)
             if not is_quiet_health_check(scope["path"], status):
-                elapsed_ms = (time.perf_counter() - start) * 1000
+                elapsed = time.perf_counter() - start
                 level = logging.WARNING if status >= 500 else logging.INFO
-                logger.log(level, f"{scope['method']} {scope['path']} {status} ({elapsed_ms:.0f} ms)")
+                #Log gerçek yolu yazar (tek isteği anlatır); metrik adres şablonunu kullanır (core/metrics.py route_label)
+                logger.log(level, f"{scope['method']} {scope['path']} {status} ({elapsed * 1000:.0f} ms)")
+                record_http_request(scope, status, elapsed)

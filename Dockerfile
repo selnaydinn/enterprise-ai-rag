@@ -29,6 +29,9 @@ USER appuser
 
 # FastAPI sunucumuzun dış dünyaya açılacağı kapı
 EXPOSE 8000
+# Prometheus metrikleri (/metrics, core/metrics.py); yalnızca METRICS_PORT ayarlıysa açılır
+# EXPOSE yalnızca bilgi: portu dışarıya açmaz, yayınlamak docker-compose'un işi (production'da yayınlanmıyor)
+EXPOSE 9100
 
 # Docker 30 sn'de bir uygulamaya "iş yapabilir misin?" diye sorar (main.py /health/ready; Gemini'ye gitmez)
 # 3 kez üst üste cevap gelmezse veya 503 dönerse docker ps "unhealthy" gösterir

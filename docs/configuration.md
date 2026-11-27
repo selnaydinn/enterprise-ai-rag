@@ -17,6 +17,7 @@ Copy `.env.example` to `.env` and fill in the values. All settings are defined i
 | `LLM_TEMPERATURE` | `0.2` | Gemini temperature |
 | `LOG_LEVEL` | `INFO` | `DEBUG`, `INFO`, `WARNING`, `ERROR` or `CRITICAL` |
 | `LOG_FORMAT` | `text` | `text` (readable lines) or `json` (one JSON object per line, for log collectors). See [development.md](development.md#logging) |
+| `METRICS_PORT` | not set | Port for the Prometheus metrics (`/metrics`); not set = no metrics server. Docker sets `9100`. See [development.md](development.md#metrics) |
 | `ALLOW_DELETE` | `false` | Enables document deletion for the signed-in user |
 | `AUTH_ENABLED` | `true` | Requires login; `false` only for local development (a warning is logged) |
 | `APP_PASSWORD` | — (required when auth is on) | Login password |
@@ -83,7 +84,8 @@ The app refuses to start if `GEMINI_API_KEY` is missing (unless `LLM_MODE=fake`)
 (`chroma.sqlite3`). It never creates an empty database by itself. With `AUTH_ENABLED=true` it also refuses to start if
 `APP_PASSWORD` or `SESSION_SECRET` is missing, before loading the models, so a forgotten setting never leaves the app
 open. An invalid value (e.g. `TOKEN_LIMIT=abc`, `TOKEN_WINDOW_HOURS=5`, `LOG_LEVEL=VERBOSE`, `LOG_FORMAT=xml`, a `SESSION_SECRET` shorter
-than 32 characters) also stops the app at startup.
+than 32 characters, `METRICS_PORT=70000`) also stops the app at startup. So does a `METRICS_PORT` that is already in
+use, so the app never runs without metrics unnoticed.
 
 After loading the models, the app runs one search and one rerank with a fixed question (`WARM_UP_QUESTION` in
 `services/query.py`) so the first real question does not pay for model initialization and building the search index
@@ -200,6 +202,10 @@ questions and uploads to finish (`--timeout-graceful-shutdown`); Docker waits 12
 killing the container. With nothing running it stops in a second or two. An upload that is still running after that
 is cut off; a killed process cannot roll back, so its chunks may stay in the database (see the cleanup item in
 `notes2.md`, Faz 2).
+
+**Metrics port.** `docker-compose.yml` sets `METRICS_PORT=9100` but does not publish the port: `/metrics` has no
+login, so in production only a Prometheus container on the same Docker network reads it (`rag-backend:9100`). The
+development override publishes it on `127.0.0.1:9100` only. See [development.md](development.md#metrics).
 
 `.env` is read when the container is created. After changing it, recreate the container:
 

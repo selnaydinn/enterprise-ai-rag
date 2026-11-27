@@ -1,6 +1,6 @@
 # Enterprise AI — Production Hazırlığı: Mimari Analiz
 
-> İlk analiz: 2026-11-11 · Son güncelleme: 2026-11-12
+> İlk analiz: 2026-11-11 · Son güncelleme: 2026-11-27
 > Bu dosya production yol haritası ve tek açık iş listesi. `notes.md` 2026-11-12'de kapandı; açık maddeleri (#13, #25, #43) aşağıdaki fazlara taşındı.
 
 ## Yapılacaklar
@@ -94,7 +94,16 @@ Ayrıntılar (dosyalar, riskler, ek RAM) "Yol haritası" tablosunda; gerekçeler
 - ❌ Beklenen / beklenmeyen hata ayrımı
 
 **Faz 4: Metrikler (§8)**
-- ❌ `/metrics` endpoint'i (Prometheus)
+- ✅ `/metrics` (Prometheus, `prometheus-client` 0.26.0, `core/metrics.py`; 2026-11-27). Ayrıntılar `docs/development.md#metrics`, test `tests/test_metrics.py`
+  - Ayrı port: `METRICS_PORT` (boşsa kapalı; testler ve yerel çalıştırma port açmaz). Docker'da `docker-compose.yml` 9100 veriyor ama yayınlamıyor (auth yok; yalnızca aynı ağdaki Prometheus, Faz 6). Geliştirmede override `127.0.0.1:9100`. Port doluysa uygulama başlamaz
+  - 7 metrik + kütüphanenin `process_*`'ı: `http_requests_total`, `http_request_duration_seconds`, `rag_stage_duration_seconds` (search/rerank/llm), `rag_no_result_total` (e5_threshold, rerank_threshold, bilgi_yok, empty_answer, empty_db, unexpected_empty), `llm_errors_total`, `llm_tokens_total` (yalnızca Gemini modunda), `rag_llm_mode`
+  - Başarılı sağlık kontrolleri sayılmıyor (logdaki kuralın aynısı, `is_quiet_health_check`); hatalılar sayılıyor
+  - `route` adres şablonu (`/documents/{name}`); eşleşmeyen (404, CORS ön kontrolü) `unmatched`. Soru, dosya adı, kullanıcı, IP, request ID etiket olmaz
+  - Kovalar: HTTP 0.05–900 sn (yükleme dakikalar sürüyor), aşamalar 0.05–90 sn. `_created` satırları kapalı
+  - Değerler log ile aynı yerden (`timings`, log satırlarının yanında); metrik logu okumuyor
+  - Bilerek dışarıda: ingestion metrikleri (süre zaten `/upload-pdf/` route'unda), yarım cevap (`finish_reason` ≠ STOP) sayacı (gerekirse sonra)
+  - ⚠️ Tek uvicorn worker varsayımı: birden fazla worker'a geçilirse kütüphanenin multiprocess modu gerekir (her worker 9100'ü açmaya çalışır)
+  - ✅  Docker'da elle kontrol: `docker compose up --build` → `http://localhost:9100/metrics`
 
 **Faz 5: Circuit breaker (§10)**
 - ❌ Gemini circuit breaker, readiness'e bağlı
@@ -114,7 +123,7 @@ Ayrıntılar (dosyalar, riskler, ek RAM) "Yol haritası" tablosunda; gerekçeler
 - ✅ Ağ hatası mesajı: backend'e hiç ulaşılamazsa (çökme, kapalı, bağlantı koptu) `fetch` `TypeError: Failed to fetch` fırlatıyor ve bu İngilizce mesaj olduğu gibi toast'a basılıyor (`Workspace.tsx:216`; 2026-11-16, yükleme sırasında `docker kill` ile görüldü). Türkçe mesaj: "Sunucuya ulaşılamadı, lütfen tekrar deneyin." Bütün istekler için `services/api.ts` `request` içinde tek yerde
 - ✅ Her cevabı konsola yazan `console.log("LLM frontende yanıtını döndü.", result)` satırını kaldırma (`Workspace.tsx:240`)
 - ✅ Yükleme sonrası `console.log("PDF yüklendi ve frontende yanıtını döndü.")` satırı da kaldırılabilir (`Workspace.tsx:198`)
-- ✅ PDF önbelleği: `/static-pdfs/{name}` cevabına `Cache-Control: private, no-cache` (`main.py` `read_pdf`) + test.
+- ✅ PDF önbelleği: `/static-pdfs/{name}` cevabına `Cache-Control: private, no-store` (`main.py` `read_pdf`) + test. Planlanan `no-cache` değil: Starlette `FileResponse` 304 dönmediği için `no-cache` her seferinde tam indirme demekti, kazancı yoktu
 
 **Faz 9: Sentry frontend**
 - ❌ `@sentry/nextjs` (opsiyonel)
@@ -238,6 +247,8 @@ Next.js (host'ta, compose'da değil) ──fetch──► FastAPI (tek container
 ## 8. Prometheus + Grafana stratejisi
 
 **Backend (`prometheus-client`, küçük ve bağımlılıksız):** `GET /metrics`. Tek uvicorn worker olduğu için multiprocess moduna gerek yok.
+
+> Uygulanan hâli (Faz 4, 2026-11-27): ayrı port 9100 (`start_http_server`), ingestion metrikleri yok, `llm_errors_total`'da `other` yok (sınıflandırılamayan hata zaten 500), `rag_no_result_total` sebepleri `empty_answer`, `empty_db`, `unexpected_empty` olarak ayrıldı. Güncel liste: `docs/development.md#metrics`. Aşağıdaki tablo ilk plan.
 
 | Metrik | Tür | Etiketler |
 |---|---|---|
@@ -439,7 +450,7 @@ Etiketler: 🔴 Production için gerekli · 🟡 Faydalı iyileştirme · ⚪ İ
 | B | **Bulut hazırlığı:** Caddy (HTTPS), rate limit, firewall, proxy header'ları, prod CORS (§15) | 🔴 (internete açılmadan önce) | yeni `deploy/Caddyfile`, `docker-compose.yml` (veya `docker-compose.prod.yml`), `main.py`, `services/api.ts`, `docs/`, test | Rate limit 429'unun token 429'uyla karışması | ~30 MB (Caddy) |
 | B2 | **Deploy:** GHCR'a imaj push eden workflow, sunucu kurulumu, veri kopyalama, yedekleme | 🔴 (bulut için) | yeni `.github/workflows/deploy.yml` (veya yalnızca build+push), `docs/deployment.md` | Secret yönetimi; ilk veri taşıma | – |
 | 3 | Sentry (backend) + scrubber + beklenen/beklenmeyen hata ayrımı | 🔴 | yeni `core/observability.py`, `main.py`, `services/query.py` (beklenen hatalar), `core/settings.py`, `requirements.txt`, test | Çift event; local variable sızıntısı (kapatılacak) | ~20 MB |
-| 4 | Prometheus metrikleri (`/metrics`) | 🔴 | `core/observability.py`, `main.py`, `services/query.py`, `services/ingestion.py`, `requirements.txt`, test | Kardinalite; search ayrımının skorları bozması (ilk aşamada ayrılmayacak) | ~10 MB |
+| 4 ✅ | Prometheus metrikleri (`/metrics`) | 🔴 | yeni `core/metrics.py`, `core/log_setup.py`, `core/settings.py`, `main.py`, `services/query.py`, `requirements.txt`, `Dockerfile`, compose dosyaları, test | Kardinalite; search ayrımının skorları bozması (ilk aşamada ayrılmayacak) | ~10 MB |
 | 5 | Gemini circuit breaker + readiness'e bağlanması | 🟡 | yeni `services/circuit_breaker.py`, `services/query.py`, `main.py`, test | Yanlış ayarlanırsa gereksiz 503; eşikler `.env`'den | 0 |
 | 6 | Prometheus + Grafana (yerelde profil, bulutta varsayılan) + provisioned dashboard | 🟡 | `docker-compose.yml`, yeni `monitoring/` (prometheus.yml, grafana provisioning, dashboard JSON) | RAM; Grafana'nın dışarı açılmaması | 200–350 MB |
 | 7 | OpenTelemetry (manuel span + FastAPI/httpx) + Jaeger profili | 🟡/⚪ | `core/observability.py`, `services/query.py`, `services/ingestion.py`, `requirements-otel.txt`, compose | Prompt'un attribute'a sızması (kural + test); dependency sayısı | 30–50 MB + Jaeger (opt-in) |
